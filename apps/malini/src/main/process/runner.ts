@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { describeError } from '$main/errors';
+import { ProcessError } from './errors';
 import { killProcessGroup, processGroupIsAlive, processIsAlive } from './process-group';
 import { endWithMalini } from './reaper';
 
@@ -139,7 +140,9 @@ export async function runBounded(
 			await handle.exit;
 			return { exitCode: null, stdout: '', stderr: '', program };
 		}
-		if (first.kind === 'failed') throw new Error(`could not run ${program}: ${first.error}`);
+		if (first.kind === 'failed') {
+			throw new ProcessError('spawn-failed', `could not run ${program}: ${first.error}`);
+		}
 		if (timedOut) return { exitCode: null, stdout: '', stderr: '', program };
 		return {
 			exitCode: first.kind === 'exited' ? first.code : -1,

@@ -8,6 +8,7 @@ import {
 	skillsIn,
 	type MarketplaceManifest,
 } from '../domain/marketplace-manifest';
+import { ExtensionError } from './extension-error';
 
 export const PACKAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const PACKAGE_MAX_DECODED_BYTES = 10 * 1024 * 1024;
@@ -39,12 +40,12 @@ export function readExtensionPackage(bytes: Buffer): ExtensionPackage {
 
 export function extensionFrom(files: readonly PackageFile[]): ExtensionPackage {
 	const manifestFile = files.find((file) => file.path === MANIFEST_FILE);
-	if (!manifestFile) throw new Error('The package has no malini.json.');
+	if (!manifestFile) throw new ExtensionError('package-invalid', 'The package has no malini.json.');
 	const reading = readMarketplaceManifest(parseJson(manifestFile.bytes, MANIFEST_FILE));
-	if (reading.problem) throw new Error(problemText(reading.problem));
+	if (reading.problem) throw new ExtensionError('package-invalid', problemText(reading.problem));
 	const entries = files.map(({ path, bytes }) => ({ path, size: bytes.length }));
 	const problem = packageProblem(entries, reading.manifest);
-	if (problem) throw new Error(problemText(problem));
+	if (problem) throw new ExtensionError('package-invalid', problemText(problem));
 	const readme = files.find((file) => file.path === README_FILE);
 	return {
 		manifest: reading.manifest,
@@ -60,31 +61,46 @@ export function sha256Of(bytes: Buffer): string {
 
 function unpackExtension(bytes: Buffer): PackageFile[] {
 	if (bytes.length > PACKAGE_MAX_BYTES) {
-		throw new Error(`The package is over ${PACKAGE_MAX_BYTES / 1024 / 1024} MB.`);
+		throw new ExtensionError(
+			'package-invalid',
+			`The package is over ${PACKAGE_MAX_BYTES / 1024 / 1024} MB.`,
+		);
 	}
 	let json: Buffer;
 	try {
 		json = gunzipSync(bytes, { maxOutputLength: JSON_MAX_BYTES });
 	} catch {
-		throw new Error('The package is not a gzip file Malini can open, or it unpacks too large.');
+		throw new ExtensionError(
+			'package-invalid',
+			'The package is not a gzip file Malini can open, or it unpacks too large.',
+		);
 	}
 	const parsed = parseJson(json, 'The package');
 	if (!isRecord(parsed) || parsed.format !== PACKAGE_FORMAT || !Array.isArray(parsed.files)) {
-		throw new Error(`The package is not a Malini package, format ${PACKAGE_FORMAT}.`);
+		throw new ExtensionError(
+			'package-invalid',
+			`The package is not a Malini package, format ${PACKAGE_FORMAT}.`,
+		);
 	}
 	const files: readonly unknown[] = parsed.files;
 	let decoded = 0;
 	return files.map((file, index) => {
 		if (!isRecord(file) || typeof file.path !== 'string' || typeof file.data !== 'string') {
-			throw new Error(`File ${index} in the package has no path or data.`);
+			throw new ExtensionError(
+				'package-invalid',
+				`File ${index} in the package has no path or data.`,
+			);
 		}
 		if (file.data.length % 4 !== 0 || !BASE64.test(file.data)) {
-			throw new Error(`${file.path} is not base64.`);
+			throw new ExtensionError('package-invalid', `${file.path} is not base64.`);
 		}
 		const fileBytes = Buffer.from(file.data, 'base64');
 		decoded += fileBytes.length;
 		if (decoded > PACKAGE_MAX_DECODED_BYTES) {
-			throw new Error(`The package unpacks to over ${PACKAGE_MAX_DECODED_BYTES / 1024 / 1024} MB.`);
+			throw new ExtensionError(
+				'package-invalid',
+				`The package unpacks to over ${PACKAGE_MAX_DECODED_BYTES / 1024 / 1024} MB.`,
+			);
 		}
 		return { path: file.path, bytes: fileBytes };
 	});
@@ -94,7 +110,7 @@ function parseJson(bytes: Buffer, what: string): unknown {
 	try {
 		return JSON.parse(bytes.toString('utf8'));
 	} catch {
-		throw new Error(`${what} is not valid JSON.`);
+		throw new ExtensionError('package-invalid', `${what} is not valid JSON.`);
 	}
 }
 

@@ -10,6 +10,7 @@ import {
 import { deriveProjectId, repositoryBaseDir } from '$main/git/paths';
 import { describeError, GitError } from '$main/errors';
 import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
+import { WorkstreamError } from './checkout-resolver';
 import { readOriginHead } from '$main/git/remote';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from '$main/git/run';
 import { branchList, withProjectLock } from '$main/git/worktrees';
@@ -224,7 +225,8 @@ async function clonedFromSeed(
 	);
 	try {
 		const { branch } = await readOriginHead(baseDir, input.githubToken, input.credentials);
-		if (branch === null) throw new Error('origin names no default branch');
+		if (branch === null)
+			throw new WorkstreamError('no-default-branch', 'origin names no default branch');
 		await runGit([
 			'-C',
 			baseDir,

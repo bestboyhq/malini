@@ -16,6 +16,7 @@ import {
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
 import { BACKGROUND_WINDOW } from '$main/window';
+import { AppError } from './app-error';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const UP_TO_DATE_SHOWN_MS = 8_000;
@@ -37,10 +38,10 @@ export function startUpdates(
 	};
 	let shown = IDLE;
 	let checkNow = (): void => {
-		throw new Error('this build does not update itself');
+		throw new AppError('no-update', 'this build does not update itself');
 	};
 	let restartToLatest = (): void => {
-		throw new Error('no update is ready to install');
+		throw new AppError('no-update', 'no update is ready to install');
 	};
 	commands.define('app.update-status', () => shown);
 	commands.define('app.check-for-updates', () => checkNow());

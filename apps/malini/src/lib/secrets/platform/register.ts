@@ -10,7 +10,7 @@ import { SECRET_VALUE_MAX_LENGTH, type SecretRequest } from '$contract/secrets';
 import type { MainContext } from '$main/context';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import { secretNameProblem } from '../domain/secret-name';
-import { Keychain, type SecretSealer } from './keychain';
+import { Keychain, SecretError, type SecretSealer } from './keychain';
 import {
 	getSecretRequest,
 	insertSecretRequest,
@@ -103,7 +103,7 @@ function saveSecrets({ db, events }: SecretsContext, keychain: Keychain, input: 
 	const requestId = optionalText(input, 'requestId');
 	const request = requestId === null ? null : getSecretRequest(db, requestId);
 	if (requestId !== null && !request?.open) {
-		throw new Error('That request is no longer waiting for secrets.');
+		throw new SecretError('request-closed', 'That request is no longer waiting for secrets.');
 	}
 	if (request) refuseUnasked(request, values);
 	const repository = request ? request.repository : repositoryName(input['repository']);
@@ -121,7 +121,7 @@ function saveSecrets({ db, events }: SecretsContext, keychain: Keychain, input: 
 function dismissRequest({ db, events }: SecretsContext, requestId: string): void {
 	const request = getSecretRequest(db, requestId);
 	if (!request || !settleSecretRequest(db, requestId, 'dismissed', nowIso8601())) {
-		throw new Error('That request is no longer waiting for secrets.');
+		throw new SecretError('request-closed', 'That request is no longer waiting for secrets.');
 	}
 	events.emit(SECRETS_REQUEST_DISMISSED_CHANNEL, { requestId, sessionId: request.sessionId });
 }
@@ -130,7 +130,8 @@ function removeSecret({ events }: SecretsContext, keychain: Keychain, input: Inp
 	const name = requiredText(input, 'name');
 	const repository = repositoryName(input['repository']);
 	if (!keychain.delete(repository, name)) {
-		throw new Error(
+		throw new SecretError(
+			'not-found',
 			`${name} is not saved ${repository === null ? 'for everywhere' : `for ${repository}`}.`,
 		);
 	}
@@ -155,26 +156,34 @@ function refuseUnasked(
 	values: Readonly<Record<string, string>>,
 ): void {
 	const unasked = Object.keys(values).find((name) => !request.names.includes(name));
-	if (unasked !== undefined) throw new Error(`${unasked} is not a name this chat asked for.`);
+	if (unasked !== undefined)
+		throw new SecretError('invalid-argument', `${unasked} is not a name this chat asked for.`);
 }
 
 function askedNames(value: unknown): string[] {
 	if (!Array.isArray(value) || value.length === 0 || value.length > NAMES_PER_REQUEST) {
-		throw new Error(`\`names\` must hold one to ${NAMES_PER_REQUEST} names.`);
+		throw new SecretError(
+			'invalid-input',
+			`\`names\` must hold one to ${NAMES_PER_REQUEST} names.`,
+		);
 	}
 	return [...new Set(value.map((name: unknown) => validName(name)))];
 }
 
 function secretValues(value: unknown): Readonly<Record<string, string>> {
-	if (!isRecord(value)) throw new Error('invalid args: `values` must map names to values');
+	if (!isRecord(value))
+		throw new SecretError('invalid-argument', 'invalid args: `values` must map names to values');
 	const entries = Object.entries(value).map(([name, secret]) => [validName(name), secret] as const);
-	if (entries.length === 0) throw new Error('Paste at least one value before you save.');
+	if (entries.length === 0)
+		throw new SecretError('invalid-input', 'Paste at least one value before you save.');
 	return Object.fromEntries(
 		entries.map(([name, secret]) => {
 			const trimmed = typeof secret === 'string' ? secret.trim() : '';
-			if (trimmed.length === 0) throw new Error(`Paste a value for ${name} before you save.`);
+			if (trimmed.length === 0)
+				throw new SecretError('invalid-input', `Paste a value for ${name} before you save.`);
 			if (trimmed.length > SECRET_VALUE_MAX_LENGTH) {
-				throw new Error(
+				throw new SecretError(
+					'invalid-input',
 					`The value for ${name} is longer than ${SECRET_VALUE_MAX_LENGTH} characters.`,
 				);
 			}
@@ -184,9 +193,10 @@ function secretValues(value: unknown): Readonly<Record<string, string>> {
 }
 
 function validName(value: unknown): string {
-	if (typeof value !== 'string') throw new Error('A secret name must be a string.');
+	if (typeof value !== 'string')
+		throw new SecretError('invalid-input', 'A secret name must be a string.');
 	const problem = secretNameProblem(value);
-	if (problem !== null) throw new Error(problem);
+	if (problem !== null) throw new SecretError('invalid-input', problem);
 	return value;
 }
 
@@ -197,7 +207,10 @@ function repositoryName(value: unknown): string | null {
 		value.trim().length === 0 ||
 		value.length > REPOSITORY_FULL_NAME_MAX_LENGTH
 	) {
-		throw new Error('invalid args: `repository` must be a repository name or null');
+		throw new SecretError(
+			'invalid-argument',
+			'invalid args: `repository` must be a repository name or null',
+		);
 	}
 	return value.trim();
 }
@@ -205,7 +218,7 @@ function repositoryName(value: unknown): string | null {
 function boundedText(value: unknown, key: string, maxLength: number): string {
 	const text = typeof value === 'string' ? value.trim() : '';
 	if (text.length === 0 || text.length > maxLength) {
-		throw new Error(`\`${key}\` must be one to ${maxLength} characters.`);
+		throw new SecretError('invalid-input', `\`${key}\` must be one to ${maxLength} characters.`);
 	}
 	return text;
 }
@@ -216,7 +229,8 @@ function record(value: unknown): Input {
 
 function requiredText(input: Input, key: string): string {
 	const value = optionalText(input, key);
-	if (value === null) throw new Error(`invalid args: \`${key}\` is required`);
+	if (value === null)
+		throw new SecretError('invalid-argument', `invalid args: \`${key}\` is required`);
 	return value;
 }
 
@@ -224,7 +238,7 @@ function optionalText(input: Input, key: string): string | null {
 	const value = input[key];
 	if (value === undefined || value === null) return null;
 	if (typeof value !== 'string' || value.trim().length === 0) {
-		throw new Error(`invalid args: \`${key}\` must be a string`);
+		throw new SecretError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	}
 	return value.trim();
 }

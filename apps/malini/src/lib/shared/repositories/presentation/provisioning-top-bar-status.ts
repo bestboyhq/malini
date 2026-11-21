@@ -1,4 +1,5 @@
 import type { WorkstreamProvisioningRecord } from '$shared/repositories/domain/provisioning';
+import type { WorkstreamSetupStep } from '$shared/repositories/domain/workstream-setup-steps';
 import {
 	provisioningFailureIsAuth,
 	provisioningFailureSentence,
@@ -81,4 +82,54 @@ function detailless(record: WorkstreamProvisioningRecord) {
 function failedSetupRemedy(failure: string, reconnect: boolean): string {
 	if (!reconnect) return 'Continue this workstream’s setup from where it stopped';
 	return provisioningSignInRemedy(failure) ?? 'Then retry this workstream’s setup';
+}
+
+export type SetupStepHandlers = Readonly<{
+	onRepair: () => void;
+	onRetryInstall: () => void;
+	onDismissInstall: () => void;
+}>;
+
+export function setupStepTopBarStatus(
+	steps: readonly WorkstreamSetupStep[],
+	branch: string | null,
+	handlers: SetupStepHandlers,
+): GlobalTopBarGithubStatus | null {
+	const step = steps.find(
+		({ key, state }) => state === 'failed' || (key === 'checkout' && state === 'busy'),
+	);
+	if (!step) return null;
+	const action = (label: string, ariaLabel: string, onInvoke: () => void) =>
+		({ label, ariaLabel, tone: 'primary', disabled: false, onInvoke }) as const;
+	return {
+		reference: null,
+		branch,
+		checks: [],
+		checksSummary: '',
+		review: null,
+		todos: null,
+		title: step.label,
+		headline: {
+			tone: 'needs-you',
+			busy: step.state === 'busy',
+			label: 'Needs you',
+			detail:
+				step.action === 'retry-install' || step.state === 'busy' ? step.label : 'Checkout broken',
+			tooltip: [step.label, step.detail].filter(Boolean).join('. '),
+		},
+		action:
+			step.action === 'repair'
+				? action('Repair', 'Repair this workstream’s checkout', handlers.onRepair)
+				: step.action === 'retry-install'
+					? action('Retry', 'Retry the dependency install', handlers.onRetryInstall)
+					: null,
+		...(step.action === 'retry-install'
+			? {
+					secondaryAction: {
+						...action('Dismiss', 'Dismiss the failed install', handlers.onDismissInstall),
+						tone: 'secondary',
+					},
+				}
+			: {}),
+	};
 }

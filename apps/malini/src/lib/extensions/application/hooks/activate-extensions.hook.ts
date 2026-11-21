@@ -5,6 +5,7 @@ import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigat
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 
+import { failedOnBrokenCheckout } from '../../domain/extension-runtime-failure';
 import { extensionWorkstreamFingerprint } from '../../domain/extension-workstream-fingerprint';
 import type { WorkstreamCreatedAutomationContext } from '../../domain/workstream-created-automation-context';
 import {
@@ -155,7 +156,7 @@ function failReadiness(workstreamId: string, error: unknown): void {
 		error,
 		'The extension host could not start for this workstream.',
 	);
-	if (inspectorDrawer.isOpen(workstreamId)) return;
+	if (inspectorDrawer.isOpen(workstreamId) || failedOnBrokenCheckout(error)) return;
 	reportExtensionFailure(workstreamId, error);
 }
 

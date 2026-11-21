@@ -1,6 +1,7 @@
 import type { DockerOwnership, OwnedContainer } from '$main/docker/ownership';
 import type { ContainerReclaim } from '$main/docker/reclaim';
 import type { BaseOverlapWatch } from './platform/base-overlap.service';
+import type { CheckoutHealthGuard } from './platform/checkout-health';
 import type { CheckoutResolver } from './platform/checkout-resolver';
 import type { GhRunner } from './platform/github.service';
 import type { WorkstreamFileResolver } from './platform/image-protocol';
@@ -14,6 +15,7 @@ export interface RepositoriesPlatform {
 	readonly installs: InstallRegistry;
 	readonly watchers: WorkstreamWatchers;
 	readonly overlaps: BaseOverlapWatch;
+	readonly checkoutHealth: CheckoutHealthGuard;
 	readonly bundleIdentifier: string;
 	readonly appInstanceId: string;
 	containerCount(): number;
@@ -28,7 +30,7 @@ export interface RepositoriesPlatform {
 	reclaimAbandonedContainers(budgetMs?: number): Promise<ContainerReclaim>;
 }
 
-export type { CheckoutResolver };
+export type { CheckoutHealthGuard, CheckoutResolver };
 export type { InstallOutcome, InstallRegistry };
 export type { TeardownGuard } from './platform/teardown.service';
 export {

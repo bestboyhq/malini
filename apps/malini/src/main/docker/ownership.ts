@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describeError } from '$main/errors';
 import { isFile } from '$main/fs/stat';
+import { DockerError } from './errors';
 import type { MaliniDatabase } from '../db/driver';
 import {
 	durableContainerRecords,
@@ -62,13 +63,21 @@ export function writeComposeLabelOverlay(
 	try {
 		mkdirSync(directory, { recursive: true });
 	} catch (error) {
-		throw new Error(`could not create the docker label overlay directory: ${describeError(error)}`);
+		throw new DockerError(
+			'io',
+			`could not create the docker label overlay directory: ${describeError(error)}`,
+			error,
+		);
 	}
 	const path = join(directory, OVERLAY_FILE_NAME);
 	try {
 		writeFileSync(path, composeLabelOverlayYaml(labels));
 	} catch (error) {
-		throw new Error(`could not write the docker label overlay: ${describeError(error)}`);
+		throw new DockerError(
+			'io',
+			`could not write the docker label overlay: ${describeError(error)}`,
+			error,
+		);
 	}
 	return { path, labels: Object.fromEntries(composeLabels(labels)) };
 }
@@ -180,7 +189,8 @@ export function resolveComposeFiles(cwd: string): string[] {
 		const parent = dirname(directory);
 		directory = parent === directory ? null : parent;
 	}
-	throw new Error(
+	throw new DockerError(
+		'no-compose-file',
 		`no Compose file found in ${cwd} or any parent directory (looked for ${COMPOSE_BASE_FILE_NAMES.join(', ')})`,
 	);
 }

@@ -10,6 +10,7 @@ import { GhError, isGhError } from '$main/errors';
 import { parseGhJson, runGh, type GhResult } from '$main/process/gh';
 import { repositoryFullNameFromRemoteUrl } from '$shared/repositories/domain/repository-context';
 import { field, requireNonEmptyString } from './args';
+import { WorkstreamError } from './checkout-resolver';
 import { validateOwner } from './avatars.service';
 import {
 	findConnectedRepositoryByFullName,
@@ -89,7 +90,7 @@ const RECENT_GITHUB_REPOSITORIES_PATH =
 // ponytail: first 100 repos by last push only; paginate once a search misses an older one
 export async function listGithubRepositories(run: GhRunner): Promise<GithubRepositoryDto[]> {
 	const result = await run(['api', RECENT_GITHUB_REPOSITORIES_PATH]);
-	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, ['api']);
 	const parsed = parseGhJson<unknown>(result, 'list GitHub repositories');
 	if (!Array.isArray(parsed)) {
 		throw new GhError('failed', 'list GitHub repositories: gh returned a body that is not a list');
@@ -118,7 +119,7 @@ function githubRepositoryDto(raw: unknown): GithubRepositoryDto[] {
 
 export async function listGithubOrganizations(run: GhRunner): Promise<string[]> {
 	const orgs = await run(['api', 'user/orgs?per_page=100']);
-	if (orgs.code !== 0) throw GhError.fromStderr(orgs.stderr, orgs.code);
+	if (orgs.code !== 0) throw GhError.fromStderr(orgs.stderr, orgs.code, ['api']);
 	const parsed = parseGhJson<unknown>(orgs, 'list GitHub organizations');
 	if (!Array.isArray(parsed)) {
 		throw new GhError('failed', 'list GitHub organizations: gh returned a body that is not a list');
@@ -137,10 +138,14 @@ export function parseCreateGithubRepositoryArgs(args: unknown): CreateGithubRepo
 	const owner = validateOwner(field(args, 'owner'));
 	const name = requireNonEmptyString(args, 'name');
 	if (!GITHUB_REPOSITORY_NAME.test(name) || /^\.+$/u.test(name)) {
-		throw new Error(`invalid args: \`name\` is not a GitHub repository name: \`${name}\``);
+		throw new WorkstreamError(
+			'invalid-argument',
+			`invalid args: \`name\` is not a GitHub repository name: \`${name}\``,
+		);
 	}
 	const visibility = field(args, 'private');
-	if (typeof visibility !== 'boolean') throw new Error('invalid args: `private` must be a boolean');
+	if (typeof visibility !== 'boolean')
+		throw new WorkstreamError('invalid-argument', 'invalid args: `private` must be a boolean');
 	return { owner, name, private: visibility };
 }
 
@@ -175,19 +180,20 @@ export async function createGithubRepository(
 
 async function signedInLogin(run: GhRunner): Promise<string> {
 	const result = await run(['api', 'user', '--jq', '.login']);
-	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, ['api']);
 	const login = result.stdout.trim();
 	if (login.length === 0) throw new GhError('failed', 'read your GitHub login: gh returned none');
 	return login;
 }
 
 function creationFailure(result: GhResult): GhError {
-	const failure = GhError.fromStderr(result.stderr, result.code);
+	const failure = GhError.fromStderr(result.stderr, result.code, ['api']);
 	const reason = githubErrorReason(result.stdout);
 	if (failure.kind !== 'failed' || reason === null) return failure;
 	return new GhError('failed', `${reason.charAt(0).toUpperCase()}${reason.slice(1)}`, {
 		code: result.code,
 		stderr: result.stderr,
+		facts: failure.facts,
 	});
 }
 
@@ -246,24 +252,33 @@ export async function connectRepository(
 
 export function parseImportSource(value: unknown): ImportSource {
 	if (typeof value !== 'object' || value === null) {
-		throw new Error('invalid args: `source` must be an object');
+		throw new WorkstreamError('invalid-argument', 'invalid args: `source` must be an object');
 	}
 	const kind = Reflect.get(value, 'kind');
 	if (kind === 'local-folder') {
 		const path = Reflect.get(value, 'path');
 		if (typeof path !== 'string' || path.length === 0) {
-			throw new Error('invalid args: `source.path` must be a non-empty string');
+			throw new WorkstreamError(
+				'invalid-argument',
+				'invalid args: `source.path` must be a non-empty string',
+			);
 		}
 		return { kind, path };
 	}
 	if (kind === 'clone-url') {
 		const url = Reflect.get(value, 'url');
 		if (typeof url !== 'string' || url.length === 0) {
-			throw new Error('invalid args: `source.url` must be a non-empty string');
+			throw new WorkstreamError(
+				'invalid-argument',
+				'invalid args: `source.url` must be a non-empty string',
+			);
 		}
 		return { kind, url };
 	}
-	throw new Error('invalid args: `source.kind` must be `local-folder` or `clone-url`');
+	throw new WorkstreamError(
+		'invalid-argument',
+		'invalid args: `source.kind` must be `local-folder` or `clone-url`',
+	);
 }
 
 async function resolveIdentity(source: ImportSource, run: GhRunner): Promise<RepositoryIdentity> {

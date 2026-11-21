@@ -3,6 +3,7 @@ import { isRecord } from '$main/db/rows';
 import { sanitizeDiagnosticText, sanitizeRoute } from '$main/diagnostics/redaction';
 import { droppedFrames, JANK_MS } from '../domain/frames';
 import type { BrowserTab } from './resource-sampler';
+import { StatsError } from './stats-error';
 
 export const STALL_PROBE_MS = 20;
 export const MAX_ENTRIES_PER_MINUTE = 120;
@@ -139,7 +140,8 @@ export class FrameJournal {
 
 export function rendererFrames(args: unknown): RendererFrame[] {
 	const frames = isRecord(args) ? args['frames'] : undefined;
-	if (!Array.isArray(frames)) throw new Error('invalid args: `frames` must be an array');
+	if (!Array.isArray(frames))
+		throw new StatsError('invalid-argument', 'invalid args: `frames` must be an array');
 	return frames.slice(0, MAX_FRAMES_PER_REPORT).flatMap((frame) => rendererFrame(frame) ?? []);
 }
 

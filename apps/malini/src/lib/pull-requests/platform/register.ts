@@ -3,6 +3,7 @@ import type { AddressedReviewThreadsDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import { registerShip, type ShippingOptions } from './ship.register';
+import { ShipError } from './ship-target';
 import { failureOutput } from '$main/errors';
 import { noPromptCredentialEnv } from '$main/git/credentials';
 import { fastForwardCheckout, syncRemoteBase } from '$main/git/remote';
@@ -80,6 +81,7 @@ export interface PullRequestsDeps {
 	ship?: ShippingOptions;
 	chef?: () => Promise<PullRequestChef | null>;
 	deliver?: ShippingOptions['deliver'];
+	guardCheckout?: <T>(workstreamId: string, read: () => Promise<T>) => Promise<T>;
 }
 
 function testShipOptions(context: MainContext): ShippingOptions {
@@ -94,17 +96,19 @@ export function registerPullRequests(
 	const { commands, db, checkoutsRoot, events } = context;
 	const run: GhRunner = deps.runner ?? ((args, options) => runGh(args, options));
 	const checkouts = createCheckoutResolver({ db, checkoutsRoot });
+	const guardCheckout = deps.guardCheckout ?? ((_workstreamId, read) => read());
 
 	const repositoryOrThrow = async (repoId: string): Promise<ConnectedRepository> => {
 		const repository = await resolveConnectedRepository(db, repoId);
-		if (!repository) throw new Error(`Unknown repository: ${repoId}`);
+		if (!repository) throw new ShipError('unknown-repository', `Unknown repository: ${repoId}`);
 		return repository;
 	};
 
 	const checkoutOrThrow = (repository: ConnectedRepository): string => {
 		const checkout = resolveRepositoryCheckout(db, checkoutsRoot, repository);
 		if (!checkout) {
-			throw new Error(
+			throw new ShipError(
+				'no-checkout',
 				`Repository ${repository.fullName} has no checkout yet. Create a workstream first.`,
 			);
 		}
@@ -123,7 +127,12 @@ export function registerPullRequests(
 		return { repository, checkout, local };
 	};
 
-	const status = async (args: unknown): Promise<PullRequestStatusDto> => {
+	const status = (args: unknown): Promise<PullRequestStatusDto> => {
+		const workstreamId = optionalString(args, 'workstreamId');
+		return workstreamId ? guardCheckout(workstreamId, () => readStatus(args)) : readStatus(args);
+	};
+
+	const readStatus = async (args: unknown): Promise<PullRequestStatusDto> => {
 		const { repository, checkout, local } = await targetOrThrow(args);
 		const head = requireString(args, 'head');
 		const pullRequestNumber = optionalNumber(args, 'pullRequestNumber');
@@ -168,7 +177,11 @@ export function registerPullRequests(
 		const created = await runCheckedGh(run, createArgs, checkout);
 		const url = firstLine(created.stdout);
 		const view = await viewPullRequest({ run, checkout, head, pullRequestNumber: null, url });
-		if (!view) throw new Error('Pull request was created but could not be read back');
+		if (!view)
+			throw new ShipError(
+				'pull-request-missing',
+				'Pull request was created but could not be read back',
+			);
 		return openPullRequestStatus(run, checkout, local, repository, view);
 	};
 
@@ -177,7 +190,11 @@ export function registerPullRequests(
 		const number = requireNumber(args, 'pullRequestNumber');
 		await runCheckedGh(run, ['pr', 'ready', String(number)], checkout);
 		const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
-		if (!view) throw new Error(`Pull request #${number} was not found after marking ready`);
+		if (!view)
+			throw new ShipError(
+				'pull-request-missing',
+				`Pull request #${number} was not found after marking ready`,
+			);
 		return openPullRequestStatus(run, checkout, local, repository, view);
 	};
 
@@ -194,7 +211,11 @@ export function registerPullRequests(
 		const number = requireNumber(args, 'pullRequestNumber');
 		await runCheckedGh(run, ['pr', 'reopen', String(number)], checkout);
 		const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
-		if (!view) throw new Error(`Pull request #${number} was not found after reopening`);
+		if (!view)
+			throw new ShipError(
+				'pull-request-missing',
+				`Pull request #${number} was not found after reopening`,
+			);
 		return openPullRequestStatus(run, checkout, local, repository, view);
 	};
 
@@ -204,10 +225,11 @@ export function registerPullRequests(
 		const expectedHeadSha = requireString(args, 'expectedHeadSha');
 		const workstreamId = optionalString(args, 'workstreamId');
 		const current = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
-		if (!current) throw new Error(`Pull request #${number} was not found`);
+		if (!current)
+			throw new ShipError('pull-request-missing', `Pull request #${number} was not found`);
 		const currentHead = typeof current.headRefOid === 'string' ? current.headRefOid : null;
 		if (currentHead && currentHead !== expectedHeadSha) {
-			throw new Error('Pull request head moved since it was last read');
+			throw new ShipError('head-moved', 'Pull request head moved since it was last read');
 		}
 		const method = optionalString(args, 'mergeMethod');
 		const mergeArgs = ['pr', 'merge', String(number), '--match-head-commit', expectedHeadSha];
@@ -222,7 +244,11 @@ export function registerPullRequests(
 		if (commitMessage) mergeArgs.push('--body', commitMessage);
 		await runCheckedGh(run, mergeArgs, checkout);
 		const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
-		if (!view) throw new Error(`Pull request #${number} was not found after merge`);
+		if (!view)
+			throw new ShipError(
+				'pull-request-missing',
+				`Pull request #${number} was not found after merge`,
+			);
 		const result = await openPullRequestStatus(run, checkout, local, repository, view);
 		if (result.state === 'merged') {
 			const synced = await fastForwardLocalBase(
@@ -241,7 +267,8 @@ export function registerPullRequests(
 		const number = requireNumber(args, 'pullRequestNumber');
 		const title = optionalTextUpdate(args, 'title');
 		const body = optionalTextUpdate(args, 'body');
-		if (title && !title.next.trim()) throw new Error('A pull request title cannot be empty');
+		if (title && !title.next.trim())
+			throw new ShipError('empty-title', 'A pull request title cannot be empty');
 		const current = await viewPullRequestText(run, checkout, number);
 		if (!current.open) return { title: null, body: null };
 		const ownedTitle = title && sameText(current.title, title.expected) ? title.next : null;
@@ -267,7 +294,10 @@ export function registerPullRequests(
 	const rerunFailedChecks = async (args: unknown): Promise<void> => {
 		const runIds = requireStrings(args, 'runIds');
 		if (!runIds.every((runId) => /^\d+$/u.test(runId))) {
-			throw new Error('invalid args: `runIds` must hold GitHub Actions run ids');
+			throw new ShipError(
+				'invalid-argument',
+				'invalid args: `runIds` must hold GitHub Actions run ids',
+			);
 		}
 		const { repository, checkout } = await targetOrThrow(args);
 		for (const runId of new Set(runIds)) {

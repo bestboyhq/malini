@@ -52,20 +52,7 @@ export type WorkstreamInstallRecord = Readonly<{
 	status: WorkstreamInstallStatus;
 	command: string | null;
 	detail: string | null;
-	noticeAt: number;
 }>;
-
-export const QUIET_INSTALL_START_MS = 3_000;
-
-export function installNoticeAt(
-	previous: WorkstreamInstallRecord | null,
-	status: WorkstreamInstallStatus,
-	now: number,
-): number {
-	if (status !== 'running') return now;
-	if (previous?.status === 'running') return previous.noticeAt;
-	return previous ? now : now + QUIET_INSTALL_START_MS;
-}
 
 export type WorkstreamInstallStatusEvent = Readonly<{
 	workstreamId?: unknown;

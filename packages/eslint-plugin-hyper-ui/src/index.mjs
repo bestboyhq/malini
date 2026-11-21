@@ -18,6 +18,7 @@ import { noRawFormControl } from './no-raw-form-control.mjs';
 import { noStaticHoverToken } from './no-static-hover-token.mjs';
 import { noSurfaceTokenBorderUsage } from './no-surface-token-border-usage.mjs';
 import { noThenChains } from './no-then-chains.mjs';
+import { noUntypedThrow } from './no-untyped-throw.mjs';
 import { preferHyperUiEntrypoint } from './prefer-hyper-ui-entrypoint.mjs';
 import { textParser } from './text-parser.mjs';
 
@@ -51,6 +52,7 @@ const plugin = {
 		'no-static-hover-token': noStaticHoverToken,
 		'no-surface-token-border-usage': noSurfaceTokenBorderUsage,
 		'no-then-chains': noThenChains,
+		'no-untyped-throw': noUntypedThrow,
 		'prefer-hyper-ui-entrypoint': preferHyperUiEntrypoint,
 	},
 	configs,
@@ -91,6 +93,7 @@ export {
 	noStaticHoverToken,
 	noSurfaceTokenBorderUsage,
 	noThenChains,
+	noUntypedThrow,
 	preferHyperUiEntrypoint,
 	textParser,
 };

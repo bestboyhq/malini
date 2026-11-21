@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
 import { endWithMalini } from '$main/process/reaper';
+import { SupervisorError } from './supervisor';
 
 export interface BridgeSpawnSpec {
 	readonly scriptPath: string;
@@ -62,7 +63,7 @@ export function createNodeProcessFactory(
 				child.once('spawn', () => {
 					const pid = child.pid;
 					if (pid === undefined || !child.stdin || !child.stdout) {
-						reject(new Error('bridge child spawned without pipes'));
+						reject(new SupervisorError('invariant', 'bridge child spawned without pipes'));
 						return;
 					}
 					resolve({

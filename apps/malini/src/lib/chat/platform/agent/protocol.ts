@@ -26,6 +26,7 @@ import {
 } from '$contract/agent';
 import type { SkillRecord, SkillSource, TurnedOffSkills } from '$contract/skills';
 import type { MaliniEditReview } from '$contract/approvals';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 
 export type {
 	AgentQuestionAnswer,
@@ -509,6 +510,20 @@ export type BridgeBrowserRequest = {
 
 export type Decoded<T> = { ok: true; value: T } | { ok: false; error: string };
 
+const BRIDGE_PROTOCOL_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'bad-frame': 'bug',
+	'bad-capabilities': 'bug',
+} as const satisfies ErrorVerdicts;
+
+type BridgeProtocolErrorKind = keyof typeof BRIDGE_PROTOCOL_ERROR_VERDICTS;
+
+class BridgeProtocolError extends MaliniError<BridgeProtocolErrorKind> {
+	constructor(kind: BridgeProtocolErrorKind, message: string) {
+		super('BridgeProtocolError', BRIDGE_PROTOCOL_ERROR_VERDICTS, kind, message);
+	}
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -521,21 +536,23 @@ class Fields {
 
 	string(key: string): string {
 		const value = this.obj[key];
-		if (typeof value !== 'string') throw new Error(this.missing(key, 'a string'));
+		if (typeof value !== 'string')
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'a string'));
 		return value;
 	}
 
 	optionalString(key: string): string | undefined {
 		const value = this.obj[key];
 		if (value === undefined || value === null) return undefined;
-		if (typeof value !== 'string') throw new Error(this.missing(key, 'a string'));
+		if (typeof value !== 'string')
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'a string'));
 		return value;
 	}
 
 	number(key: string): number {
 		const value = this.obj[key];
 		if (typeof value !== 'number' || !Number.isFinite(value)) {
-			throw new Error(this.missing(key, 'a number'));
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'a number'));
 		}
 		return value;
 	}
@@ -544,21 +561,23 @@ class Fields {
 		const value = this.obj[key];
 		if (value === undefined || value === null) return undefined;
 		if (typeof value !== 'number' || !Number.isFinite(value)) {
-			throw new Error(this.missing(key, 'a number'));
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'a number'));
 		}
 		return value;
 	}
 
 	boolean(key: string): boolean {
 		const value = this.obj[key];
-		if (typeof value !== 'boolean') throw new Error(this.missing(key, 'a boolean'));
+		if (typeof value !== 'boolean')
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'a boolean'));
 		return value;
 	}
 
 	optionalBoolean(key: string): boolean | undefined {
 		const value = this.obj[key];
 		if (value === undefined || value === null) return undefined;
-		if (typeof value !== 'boolean') throw new Error(this.missing(key, 'a boolean'));
+		if (typeof value !== 'boolean')
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'a boolean'));
 		return value;
 	}
 
@@ -569,28 +588,31 @@ class Fields {
 
 	record(key: string): Record<string, unknown> {
 		const value = this.obj[key];
-		if (!isRecord(value)) throw new Error(this.missing(key, 'an object'));
+		if (!isRecord(value))
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'an object'));
 		return value;
 	}
 
 	optionalRecord(key: string): Record<string, unknown> | undefined {
 		const value = this.obj[key];
 		if (value === undefined || value === null) return undefined;
-		if (!isRecord(value)) throw new Error(this.missing(key, 'an object'));
+		if (!isRecord(value))
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'an object'));
 		return value;
 	}
 
 	stringArray(key: string): string[] {
 		const value = this.obj[key];
 		if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-			throw new Error(this.missing(key, 'an array of strings'));
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'an array of strings'));
 		}
 		return value;
 	}
 
 	array(key: string): unknown[] {
 		const value = this.obj[key];
-		if (!Array.isArray(value)) throw new Error(this.missing(key, 'an array'));
+		if (!Array.isArray(value))
+			throw new BridgeProtocolError('bad-frame', this.missing(key, 'an array'));
 		return value;
 	}
 
@@ -617,11 +639,16 @@ function optional<T>(key: string, value: T | undefined): Record<string, T> {
 }
 
 function decodeQuestion(value: unknown, index: number): AgentQuestion {
-	if (!isRecord(value)) throw new Error(`question.requested: questions[${index}] is not an object`);
+	if (!isRecord(value))
+		throw new BridgeProtocolError(
+			'bad-frame',
+			`question.requested: questions[${index}] is not an object`,
+		);
 	const fields = new Fields(value, `question.requested: questions[${index}]`);
 	const options = fields.array('options').map((option, optionIndex) => {
 		if (!isRecord(option)) {
-			throw new Error(
+			throw new BridgeProtocolError(
+				'bad-frame',
 				`question.requested: questions[${index}].options[${optionIndex}] is not an object`,
 			);
 		}
@@ -645,7 +672,7 @@ function decodeQuestion(value: unknown, index: number): AgentQuestion {
 }
 
 function decodeMcpServer(value: unknown, where: string): AgentMcpServerStatus {
-	if (!isRecord(value)) throw new Error(`${where} is not an object`);
+	if (!isRecord(value)) throw new BridgeProtocolError('bad-frame', `${where} is not an object`);
 	const fields = new Fields(value, where);
 	return {
 		name: fields.string('name'),
@@ -670,7 +697,8 @@ const SKILL_SOURCES: ReadonlySet<string> = new Set<SkillSource>([
 ]);
 
 function decodeSkill(value: unknown, index: number): SkillRecord {
-	if (!isRecord(value)) throw new Error(`bridge.skills: skills[${index}] is not an object`);
+	if (!isRecord(value))
+		throw new BridgeProtocolError('bad-frame', `bridge.skills: skills[${index}] is not an object`);
 	const fields = new Fields(value, `bridge.skills: skills[${index}]`);
 	const source = fields.string('source');
 	return {
@@ -690,11 +718,18 @@ function isBackgroundTaskKind(value: string): value is AgentBackgroundTaskKind {
 }
 
 function decodeBackgroundTask(value: unknown, index: number): AgentBackgroundTask {
-	if (!isRecord(value)) throw new Error(`background.updated: tasks[${index}] is not an object`);
+	if (!isRecord(value))
+		throw new BridgeProtocolError(
+			'bad-frame',
+			`background.updated: tasks[${index}] is not an object`,
+		);
 	const fields = new Fields(value, `background.updated: tasks[${index}]`);
 	const kind = fields.string('kind');
 	if (!isBackgroundTaskKind(kind)) {
-		throw new Error(`background.updated: tasks[${index}].kind \`${kind}\` is unknown`);
+		throw new BridgeProtocolError(
+			'bad-frame',
+			`background.updated: tasks[${index}].kind \`${kind}\` is unknown`,
+		);
 	}
 	return {
 		taskId: fields.string('taskId'),
@@ -884,7 +919,10 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 				const grant = new Fields(f.record('grant'), 'sandbox.granted.grant');
 				const grantKind = grant.string('kind');
 				if (grantKind !== 'path' && grantKind !== 'socket') {
-					throw new Error(`sandbox.granted: unknown grant kind \`${grantKind}\``);
+					throw new BridgeProtocolError(
+						'bad-frame',
+						`sandbox.granted: unknown grant kind \`${grantKind}\``,
+					);
 				}
 				return ok({
 					type: kind,
@@ -920,15 +958,22 @@ function ok(value: BridgeEvent): Decoded<BridgeEvent> {
 }
 
 function decodeCapability(value: unknown, index: number): ProviderCapability {
-	if (!isRecord(value)) throw new Error(`capabilities[${index}] is not an object`);
+	if (!isRecord(value))
+		throw new BridgeProtocolError('bad-frame', `capabilities[${index}] is not an object`);
 	const f = new Fields(value, `capabilities[${index}]`);
 	const state = f.string('state');
 	if (state !== 'ready' && state !== 'needs_auth' && state !== 'missing' && state !== 'unknown') {
-		throw new Error(`capabilities[${index}]: unknown state \`${state}\``);
+		throw new BridgeProtocolError(
+			'bad-frame',
+			`capabilities[${index}]: unknown state \`${state}\``,
+		);
 	}
 	const authenticated = value['authenticated'];
 	if (authenticated !== null && authenticated !== undefined && typeof authenticated !== 'boolean') {
-		throw new Error(`capabilities[${index}]: field \`authenticated\` must be a boolean or null`);
+		throw new BridgeProtocolError(
+			'bad-frame',
+			`capabilities[${index}]: field \`authenticated\` must be a boolean or null`,
+		);
 	}
 	const account = f.optionalRecord('account');
 	return {
@@ -965,11 +1010,14 @@ function isReasoningEffort(value: string): value is AgentReasoningEffort {
 
 function decodeModel(value: unknown, index: number, modelIndex: number): AgentModelInfo {
 	const frame = `capabilities[${index}].models[${modelIndex}]`;
-	if (!isRecord(value)) throw new Error(`${frame} is not an object`);
+	if (!isRecord(value)) throw new BridgeProtocolError('bad-frame', `${frame} is not an object`);
 	const f = new Fields(value, frame);
 	const efforts = f.stringArray('efforts');
 	if (!efforts.every(isReasoningEffort)) {
-		throw new Error(`${frame}: field \`efforts\` must hold only known reasoning efforts`);
+		throw new BridgeProtocolError(
+			'bad-frame',
+			`${frame}: field \`efforts\` must hold only known reasoning efforts`,
+		);
 	}
 	return {
 		id: f.string('id'),
@@ -1325,54 +1373,90 @@ export function eventToPersistable(event: BridgeEvent): {
 }
 
 export function validateCapabilities(capabilities: readonly ProviderCapability[]): void {
-	if (capabilities.length === 0) throw new Error('capabilities must contain at least one entry');
-	if (capabilities.length > 1) throw new Error('capabilities must contain exactly one entry');
+	if (capabilities.length === 0)
+		throw new BridgeProtocolError(
+			'bad-capabilities',
+			'capabilities must contain at least one entry',
+		);
+	if (capabilities.length > 1)
+		throw new BridgeProtocolError(
+			'bad-capabilities',
+			'capabilities must contain exactly one entry',
+		);
 
 	for (const capability of capabilities) {
 		const modelIds = new Set<string>();
 		for (const { id } of capability.models) {
 			if (id.length === 0 || id.trim() !== id) {
-				throw new Error('the agent reported an empty or whitespace-padded model id');
+				throw new BridgeProtocolError(
+					'bad-capabilities',
+					'the agent reported an empty or whitespace-padded model id',
+				);
 			}
 			if (modelIds.has(id)) {
-				throw new Error(`the agent reported duplicate model \`${id}\``);
+				throw new BridgeProtocolError(
+					'bad-capabilities',
+					`the agent reported duplicate model \`${id}\``,
+				);
 			}
 			modelIds.add(id);
 		}
 		if (capability.defaultModel.length > 0 && !modelIds.has(capability.defaultModel)) {
-			throw new Error(
+			throw new BridgeProtocolError(
+				'bad-capabilities',
 				`the agent default model \`${capability.defaultModel}\` is absent from its models`,
 			);
 		}
 		if (capability.state !== 'ready' && capability.account !== null) {
-			throw new Error(`a ${capability.state} agent cannot report a signed-in account`);
+			throw new BridgeProtocolError(
+				'bad-capabilities',
+				`a ${capability.state} agent cannot report a signed-in account`,
+			);
 		}
 
 		switch (capability.state) {
 			case 'ready':
 				if (!capability.installed) {
-					throw new Error('a ready agent must report installed=true');
+					throw new BridgeProtocolError(
+						'bad-capabilities',
+						'a ready agent must report installed=true',
+					);
 				}
 				if (capability.authenticated !== true) {
-					throw new Error('a ready agent must report authenticated=true');
+					throw new BridgeProtocolError(
+						'bad-capabilities',
+						'a ready agent must report authenticated=true',
+					);
 				}
 				if (capability.models.length === 0 || capability.defaultModel.length === 0) {
-					throw new Error('a ready agent must report models and a defaultModel');
+					throw new BridgeProtocolError(
+						'bad-capabilities',
+						'a ready agent must report models and a defaultModel',
+					);
 				}
 				break;
 			case 'needs_auth':
 				if (!capability.installed || capability.authenticated !== false) {
-					throw new Error('a needs_auth agent must report installed=true and authenticated=false');
+					throw new BridgeProtocolError(
+						'bad-capabilities',
+						'a needs_auth agent must report installed=true and authenticated=false',
+					);
 				}
 				break;
 			case 'missing':
 				if (capability.installed || capability.authenticated !== null) {
-					throw new Error('a missing agent must report installed=false and authenticated=null');
+					throw new BridgeProtocolError(
+						'bad-capabilities',
+						'a missing agent must report installed=false and authenticated=null',
+					);
 				}
 				break;
 			case 'unknown':
 				if (capability.authenticated !== null) {
-					throw new Error('an unknown agent must report authenticated=null');
+					throw new BridgeProtocolError(
+						'bad-capabilities',
+						'an unknown agent must report authenticated=null',
+					);
 				}
 				break;
 		}

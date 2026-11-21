@@ -27,7 +27,7 @@ import {
 	REPOSITORIES_DIR_NAME,
 	WORKSTREAMS_DIR_NAME,
 } from '$main/git/paths';
-import { runGit } from '$main/git/run';
+import { repairWorktreeLinks } from '$main/git/worktrees';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { INSTALL_COMPLETION_PATH } from './provisioning.service';
 
@@ -400,9 +400,7 @@ async function repairWorktrees(from: string, to: string): Promise<void> {
 		stale.set(base, [...(stale.get(base) ?? []), checkout]);
 	}
 	for (const [base, linked] of stale) {
-		await settle(`repair the worktrees of ${base}`, () =>
-			runGit(['-C', base, 'worktree', 'repair', ...linked]),
-		);
+		await settle(`repair the worktrees of ${base}`, () => repairWorktreeLinks(base, linked));
 	}
 }
 

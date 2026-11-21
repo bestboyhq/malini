@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { failedOnRetiredWorkstream, unseenWarmFailures } from './extension-runtime-failure';
+import {
+	failedOnBrokenCheckout,
+	failedOnRetiredWorkstream,
+	unseenWarmFailures,
+} from './extension-runtime-failure';
 
 function retired(): Error {
 	return Object.assign(new Error('Workstream `ws` was archived or deleted'), { kind: 'retired' });
@@ -14,6 +18,14 @@ describe('failedOnRetiredWorkstream', () => {
 		).toBe(true);
 		expect(failedOnRetiredWorkstream(new Error('wrapped', { cause: new Error('io') }))).toBe(false);
 		expect(failedOnRetiredWorkstream('retired')).toBe(false);
+	});
+});
+
+describe('failedOnBrokenCheckout', () => {
+	it('finds a broken checkout behind a wrapped read, and not a retirement', () => {
+		const broken = Object.assign(new Error('This checkout is broken'), { kind: 'checkout-broken' });
+		expect(failedOnBrokenCheckout(new Error('Could not inspect', { cause: broken }))).toBe(true);
+		expect(failedOnBrokenCheckout(new Error('wrapped', { cause: retired() }))).toBe(false);
 	});
 });
 

@@ -1,6 +1,7 @@
 import { describeError } from '$main/errors';
 import { buildSpawnEnvironment, resolveToolPath } from '$main/process/environment';
 import { boundedRunSucceeded, runBounded, type ProcessRunner } from '$main/process/runner';
+import { DockerError } from './errors';
 import { assertSafeLabelValue, LABEL_APP } from './labels';
 
 export const DOCKER_PS_TIMEOUT_MS = 15_000;
@@ -78,10 +79,10 @@ async function dockerPs(runner: ProcessRunner, tail: readonly string[]): Promise
 			env: buildSpawnEnvironment(),
 		});
 	} catch (error) {
-		throw new Error(`could not run \`docker ps\`: ${describeError(error)}`);
+		throw new DockerError('failed', `could not run \`docker ps\`: ${describeError(error)}`, error);
 	}
 	if (!boundedRunSucceeded(run)) {
-		throw new Error(`\`docker ps\` failed: ${run.stderr.trim()}`);
+		throw new DockerError('failed', `\`docker ps\` failed: ${run.stderr.trim()}`);
 	}
 	return run.stdout;
 }

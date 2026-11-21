@@ -23,11 +23,17 @@
 	import {
 		archiveWorkstreamCommand,
 		changeTotalsQuery,
+		checkoutHealthQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
 		provisioningRecordQuery,
 		provisioningRetryingQuery,
+		dismissDependencyInstallCommand,
 		provisioningTopBarStatus,
+		repairCheckoutCommand,
+		seedWorkstreamDependenciesCommand,
+		setupStepTopBarStatus,
+		workstreamSetupStepsQuery,
 		refreshRepositoriesCommand,
 		refreshWorkstreamsCommand,
 		repositoryContextQuery,
@@ -76,7 +82,8 @@
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
-	const checkoutReady = $derived(repositoryScopeReady && !worktreePending);
+	const checkoutHealthy = $derived(checkoutHealthQuery.data(workstreamId).state === 'healthy');
+	const checkoutReady = $derived(repositoryScopeReady && !worktreePending && checkoutHealthy);
 	const mediaReady = $derived(checkoutReady && workstream !== null);
 	const changeTotals = $derived(changeTotalsQuery.data[workstreamId] ?? null);
 	const provisioning = $derived(provisioningRecordQuery.data(workstreamId));
@@ -96,6 +103,18 @@
 		provisioningTopBarStatus(provisioning, provisioningRetrying, () =>
 			retryProvisioningCommand(workstreamId),
 		),
+	);
+	const setupStatus = $derived(
+		provisioningStatus ??
+			setupStepTopBarStatus(
+				workstreamSetupStepsQuery.data(workstreamId),
+				workstream?.branch ?? null,
+				{
+					onRepair: () => repairCheckoutCommand(workstreamId),
+					onRetryInstall: () => seedWorkstreamDependenciesCommand(workstreamId),
+					onDismissInstall: () => dismissDependencyInstallCommand(workstreamId),
+				},
+			),
 	);
 	const inspectedWorkstream = $derived<ExtensionWorkstream | null>(
 		workstream
@@ -137,7 +156,7 @@
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
 			agentStatus={chat.agentStatus}
-			overrideStatus={provisioningStatus}
+			overrideStatus={setupStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
 		/>

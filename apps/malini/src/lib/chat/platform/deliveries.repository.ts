@@ -2,6 +2,7 @@ import type { ChatDelivery, ChatDeliveryStatus, WorkstreamReport } from '$contra
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, run } from '$main/db/rows';
 import { parseWorkstreamReport, type DeliveryItem, type DeliveryKind } from '../domain/deliveries';
+import { ChatError } from './chat-error';
 
 export type NewDelivery = Readonly<{
 	sessionId: string;
@@ -200,5 +201,5 @@ function parsedReport(text: string | null): WorkstreamReport | null {
 }
 
 function missing(id: string): never {
-	throw new Error(`Malini could not record the delivery \`${id}\`.`);
+	throw new ChatError('invariant', `Malini could not record the delivery \`${id}\`.`);
 }

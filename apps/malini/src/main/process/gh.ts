@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { GhError } from '$main/errors';
+import { ghSubcommand } from '$main/failure-facts';
 
 export interface GhResult {
 	stdout: string;
@@ -73,12 +74,21 @@ export function runGh(args: readonly string[], options: RunGhOptions = {}): Prom
 				reject(GhError.notInstalled());
 				return;
 			}
-			reject(new GhError('failed', error.message));
+			reject(
+				new GhError('failed', error.message, {
+					facts: { subcommand: ghSubcommand(args), said: 'spawn-failed' },
+				}),
+			);
 		});
 		child.on('close', (code) => {
 			clearTimeout(timer);
 			if (overflowed) {
-				reject(new GhError('failed', `gh output exceeded ${maxBytes} bytes`, { code }));
+				reject(
+					new GhError('failed', `gh output exceeded ${maxBytes} bytes`, {
+						code,
+						facts: { subcommand: ghSubcommand(args), said: 'output-too-large' },
+					}),
+				);
 				return;
 			}
 			resolve({ stdout, stderr, code: code ?? -1 });
@@ -91,7 +101,7 @@ export async function runGhChecked(
 	options: RunGhOptions = {},
 ): Promise<GhResult> {
 	const result = await runGh(args, options);
-	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, args);
 	return result;
 }
 
@@ -101,6 +111,8 @@ export function parseGhJson(result: GhResult, operation: string): unknown {
 		const parsed: unknown = JSON.parse(result.stdout);
 		return parsed;
 	} catch {
-		throw new GhError('failed', `${operation}: gh returned a body that is not JSON`);
+		throw new GhError('failed', `${operation}: gh returned a body that is not JSON`, {
+			facts: { said: 'not-json' },
+		});
 	}
 }
