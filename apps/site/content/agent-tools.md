@@ -105,6 +105,21 @@ It never sees the value, and you never deal with a file or a path.
 - Commands get the secrets through Claude Code's shell prefix, after permissions are checked, so your **Always allow** rules and auto mode see each command as the agent wrote it.
 - Masking catches a value as it is, not an encoded one, so an agent that sets out to leak a secret can; what stops that is what it may run without asking.
 
+### A secret you paste in the composer
+
+Paste a token into the composer and Malini seals it in your keychain, for the chat's repository, and puts `$NAME` in your prompt where the token was.
+The agent reads `$NAME`, and its commands get the value, as with a secret you save on a card.
+
+- Malini knows the shape of GitHub, GitLab, Anthropic, OpenAI, Stripe, Slack and Google API keys, and of a private key block.
+  A `NAME=value` line counts too when its name says secret, such as `API_KEY` or `DB_PASSWORD`, and its value is no placeholder.
+- A token already saved for the repository keeps its name.
+  A new token whose name is taken gets the next free one, such as `GITHUB_TOKEN_2`, and never replaces a saved value.
+- A row over the composer says where the token went.
+  **Undo** puts the token back in your prompt as you pasted it, deletes the secret it saved, and marks the token, so you send it on purpose.
+  **Hide it** seals it again.
+- The token never reaches your draft or the disk, only the keychain, unless you press **Undo**.
+- Malini catches what you paste, not what you type.
+
 ## Files you fill in
 
 Some files only you should write.

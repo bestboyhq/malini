@@ -30,6 +30,7 @@
 	import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
 	import { chatRunningQuery } from '$lib/chat/application/queries/chat-running.query.svelte';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
+	import { pastedSecretsQuery } from '$lib/chat/application/queries/pasted-secrets.query.svelte';
 	import { emptySessionModeQuery } from '$lib/chat/application/queries/empty-session-mode.query.svelte';
 	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
 	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
@@ -76,6 +77,7 @@
 	import QueuedPromptList from './QueuedPromptList.svelte';
 	import RequestQueue from './RequestQueue.svelte';
 	import RequestsWaiting from './RequestsWaiting.svelte';
+	import PastedSecretRow from './PastedSecretRow.svelte';
 	import { requestSteps } from './request-steps';
 	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
 	import { chatStage } from './chat-stage';
@@ -176,6 +178,7 @@
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
+	const pastedSecrets = $derived(pastedSecretsQuery.data(draftScope));
 
 	let footerSize: ResizeObserverSize[] | undefined = $state();
 	let traySize: ResizeObserverSize[] | undefined = $state();
@@ -529,12 +532,18 @@
 							<div class="chat-stage-inset flex flex-col">
 								<AgentProcessDiedBanner />
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || automationRequestsWaiting || uncheckedCallsWaiting || backgroundTray || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || automationRequestsWaiting || uncheckedCallsWaiting || backgroundTray || queuedPrompts.length > 0 || pastedSecrets.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
 												data-testid="chat-composer-tray"
 											>
+												{#each pastedSecrets as pasted (pasted.id)}
+													<div transition:slide={foldMotion()}>
+														<PastedSecretRow {pasted} />
+													</div>
+												{/each}
+
 												{#if notice}
 													<div transition:slide={foldMotion()}>
 														{@render notice()}

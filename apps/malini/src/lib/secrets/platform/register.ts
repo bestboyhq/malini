@@ -6,9 +6,10 @@ import {
 	SECRETS_REQUESTED_CHANNEL,
 	SECRETS_SAVED_CHANNEL,
 } from '$contract/events';
-import { SECRET_VALUE_MAX_LENGTH, type SecretRequest } from '$contract/secrets';
+import { SECRET_VALUE_MAX_LENGTH, type KeptSecret, type SecretRequest } from '$contract/secrets';
 import type { MainContext } from '$main/context';
 import { isRecord, nowIso8601 } from '$main/db/rows';
+import { workstreamRepositoryName } from '$shared/repositories/repositories.platform';
 import { secretNameProblem } from '../domain/secret-name';
 import { Keychain, SecretError, type SecretSealer } from './keychain';
 import {
@@ -58,6 +59,7 @@ export function registerSecrets(context: MainContext, deps: SecretsPlatformDeps)
 	commands.define('secrets.delete', (args: unknown) =>
 		removeSecret(context, keychain, record(args)),
 	);
+	commands.define('secrets.keep', (args: unknown) => keepSecret(context, keychain, record(args)));
 
 	return {
 		request: (asked) => requestSecrets(context, keychain, asked),
@@ -118,6 +120,36 @@ function saveSecrets({ db, events }: SecretsContext, keychain: Keychain, input: 
 	});
 }
 
+async function keepSecret(
+	{ db, events }: SecretsContext,
+	keychain: Keychain,
+	input: Input,
+): Promise<KeptSecret> {
+	const workstreamId = requiredText(input, 'workstreamId');
+	const name = validName(input['name']);
+	const value = secretValue(name, input['value']);
+	const repository = await workstreamRepositoryName(db, workstreamId);
+	const reaching = Object.entries(keychain.valuesReaching(repository));
+	const same = reaching.find(([, saved]) => saved === value)?.[0];
+	if (same !== undefined) return { name: same, repository, created: false };
+	const free = freeName(name, new Set(keychain.namesReaching(repository)));
+	keychain.save(repository, { [free]: value });
+	events.emit(SECRETS_SAVED_CHANNEL, {
+		names: [free],
+		unsaved: [],
+		repository,
+		requestId: null,
+		sessionId: null,
+	});
+	return { name: free, repository, created: true };
+}
+
+function freeName(name: string, taken: ReadonlySet<string>): string {
+	let candidate = name;
+	for (let suffix = 2; taken.has(candidate); suffix += 1) candidate = `${name}_${suffix}`;
+	return candidate;
+}
+
 function dismissRequest({ db, events }: SecretsContext, requestId: string): void {
 	const request = getSecretRequest(db, requestId);
 	if (!request || !settleSecretRequest(db, requestId, 'dismissed', nowIso8601())) {
@@ -176,20 +208,20 @@ function secretValues(value: unknown): Readonly<Record<string, string>> {
 	const entries = Object.entries(value).map(([name, secret]) => [validName(name), secret] as const);
 	if (entries.length === 0)
 		throw new SecretError('invalid-input', 'Paste at least one value before you save.');
-	return Object.fromEntries(
-		entries.map(([name, secret]) => {
-			const trimmed = typeof secret === 'string' ? secret.trim() : '';
-			if (trimmed.length === 0)
-				throw new SecretError('invalid-input', `Paste a value for ${name} before you save.`);
-			if (trimmed.length > SECRET_VALUE_MAX_LENGTH) {
-				throw new SecretError(
-					'invalid-input',
-					`The value for ${name} is longer than ${SECRET_VALUE_MAX_LENGTH} characters.`,
-				);
-			}
-			return [name, trimmed];
-		}),
-	);
+	return Object.fromEntries(entries.map(([name, secret]) => [name, secretValue(name, secret)]));
+}
+
+function secretValue(name: string, secret: unknown): string {
+	const trimmed = typeof secret === 'string' ? secret.trim() : '';
+	if (trimmed.length === 0)
+		throw new SecretError('invalid-input', `Paste a value for ${name} before you save.`);
+	if (trimmed.length > SECRET_VALUE_MAX_LENGTH) {
+		throw new SecretError(
+			'invalid-input',
+			`The value for ${name} is longer than ${SECRET_VALUE_MAX_LENGTH} characters.`,
+		);
+	}
+	return trimmed;
 }
 
 function validName(value: unknown): string {

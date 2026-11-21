@@ -26,6 +26,10 @@ export type DismissSecretRequestArgs = Readonly<{ requestId: string }>;
 
 export type DeleteSecretArgs = Readonly<{ name: string; repository: string | null }>;
 
+export type KeepSecretArgs = Readonly<{ workstreamId: string; name: string; value: string }>;
+
+export type KeptSecret = Readonly<{ name: string; repository: string | null; created: boolean }>;
+
 export type SecretsRequestedEvent = Readonly<{ request: SecretRequest }>;
 
 export type SecretsSavedEvent = Readonly<{

@@ -2,8 +2,14 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { createPendingChip } from './prompt-chip-node';
+import { releaseLockGlyphs } from './secret-marks';
 
-export type PendingChip = Readonly<{ key: string; pos: number; labels: readonly string[] }>;
+export type PendingChip = Readonly<{
+	key: string;
+	pos: number;
+	labels: readonly string[];
+	secret?: true;
+}>;
 
 type PendingChipChange =
 	| Readonly<{ kind: 'add'; chip: PendingChip }>
@@ -39,11 +45,16 @@ export const PendingChips = Extension.create({
 							state.doc,
 							chips.flatMap((chip) =>
 								chip.labels.map((label, index) =>
-									Decoration.widget(chip.pos, () => createPendingChip(label), {
-										key: `${chip.key}:${index}`,
-										side: -1,
-										ignoreSelection: true,
-									}),
+									Decoration.widget(
+										chip.pos,
+										() => createPendingChip(label, chip.secret === true),
+										{
+											key: `${chip.key}:${index}`,
+											side: -1,
+											ignoreSelection: true,
+											destroy: releaseLockGlyphs,
+										},
+									),
 								),
 							),
 						);

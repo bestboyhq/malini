@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { fileIconIdFor, fileIconUrl } from '$hyper-ui/components/file-icons';
+import { lockGlyph } from './secret-marks';
 import {
 	isPromptChipKind,
 	parseElementChipId,
@@ -202,16 +203,18 @@ type PromptChipNodeViewEditor = {
 	commands: { focus(): void; setTextSelection(position: number): void };
 };
 
-export function createPendingChip(label: string): HTMLElement {
+export function createPendingChip(label: string, secret: boolean): HTMLElement {
 	const chip = document.createElement('span');
 	chip.contentEditable = 'false';
 	chip.className = PENDING_CHIP_CLASS;
 	chip.dataset.pendingChip = '';
-	chip.dataset.testid = 'chat-composer-pending-attachment';
-	chip.setAttribute('aria-label', `Attaching ${label}`);
+	chip.dataset.testid = secret
+		? 'chat-composer-pending-secret'
+		: 'chat-composer-pending-attachment';
+	chip.setAttribute('aria-label', secret ? `Keeping ${label}` : `Attaching ${label}`);
 	const lead = document.createElement('span');
 	lead.className = PENDING_LEAD_CLASS;
-	lead.append(chipGlyph('attachment', label));
+	lead.append(secret ? lockGlyph('grid place-items-center') : chipGlyph('attachment', label));
 	const text = document.createElement('span');
 	text.className = LABEL_CLASS;
 	text.textContent = label;
