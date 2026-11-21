@@ -5,6 +5,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, isRecord, run } from '$main/db/rows';
 import { describeError, isErrnoException } from '$main/errors';
 import { parsePortNames, portVariable } from '../domain/port-names';
+import { makeScratchFolder } from './scratch';
 
 export const LEASED_PORT_RANGE = Object.freeze({ first: 40_000, last: 48_999 });
 const WORKSPACE_FILE = join('.malini', 'workspace.json');
@@ -26,6 +27,11 @@ export async function workstreamEnvironment(
 	answers: PortProbe = answersOnLoopback,
 ): Promise<Readonly<Record<string, string>>> {
 	const environment: Record<string, string> = { MALINI_WORKSTREAM_ID: workstreamId };
+	try {
+		environment['TMPDIR'] = await makeScratchFolder(workstreamId);
+	} catch (error) {
+		log(`malini: \`${workstreamId}\` has no scratch folder, ${describeError(error)}`);
+	}
 	for (const name of await listedPortNames(checkout, log)) {
 		const port = await leasePort(db, workstreamId, name, answers);
 		if (port === null) log(`malini: no free port is left for \`${name}\` in \`${workstreamId}\``);
