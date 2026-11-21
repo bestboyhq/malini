@@ -122,6 +122,20 @@ interface ResolvedEnvelope {
 	event: BridgeEvent;
 }
 
+type AgentRuntimeErrorKind = 'restart-failed' | 'session-unrecovered' | 'session-not-found';
+
+class AgentRuntimeError extends Error {
+	override readonly name = 'AgentRuntimeError';
+	readonly kind: AgentRuntimeErrorKind;
+	readonly code: string | null;
+
+	constructor(kind: AgentRuntimeErrorKind, message: string, cause?: unknown) {
+		super(message, cause === undefined ? undefined : { cause });
+		this.kind = kind;
+		this.code = cause instanceof SupervisorError ? cause.kind : null;
+	}
+}
+
 export class SessionCorrelator {
 	private readonly runToSession = new Map<string, string>();
 	private readonly nextSeq = new Map<string, number>();
@@ -693,13 +707,16 @@ export class BridgeRuntime {
 		const supervisor = await this.ensureReady();
 		const failure = this.recoveryFailures.get(sessionId);
 		if (failure !== undefined) {
-			throw new Error(
+			throw new AgentRuntimeError(
+				'session-unrecovered',
 				`agent session \`${sessionId}\` could not recover after the bridge restarted: ${failure}`,
 			);
 		}
 		if (this.registeredSessions.has(sessionId)) return supervisor;
 		const session = persistedBridgeSession(this.db, sessionId);
-		if (!session) throw new Error(`agent session \`${sessionId}\` not found`);
+		if (!session) {
+			throw new AgentRuntimeError('session-not-found', `agent session \`${sessionId}\` not found`);
+		}
 		await registerPersistedBridgeSession(
 			this.db,
 			this.checkoutsRoot,
@@ -737,7 +754,11 @@ export class BridgeRuntime {
 				replacement = await BridgeSupervisor.spawn(this.supervisorConfig);
 			}
 		} catch (error) {
-			throw new Error(`agent bridge restart failed: ${describe(error)}`);
+			throw new AgentRuntimeError(
+				'restart-failed',
+				`agent bridge restart failed: ${describe(error)}`,
+				error,
+			);
 		}
 
 		this.eventGeneration += 1;

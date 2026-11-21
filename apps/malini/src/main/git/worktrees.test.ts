@@ -215,6 +215,32 @@ describe('addWorktree', () => {
 		expect(await realGit(wt, ['status', '--porcelain', '--ignored'])).toBe('');
 	});
 
+	it('checks out the base of a repository that was empty when Malini cloned it', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const remote = join(dir, 'remote.git');
+		const base = join(dir, 'base');
+		const first = join(dir, 'first');
+		await realGit(dir, ['init', '-q', '--bare', '-b', 'main', remote]);
+		await realGit(dir, ['clone', '-q', remote, base]);
+		await initRealRepo(first);
+		await writeFile(join(first, 'first.txt'), 'first commit\n');
+		await realGit(first, ['add', '.']);
+		await realGit(first, ['commit', '-q', '-m', 'first']);
+		await realGit(first, ['push', '-q', remote, 'HEAD:main']);
+		await realGit(base, ['fetch', '-q', 'origin']);
+
+		const wt = join(dir, 'workstreams', 'ws-first');
+		await addWorktree(base, wt, workstreamBranchName('ws-first'), 'origin/main');
+
+		expect((await realGit(base, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe('main');
+		expect((await realGit(base, ['rev-parse', 'HEAD'])).trim()).toBe(
+			(await realGit(base, ['rev-parse', 'origin/main'])).trim(),
+		);
+		expect(await readCheckedOutText(join(base, 'first.txt'))).toBe('first commit\n');
+		expect(await readCheckedOutText(join(wt, 'first.txt'))).toBe('first commit\n');
+	});
+
 	it('leaves a submodule folder empty even when the base checked it out', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

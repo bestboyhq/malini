@@ -205,7 +205,11 @@
 	usual endings: pulling the rug on users, or <SoldCard word="selling" />.
 {/snippet}
 
-<Head title="Malini: agentic development environment" description={SITE_DESCRIPTION} path="" />
+<Head
+	title="Malini: missing abstraction layer for building with agents"
+	description={SITE_DESCRIPTION}
+	path=""
+/>
 
 <Hero>
 	<p class="lede">

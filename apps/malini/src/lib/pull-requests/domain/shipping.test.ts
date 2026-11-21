@@ -531,6 +531,18 @@ describe('a local or draft workstream before you merge', () => {
 			problem: 'A merge is in progress in this workstream. Finish or abort it, then try again.',
 		});
 	});
+
+	it('saves a merge with no conflicts left once you ask, whichever automation ran last', () => {
+		const resolved = merging({ conflictedPaths: [] });
+		const afterFixChecks = { lastAutomationBuiltin: 'fix-checks' as const, worktree: resolved };
+		expect(nextShippingMove(local({ ...afterFixChecks, pushRequested: true }))).toEqual({
+			kind: 'commit',
+		});
+		expect(
+			nextShippingMove(queued({ phase: 'draft', ...afterFixChecks, pushRequested: true })),
+		).toEqual({ kind: 'push' });
+		expect(nextShippingMove(local(afterFixChecks))).toEqual({ kind: 'idle', problem: null });
+	});
 });
 
 describe('a queued workstream', () => {

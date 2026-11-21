@@ -19,6 +19,8 @@ import {
 	getWorkstream,
 	resolveConnectedRepository,
 	resolveRepositoryCheckout,
+	UNKNOWN_WORKSTREAM,
+	WorkstreamError,
 	type ConnectedRepository,
 	type PullRequestChef,
 } from '$shared/repositories/repositories.platform';
@@ -182,7 +184,9 @@ export function registerPullRequests(
 	const reopen = async (args: unknown): Promise<PullRequestStatusDto> => {
 		const workstreamId = requireString(args, 'workstreamId');
 		const workstream = getWorkstream(db, workstreamId);
-		if (!workstream) throw new Error(`Unknown workstream: ${workstreamId}`);
+		if (!workstream) {
+			throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
+		}
 		const { repository, checkout, local } = await targetOrThrow({
 			repoId: workstream.projectId,
 			workstreamId,

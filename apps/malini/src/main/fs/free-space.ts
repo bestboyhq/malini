@@ -30,10 +30,15 @@ export function installFreeSpaceForTests(bytes: (volume: string) => number): () 
 	};
 }
 
+export class FreeSpaceError extends Error {
+	override readonly name = 'FreeSpaceError';
+	readonly code = 'ENOSPC';
+}
+
 export async function requireFreeSpace(path: string, needed: number, task: string): Promise<void> {
 	const usable = await availableBytes(nearestExisting(path), needed);
 	if (usable >= needed) return;
-	throw new Error(
+	throw new FreeSpaceError(
 		`Only ${gigabytes(usable)} is free, and ${task} needs ${gigabytes(needed)}. Archive old workstreams or free up space.`,
 	);
 }

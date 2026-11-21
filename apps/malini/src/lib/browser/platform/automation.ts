@@ -492,7 +492,7 @@ export async function evaluateScript(contents: PageContents, script: string): Pr
 
 export async function captureFrame(contents: PageContents): Promise<PageImage | null> {
 	const deadline = Date.now() + FIRST_FRAME_MS;
-	while (Date.now() < deadline) {
+	while (Date.now() < deadline && !contents.isDestroyed()) {
 		const image = await within(
 			contents.capturePage(undefined, { stayHidden: false }),
 			deadline - Date.now(),

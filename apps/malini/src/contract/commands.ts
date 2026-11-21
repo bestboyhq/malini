@@ -43,7 +43,12 @@ import type {
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { GithubReach } from './github-failure';
-import type { MenuCommandChosen, NotificationTarget, UpdateStatus } from './events';
+import type {
+	MenuCommandChosen,
+	NotificationTarget,
+	UpdateStatus,
+	WindowControlsState,
+} from './events';
 import type {
 	AgentActionRecord,
 	ChatTurnRecord,
@@ -468,7 +473,9 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 
 export type SetThemeModeArgs = Readonly<{ mode: ThemeMode }>;
 
-export type WindowControlsTint = Readonly<{ background: string; symbol: string }>;
+export type WindowControl = 'close' | 'minimize' | 'maximize' | 'restore';
+
+export type PressWindowControlArgs = Readonly<{ control: WindowControl }>;
 
 export type PopUpMenuArgs = Readonly<{ x: number; y: number }>;
 
@@ -849,7 +856,8 @@ export interface ContractCommands {
 	'app.full-screen': { args: undefined; result: boolean };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
-	'app.tint-window-controls': { args: WindowControlsTint; result: void };
+	'app.window-controls': { args: undefined; result: WindowControlsState };
+	'app.press-window-control': { args: PressWindowControlArgs; result: void };
 	'app.pop-up-menu': { args: PopUpMenuArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
 	'app.streaming': { args: undefined; result: boolean };
@@ -1131,7 +1139,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.full-screen',
 	'app.interface-scale',
 	'app.theme-mode',
-	'app.tint-window-controls',
+	'app.window-controls',
+	'app.press-window-control',
 	'app.pop-up-menu',
 	'app.runtime-info',
 	'app.streaming',

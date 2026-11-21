@@ -2,6 +2,11 @@ import { shell } from 'electron';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { trySpawnDetached } from '$main/process/detached';
+import { WorkstreamError } from './checkout-resolver';
+
+function openFailed(error: string | undefined): WorkstreamError {
+	return new WorkstreamError('open-failed', `open failed: ${error ?? 'unknown error'}`);
+}
 
 export interface CheckoutShell {
 	reveal(path: string): Promise<void>;
@@ -10,7 +15,7 @@ export interface CheckoutShell {
 
 async function openFolder(path: string): Promise<void> {
 	const error = await shell.openPath(path);
-	if (error) throw new Error(`open failed: ${error}`);
+	if (error) throw openFailed(error);
 }
 
 function editorSearchPath(): Readonly<Record<string, string>> {

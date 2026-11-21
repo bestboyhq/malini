@@ -590,6 +590,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;',
 		},
 		{
+			channel: 'app:window-controls-changed',
+			description:
+				'Fires when the Malini window gains or loses focus, or is maximized or restored, so the window controls Malini draws on Windows and Linux follow it. Malini does not keep it in its event log.',
+			facts: ['focused', 'maximized'],
+			payloadType: 'WindowControlsState',
+			payload: 'type WindowControlsState = Readonly<{ focused: boolean; maximized: boolean }>;',
+		},
+		{
 			channel: 'app:notification-opened',
 			description: 'Fires when you click a Malini notification, with the chat it points to.',
 			facts: ['workstreamId', 'sessionId'],

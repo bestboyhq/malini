@@ -28,6 +28,7 @@ export class Loop {
 		};
 		const observer = new IntersectionObserver(([entry]) => {
 			clearTimeout(timer);
+			node.toggleAttribute('data-away', !entry?.isIntersecting);
 			if (entry?.isIntersecting) tick();
 		});
 		observer.observe(node);

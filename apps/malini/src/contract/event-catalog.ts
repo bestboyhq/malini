@@ -495,6 +495,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		logged: false,
 		facts: ['fullScreen'],
 	},
+	'app:window-controls-changed': {
+		description:
+			'Fires when the Malini window gains or loses focus, or is maximized or restored, so the window controls Malini draws on Windows and Linux follow it. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['focused', 'maximized'],
+	},
 	'app:notification-opened': {
 		description: 'Fires when you click a Malini notification, with the chat it points to.',
 		facts: ['workstreamId', 'sessionId'],

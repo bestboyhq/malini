@@ -6,6 +6,7 @@ import type {
 	CloseGuardArgs,
 	NotifyArgs,
 	OpenExternalUrlArgs,
+	PressWindowControlArgs,
 	SecretKeyArgs,
 	SetClipboardImageArgs,
 	SetClipboardTextArgs,
@@ -202,17 +203,17 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		events,
 		appDataRoot: context.appDataRoot,
 	});
-	defineWindowControlsCommands(
-		commands,
-		() => deps.getMainWindow(),
-		deps.platform ?? process.platform,
-	);
+	defineWindowControlsCommands(commands, () => deps.getMainWindow());
 	commands.define('app.focus-window', () => window.focusMainWindow());
 	commands.define('app.interface-scale', (args: SetInterfaceScaleArgs) =>
 		window.setInterfaceScale(args),
 	);
 	commands.define('app.logical-viewport', () => window.logicalViewport());
 	commands.define('app.full-screen', () => window.isFullScreen());
+	commands.define('app.window-controls', () => window.windowControls());
+	commands.define('app.press-window-control', (args: PressWindowControlArgs) =>
+		window.pressWindowControl(args),
+	);
 	commands.define('app.close-guard', (args: CloseGuardArgs) => window.setCloseGuard(args));
 	commands.define('app.destroy-window', () => window.destroy());
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));

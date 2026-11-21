@@ -487,6 +487,9 @@ function workingMove(snapshot: ShippingSnapshot): ShippingMove {
 		}
 		return saveMove(snapshot);
 	}
+	if (operation === 'merge' && snapshot.pushRequested && worktree.conflictedPaths.length === 0) {
+		return saveMove(snapshot);
+	}
 	if (operation !== null) {
 		return {
 			kind: 'idle',

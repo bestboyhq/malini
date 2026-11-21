@@ -213,7 +213,9 @@ test('the Open Graph view stays out of search', () => {
 
 test('the landing page embeds the app and its reports from the demo build', () => {
 	const frames = [
-		...read('index.html').matchAll(/<iframe src="\/malini\/demo\/(\w+)(?:\?play=\w+)?#/gu),
+		...read('index.html').matchAll(
+			/<iframe (?:data-)?src="\/malini\/demo\/(\w+)(?:\?play=\w+)?#/gu,
+		),
 	];
 	assert.deepEqual([...new Set(frames.map(([, page]) => page))].toSorted(), ['app', 'card']);
 	for (const page of ['app', 'card'])

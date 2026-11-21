@@ -160,4 +160,14 @@
 	--color-activity-3-dark: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
 	--color-activity-4-light: var(--color-custom-primary);
 	--color-activity-4-dark: var(--color-custom-primary);
+
+	--color-window-close: #ff5f57;
+	--color-window-close-glyph: #4d0000;
+	--color-window-minimize: #febc2e;
+	--color-window-minimize-glyph: #995700;
+	--color-window-maximize: #28c840;
+	--color-window-maximize-glyph: #006500;
+	--color-window-control-edge: rgb(0 0 0 / 0.2);
+	--color-window-control-inactive-light: var(--color-grey-250);
+	--color-window-control-inactive-dark: var(--color-grey-700);
 }

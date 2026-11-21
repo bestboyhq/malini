@@ -49,6 +49,8 @@ const KEPT_COMMANDS = [
 	'app.interface-scale',
 	'app.logical-viewport',
 	'app.full-screen',
+	'app.window-controls',
+	'app.press-window-control',
 	'app.close-guard',
 	'app.destroy-window',
 	'app.notify',
@@ -69,6 +71,7 @@ const KEPT_COMMANDS = [
 
 const DROPPED_COMMANDS = [
 	'app.report-setup-step',
+	'app.tint-window-controls',
 	'check_backend_reachable',
 	'update_check',
 	'update_download_and_install',

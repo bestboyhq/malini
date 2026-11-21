@@ -79,6 +79,8 @@
 	--color-logo-inner-stroke: var(--themed-color-logo-inner-stroke);
 	--color-logo-letter: var(--themed-color-logo-letter);
 
+	--color-window-control-inactive: var(--themed-color-window-control-inactive);
+
 	--color-surface-root: var(--themed-color-surface-root);
 	--color-surface-50: var(--themed-color-surface-50);
 	--color-surface-100: var(--themed-color-surface-100);

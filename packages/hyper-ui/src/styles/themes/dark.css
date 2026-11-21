@@ -98,6 +98,8 @@
 	--themed-color-logo-inner-stroke: var(--color-logo-inner-stroke-dark);
 	--themed-color-logo-letter: var(--color-logo-letter-dark);
 
+	--themed-color-window-control-inactive: var(--color-window-control-inactive-dark);
+
 	--themed-color-surface-root: var(--color-surface-root-dark);
 	--themed-color-surface-50: var(--color-surface-50-dark);
 	--themed-color-surface-100: var(--color-surface-100-dark);

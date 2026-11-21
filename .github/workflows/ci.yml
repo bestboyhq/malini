@@ -153,10 +153,11 @@ jobs:
       - name: Run the shard as a desktop runs it, on Linux with an unlocked keyring, on Windows with only a user's file rights
         run: ${{ runner.os == 'Linux' && 'sh apps/malini/tests/linux/keyring.sh' || runner.os == 'Windows' && 'sh apps/malini/tests/windows/desktop-user.sh' || '' }} pnpm --filter malini exec playwright test --test-list "$RUNNER_TEMP/tests.txt"
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: playwright-report-${{ matrix.os }}-${{ matrix.shard }}
           path: apps/malini/test-results
+          if-no-files-found: ignore
 
   proof:
     name: remember the tree e2e passed on

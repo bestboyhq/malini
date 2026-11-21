@@ -64,6 +64,7 @@ import {
 	type ThreadPin,
 } from './thread-pins';
 import { isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from './url';
+import { UNKNOWN_WORKSTREAM, WorkstreamError } from '$shared/repositories/repositories.platform';
 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 8;
@@ -608,7 +609,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	private create(tab: BrowserTabArgs, previous: Entry<W> | undefined): Entry<W> {
 		if (!this.deps.workstreamExists(tab.workstreamId)) {
-			throw new Error(`unknown workstream \`${tab.workstreamId}\``);
+			throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${tab.workstreamId}`);
 		}
 		if (previous) this.dispose(previous);
 		const entry: Entry<W> = {

@@ -1246,6 +1246,18 @@ Payload: `FullScreenChangedPayload`
 type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;
 ```
 
+## `app:window-controls-changed`
+
+Fires when the Malini window gains or loses focus, or is maximized or restored, so the window controls Malini draws on Windows and Linux follow it. Malini does not keep it in its event log.
+
+An automation sees: `focused`, `maximized`
+
+Payload: `WindowControlsState`
+
+```ts
+type WindowControlsState = Readonly<{ focused: boolean; maximized: boolean }>;
+```
+
 ## `app:notification-opened`
 
 Fires when you click a Malini notification, with the chat it points to.

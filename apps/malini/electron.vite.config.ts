@@ -93,7 +93,12 @@ export default defineConfig({
 		resolve: { alias: nodeAlias },
 		build: {
 			target: 'node24',
-			rollupOptions: { input: { index: 'src/main/index.ts' }, external: ['original-fs'] },
+			sourcemap: 'hidden',
+			rollupOptions: {
+				input: { index: 'src/main/index.ts' },
+				external: ['original-fs'],
+				output: { sourcemapExcludeSources: true },
+			},
 		},
 	},
 	preload: {

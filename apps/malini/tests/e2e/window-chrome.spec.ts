@@ -17,8 +17,8 @@ declare global {
 	var chromeMenuPopUps: { x: number | undefined; y: number | undefined }[];
 	var chromeMenusShown: number;
 	var chromeMenusClosed: number;
-	var chromeTints: Electron.TitleBarOverlayOptions[];
 	var chromeFoldersAsked: number;
+	var chromePresses: string[];
 }
 
 type Box = Readonly<{
@@ -32,6 +32,7 @@ type Box = Readonly<{
 
 type Control = Readonly<{
 	tagName: string;
+	closest(selectors: string): Control | null;
 	textContent: string | null;
 	getAttribute(name: string): string | null;
 	getBoundingClientRect(): Box;
@@ -40,13 +41,14 @@ type Control = Readonly<{
 
 type AppWindow = Readonly<{
 	innerWidth: number;
-	navigator: Readonly<{
-		windowControlsOverlay: Readonly<{ visible: boolean; getTitlebarAreaRect(): Box }>;
+	navigator: Readonly<{ windowControlsOverlay: Readonly<{ visible: boolean }> }>;
+	document: Readonly<{
+		querySelector(selectors: string): Control | null;
+		querySelectorAll(selectors: string): Iterable<Control>;
 	}>;
-	document: Readonly<{ querySelectorAll(selectors: string): Iterable<Control> }>;
 }>;
 
-const OS_DRAWS_THE_CONTROLS = process.platform !== 'darwin';
+const MALINI_DRAWS_THE_CONTROLS = process.platform !== 'darwin';
 const MAC_ONLY = 'macOS keeps its own menu bar and traffic lights';
 const A_GLANCE_AT_THE_MENU_MS = 500;
 
@@ -110,34 +112,36 @@ async function controlsUnderTheWindowControls(page: Page): Promise<string[]> {
 	await settleAnimations(page);
 	return page.locator('body').evaluate((body) => {
 		const view: AppWindow = body.ownerDocument.defaultView;
-		const area = view.navigator.windowControlsOverlay.getTitlebarAreaRect();
-		const captions = [
-			{ left: 0, right: area.left, bottom: area.bottom },
-			{ left: area.right, right: view.innerWidth, bottom: area.bottom },
-		].filter((caption) => caption.right > caption.left && caption.bottom > 0);
+		const WINDOW_CONTROLS = '[data-testid="window-controls"]';
+		const lights = view.document.querySelector(WINDOW_CONTROLS);
+		if (!lights) throw new Error('malini drew no window controls');
+		const area = lights.getBoundingClientRect();
 		const controls = view.document.querySelectorAll(
 			'button, a[href], input, textarea, select, [role="button"], [role="tab"], [role="link"], [role="menuitem"], [role="status"]',
 		);
 		return [...controls].flatMap((control) => {
+			if (control.closest(WINDOW_CONTROLS)) return [];
 			const box = control.getBoundingClientRect();
 			const shown =
 				box.width > 1 &&
 				box.height > 1 &&
 				control.checkVisibility({ opacityProperty: true, visibilityProperty: true });
-			const covered = captions.some(
-				(caption) =>
-					box.left < caption.right &&
-					box.right > caption.left &&
-					box.top < caption.bottom &&
-					box.bottom > 0,
-			);
+			const covered =
+				box.left < area.right &&
+				box.right > area.left &&
+				box.top < area.bottom &&
+				box.bottom > area.top;
 			const name = control.getAttribute('aria-label') ?? control.textContent?.trim();
 			return shown && covered ? [name || control.tagName] : [];
 		});
 	});
 }
 
-test('the window shows once its page paints, and only Windows and Linux draw the window controls over the top bar with a Menu button', async () => {
+function windowControl(page: Page, name: string) {
+	return page.getByTestId('window-controls').getByRole('button', { name, exact: true });
+}
+
+test('the window shows once its page paints, with no overlay, and only on Windows and Linux does Malini draw the window controls and a Menu button', async () => {
 	const app = await launchMalini();
 	try {
 		const { page, electronApp } = app;
@@ -149,9 +153,12 @@ test('the window shows once its page paints, and only Windows and Linux draw the
 				),
 			)
 			.toBe(true);
-		expect(await overlayShown(page)).toBe(OS_DRAWS_THE_CONTROLS);
+		expect(await overlayShown(page)).toBe(false);
+		for (const name of ['Close', 'Minimize', 'Maximize']) {
+			await expect(windowControl(page, name)).toHaveCount(MALINI_DRAWS_THE_CONTROLS ? 1 : 0);
+		}
 		await expect(page.getByRole('button', { name: 'Menu', exact: true })).toHaveCount(
-			OS_DRAWS_THE_CONTROLS ? 1 : 0,
+			MALINI_DRAWS_THE_CONTROLS ? 1 : 0,
 		);
 		expectCleanConsole(app);
 	} finally {
@@ -160,7 +167,7 @@ test('the window shows once its page paints, and only Windows and Linux draw the
 });
 
 test('the Menu button, and Alt pressed alone, pop up the application menu under the button', async () => {
-	test.skip(!OS_DRAWS_THE_CONTROLS, MAC_ONLY);
+	test.skip(!MALINI_DRAWS_THE_CONTROLS, MAC_ONLY);
 	const app = await launchMalini();
 	try {
 		const { page, electronApp } = app;
@@ -224,8 +231,54 @@ test('the Menu button, and Alt pressed alone, pop up the application menu under 
 	}
 });
 
+test('the window controls close, minimize, maximize and restore the window, and leave the focus where it was', async () => {
+	test.skip(!MALINI_DRAWS_THE_CONTROLS, MAC_ONLY);
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		await expectPicker(page);
+		await electronApp.evaluate(({ BrowserWindow }) => {
+			const [main] = BrowserWindow.getAllWindows();
+			if (!main) throw new Error('malini opened no window');
+			globalThis.chromePresses = [];
+			for (const control of ['close', 'minimize', 'maximize', 'unmaximize'] as const) {
+				main[control] = () => {
+					globalThis.chromePresses.push(control);
+				};
+			}
+		});
+		const presses = (): Promise<string[]> => electronApp.evaluate(() => globalThis.chromePresses);
+		const announce = (event: 'maximize' | 'unmaximize'): Promise<void> =>
+			electronApp.evaluate(({ BrowserWindow }, name) => {
+				BrowserWindow.getAllWindows()[0]?.emit(name);
+			}, event);
+
+		const focused = page.getByRole('button', { name: 'Menu', exact: true });
+		await focused.focus();
+		await windowControl(page, 'Minimize').click();
+		await expect.poll(presses).toEqual(['minimize']);
+		await expect(focused).toBeFocused();
+
+		await windowControl(page, 'Maximize').click();
+		await expect.poll(presses).toEqual(['minimize', 'maximize']);
+		await announce('maximize');
+		await expect(windowControl(page, 'Maximize')).toHaveCount(0);
+		await windowControl(page, 'Restore').click();
+		await expect.poll(presses).toEqual(['minimize', 'maximize', 'unmaximize']);
+		await announce('unmaximize');
+		await expect(windowControl(page, 'Maximize')).toHaveCount(1);
+
+		await windowControl(page, 'Close').click();
+		await expect.poll(presses).toEqual(['minimize', 'maximize', 'unmaximize', 'close']);
+		await expect(focused).toBeFocused();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('the menu shortcuts work while the menu bar stays hidden', async () => {
-	test.skip(!OS_DRAWS_THE_CONTROLS, MAC_ONLY);
+	test.skip(!MALINI_DRAWS_THE_CONTROLS, MAC_ONLY);
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -287,7 +340,7 @@ test('the menu shortcuts work while the menu bar stays hidden', async () => {
 });
 
 test('no control sits under the window controls, with the sidebar or the inspector open, or the window at its narrowest', async () => {
-	test.skip(!OS_DRAWS_THE_CONTROLS, MAC_ONLY);
+	test.skip(!MALINI_DRAWS_THE_CONTROLS, MAC_ONLY);
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -323,43 +376,6 @@ test('no control sits under the window controls, with the sidebar or the inspect
 			await controlsUnderTheWindowControls(page),
 			'the narrowest window with the sidebar',
 		).toEqual([]);
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('the window controls change with the theme and come back the same', async () => {
-	test.skip(!OS_DRAWS_THE_CONTROLS, MAC_ONLY);
-	const app = await launchMalini();
-	try {
-		const { page, electronApp } = app;
-		await expectPicker(page);
-		await page.emulateMedia({ colorScheme: 'dark' });
-		await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-		await electronApp.evaluate(({ BrowserWindow }) => {
-			const [main] = BrowserWindow.getAllWindows();
-			if (!main) throw new Error('malini opened no window');
-			globalThis.chromeTints = [];
-			const tint = main.setTitleBarOverlay.bind(main);
-			main.setTitleBarOverlay = (options) => {
-				globalThis.chromeTints.push(options);
-				tint(options);
-			};
-		});
-		const tints = (): Promise<Electron.TitleBarOverlayOptions[]> =>
-			electronApp.evaluate(() => globalThis.chromeTints);
-
-		await page.emulateMedia({ colorScheme: 'light' });
-		await expect.poll(async () => (await tints()).length).toBe(1);
-		await page.emulateMedia({ colorScheme: 'dark' });
-		await expect.poll(async () => (await tints()).length).toBe(2);
-		await page.emulateMedia({ colorScheme: 'light' });
-		await expect.poll(async () => (await tints()).length).toBe(3);
-
-		const [light, dark, lightAgain] = await tints();
-		expect(dark).not.toEqual(light);
-		expect(lightAgain).toEqual(light);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
