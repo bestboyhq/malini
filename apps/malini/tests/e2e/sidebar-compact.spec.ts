@@ -7,6 +7,7 @@ import {
 	connectFolder,
 	createSourceRepo,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openRepositoriesPage,
 	expectPicker,
@@ -171,12 +172,13 @@ test('a repository without open work stays in the sidebar until you hide it', as
 		await expectPicker(page);
 		await connectFolder(app, 'pasture');
 		await openRepositoriesPage(page);
-		await page.getByRole('button', { name: 'Find a repository' }).first().click();
-		const dialog = page.getByRole('dialog', { name: 'Command center' });
-		await dialog.getByRole('option', { name: /e2e\/hutch/u }).click();
-		await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+		await invoke(page, 'repositories.connect', {
+			source: { kind: 'clone-url', url: `file://${source}` },
+		});
+		await page.reload();
 
 		const hutch = sidebar(page).getByRole('link', { name: /^Open .*\/hutch$/u });
+		await hutch.click();
 		await expect(hutch).toHaveAttribute('aria-current', 'page', { timeout: 30_000 });
 
 		const alpha = await createSourceRepo(app.root, 'alpha');

@@ -19,7 +19,7 @@ import {
 	type WorkstreamRow,
 } from './harness';
 
-test('cloning searches your GitHub repositories in the command center, reading your login once, and opens the page of the pick', async () => {
+test('cloning searches your GitHub repositories in the command center, reading your login once, and starts a workstream in the pick', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -68,13 +68,13 @@ test('cloning searches your GitHub repositories in the command center, reading y
 		await captureFlow(app, 'clone-repository-dialog');
 
 		await page.keyboard.press('Enter');
-		await expectRepositoryPageOf(page, 'hutch');
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 		await expect(dialog).toHaveCount(0);
-		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
+		await expect(page.getByTestId('sidebar-workstream')).toHaveAttribute('aria-current', 'page');
 		await expect
 			.poll(async () => (await listProjects(page)).some((project) => project.id.endsWith('hutch')))
 			.toBe(true);
-		await captureFlow(app, 'clone-repository-scratchpad');
+		await captureFlow(app, 'clone-repository-workstream');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -124,6 +124,8 @@ test('a cloned repository lists your open pull requests only behind its Pull req
 			.getByRole('dialog', { name: 'Command center' })
 			.getByRole('option', { name: /e2e\/warren/u })
 			.click();
+		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 30_000 });
+		await page.getByTestId('sidebar-connected-repository').filter({ hasText: 'warren' }).click();
 		await expectRepositoryPageOf(page, 'warren');
 
 		const title = 'feat(auth): add OAuth sign-in with refresh tokens and a remember-me option';
@@ -142,8 +144,8 @@ test('a cloned repository lists your open pull requests only behind its Pull req
 		await expect(button).toHaveAttribute('aria-expanded', 'true');
 		await page.waitForTimeout(2_000);
 		expect(ownPullRequestReads(app.home)).toBe(1);
-		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
-		expect(await repositoryWorkstreams(page)).toEqual([]);
+		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(1);
+		expect(await repositoryWorkstreams(page)).toHaveLength(1);
 		await continueHere.hover();
 		await captureFlow(app, 'repository-own-pull-requests');
 
@@ -153,9 +155,10 @@ test('a cloned repository lists your open pull requests only behind its Pull req
 			page.getByTestId('sidebar-workstream').filter({ hasText: 'OAuth sign-in' }),
 		).toHaveAttribute('aria-current', 'page');
 		const workstreams = await repositoryWorkstreams(page);
-		expect(workstreams.map(({ name, branch }) => ({ name, branch }))).toEqual([
-			{ name: 'OAuth sign-in', branch: 'feat/oauth' },
-		]);
+		expect(workstreams.map(({ name, branch }) => ({ name, branch }))).toContainEqual({
+			name: 'OAuth sign-in',
+			branch: 'feat/oauth',
+		});
 		await page.getByTestId('sidebar-connected-repository').filter({ hasText: 'warren' }).click();
 		await button.click({ timeout: 30_000 });
 		await expect(list.getByRole('button', { name: `Open ${title}` })).toBeVisible({

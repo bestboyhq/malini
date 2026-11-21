@@ -190,8 +190,9 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
   It waits on its repository's page instead of **Recently archived**.
 - Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
-  **Open folder…** connects a folder on your Mac, and **Find repository…** finds any repository you work on, on GitHub or already here, and opens it.
+  **Open folder…** connects a folder on your Mac, and **Find repository…** finds any repository you work on, on GitHub or already here.
   Or press **⌘K** and type its name.
+  Each one starts a workstream in that repository and opens it.
 - **File → New Workstream** (**⌘N**) starts a workstream in the repository you're in, and **File → New Chat** (**⌘T**) opens a chat in the workstream you're in.
 - Open a workstream in your editor or reveal it in Finder.
 - Open a repository on GitHub from its right-click menu, the repository list, or its page.
@@ -214,10 +215,11 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Switching keeps your place, the tab remembers which one you picked, and a file opened at a line opens **Raw**.
   Its links open their files in tabs, and its images show from the worktree.
 
-A repository opens on its plan: the [initiatives](/malini/docs/initiatives.md) you want from it, by day.
+A repository's name in the sidebar opens its page, on its plan: the [initiatives](/malini/docs/initiatives.md) you want from it, by day.
 The bar at the top of its page names it as owner / name, and the name opens the repository on GitHub.
 Its scratchpad sits on the right of the plan, where you keep ideas, and the handle between them drags to resize both.
 Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
+The same scratchpad opens beside any chat of that repository, as **Notes** in the [inspector](/malini/docs/extensions.md).
 **Saved for later**, in the bar, counts the workstreams you saved for later, and hovering it lists them, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 

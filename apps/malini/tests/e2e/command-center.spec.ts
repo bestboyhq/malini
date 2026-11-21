@@ -12,7 +12,7 @@ import {
 	expectPicker,
 } from './harness';
 
-test('⌘K runs a command or finds any repository you work on, on GitHub or only on this Mac, and opens it', async () => {
+test('⌘K runs a command or finds any repository you work on, on GitHub or only on this Mac, and starts a workstream in it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -74,7 +74,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 		await commands.fill('folder');
 		await page.keyboard.press('Enter');
 		await expect(center).toHaveCount(0);
-		await expectRepositoryPageOf(page, 'alpha');
+		await expectWorkstreamIn(page, 'alpha', 1);
 
 		await page.keyboard.press('ControlOrMeta+k');
 		await commands.fill('rabbits');
@@ -82,7 +82,7 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 			'e2e/hutch',
 		);
 		await page.keyboard.press('Enter');
-		await expectRepositoryPageOf(page, 'hutch');
+		await expectWorkstreamIn(page, 'hutch', 1);
 		await expect(center).toHaveCount(0);
 
 		await page.keyboard.press('ControlOrMeta+k');
@@ -90,20 +90,17 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 		await search.fill('alpha');
 		await expect(options).toHaveCount(1);
 		await page.keyboard.press('Enter');
-		await expectRepositoryPageOf(page, 'alpha');
+		await expectWorkstreamIn(page, 'alpha', 2);
 		await expect(center).toHaveCount(0);
 
 		await page.keyboard.press('ControlOrMeta+k');
 		await expect(commands).toBeFocused();
-		await page
-			.getByRole('textbox', { name: /^Name an outcome/u })
-			.first()
-			.focus();
+		await page.getByTestId('chat-composer-input').focus();
 		await expect(commands).toBeFocused();
 		await commands.fill(`file://${burrow}`);
 		await expect(options).toHaveText([`Open file://${burrow}`]);
 		await page.keyboard.press('Enter');
-		await expectRepositoryPageOf(page, 'burrow');
+		await expectWorkstreamIn(page, 'burrow', 1);
 		await expect(center).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
@@ -111,12 +108,14 @@ test('⌘K runs a command or finds any repository you work on, on GitHub or only
 	}
 });
 
-async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
+async function expectWorkstreamIn(page: Page, repository: string, count: number): Promise<void> {
+	await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 	await expect(
-		page
-			.getByTestId('repository-bar')
-			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
-	).toBeVisible({ timeout: 30_000 });
+		page.getByTestId('sidebar-connected-repository').filter({ hasText: repository }),
+	).toHaveAttribute('data-workstream-count', String(count), { timeout: 30_000 });
+	await expect(
+		page.getByTestId('sidebar-workstream').and(page.locator('[aria-current="page"]')),
+	).toHaveCount(1);
 }
 
 test('New chat asks for a repository, lists the connected ones first, and starts a workstream in the pick', async () => {

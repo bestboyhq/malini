@@ -67,8 +67,9 @@ Nothing else about you, your repositories or your chats goes up.
 ## The inspector is built from extensions
 
 The inspector sits next to the chat, closed until you ask for it.
-Closed, it is a short list: **Changes** with the lines the workstream added and removed, **Media** with the number of files agents saved in `.context`, **Browser**, then the workstream's tabs.
+Closed, it is a short list: **Changes** with the lines the workstream added and removed, **Media** with the number of files agents saved in `.context`, **Browser**, **Notes**, then the workstream's tabs.
 **Changes** opens **Files** on the changed files only, and **Browser** opens a new tab with the address field waiting for a URL.
+**Notes** opens the repository's scratchpad as a tab, the same notes in every workstream of that repository, and ⌘↵ on an idea moves it into a new workstream while you stay where you are.
 Under the inspector, closed or open, each automation that runs, waits or asks you in the workstream gets a line that opens it.
 **Media** shows once an agent saves a screenshot, recording or prototype, and opens them as a grid sorted into images, videos, audio, pages and documents, newest first.
 Pictures and recordings open in the same gallery as a chat's images, audio plays in place, and pages and documents open in a browser tab.

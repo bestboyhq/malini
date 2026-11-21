@@ -85,8 +85,10 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 		await app.electronApp.evaluate(({ dialog }, picked) => {
 			dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [picked] });
 		}, beta);
+		const beforeFolder = page.url();
 		await choose(app, 'open-folder');
-		await expect(page).toHaveURL(/#\/repositories\//u, { timeout: 30_000 });
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
+		expect(page.url()).not.toBe(beforeFolder);
 		await expect
 			.poll(async () => (await listProjects(page)).map((project) => project.id).sort())
 			.toEqual(['local__alpha', 'local__beta']);

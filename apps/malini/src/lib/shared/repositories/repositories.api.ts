@@ -177,7 +177,6 @@ export { refreshWorkstreamAfterChangeCommand } from './application/commands/refr
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
 export { pickGithubRepositoryCommand } from './application/commands/pick-github-repository.command';
-export { prepareRepositoryCommand } from './application/commands/prepare-repository.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
 export { requestRepositoryFolderCommand } from './application/commands/request-repository-folder.command';
 export { restoreWorkstreamCommand } from './application/commands/restore-workstream.command';
@@ -238,7 +237,6 @@ export { repositoryConnectingQuery } from './application/queries/repository-conn
 export { repositoryConnectingKeyQuery } from './application/queries/repository-connecting-key.query.svelte';
 export { githubOrganizationsQuery } from './application/queries/github-organizations.query.svelte';
 export { githubRepositoriesQuery } from './application/queries/github-repositories.query.svelte';
-export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
 export { repositoryFolderRequestedQuery } from './application/queries/repository-folder-requested.query.svelte';
 export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
