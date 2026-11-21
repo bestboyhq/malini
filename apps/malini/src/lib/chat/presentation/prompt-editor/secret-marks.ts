@@ -9,7 +9,7 @@ export type SecretMark = Readonly<{ text: string; kept: boolean }>;
 export const secretMarksKey = new PluginKey<readonly SecretMark[]>('secretMarks');
 
 const KEPT_LEAD_CLASS =
-	'ml-0.5 inline-flex h-5 items-center rounded-l-md border-y border-l border-chip-border bg-chip pr-1 pl-1.5 align-middle text-fg-tertiary';
+	'ml-0.5 inline-flex h-5 items-center rounded-l-md border-y border-l border-chip-border bg-chip pr-1 pl-1 align-middle text-fg-tertiary';
 const KEPT_CLASS =
 	'mr-0.5 inline-block h-5 rounded-r-md border-y border-r border-chip-border bg-chip pr-1.5 align-middle font-mono text-2xs leading-4.5 text-fg-default';
 const SHOWN_CLASS =
