@@ -634,7 +634,7 @@ export function shipFailed(
 	const detail = describeError(error);
 	const failures = row.failures + 1;
 	const now = deps.now();
-	const due = now + shipBackoffMs(failures, deps.delays);
+	const due = now + shipBackoffMs(failures, deps.delays, Math.random());
 	if (row.phase === 'needs-you') {
 		saveShip(deps, workstreamId, { failures });
 		setShipAlarm(deps, workstreamId, 'retry', due);
