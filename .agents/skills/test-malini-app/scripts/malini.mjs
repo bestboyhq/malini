@@ -24,6 +24,7 @@ export async function launch(topic, { foreground = false, executablePath, temp }
 			...process.env,
 			MALINI_USAGE_DATA: 'off',
 			MALINI_CLAUDE_UPDATES: 'off',
+			MALINI_SCRATCH_ROOT: join(userDataDir, 'scratch'),
 			TMPDIR: tempDir,
 			...(foreground ? {} : { MALINI_BACKGROUND_WINDOW: '1' }),
 		},
