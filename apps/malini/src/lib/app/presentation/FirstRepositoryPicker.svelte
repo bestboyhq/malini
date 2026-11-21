@@ -28,7 +28,6 @@
 		repositoryConnectErrorQuery,
 		repositoryConnectingKeyQuery,
 		repositoryConnectingQuery,
-		repositoryPreparationQuery,
 		signInToGithubCommand,
 		watchGithubAuthHook,
 		type GithubRepository,
@@ -68,7 +67,6 @@
 	const install = $derived(githubCliInstallQuery.data);
 	const download = $derived(install.kind === 'installing' ? install.progress : null);
 	const connected = $derived(connectedRepositoriesQuery.data);
-	const preparationOf = $derived(repositoryPreparationQuery.data);
 	const connectingKey = $derived(repositoryConnectingKeyQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
@@ -175,7 +173,7 @@
 	}
 
 	function stateOf(repository: GithubRepository): GithubRepositoryState {
-		return githubRepositoryState(repository, connectingKey, connected, preparationOf);
+		return githubRepositoryState(repository, connectingKey, connected);
 	}
 </script>
 
@@ -220,7 +218,7 @@
 						ariaBusy={state.kind === 'cloning'}
 						class={ROW}
 						data-testid="first-repository"
-						onclick={() => pickGithubRepositoryCommand(repository, state, { open: 'workstream' })}
+						onclick={() => pickGithubRepositoryCommand(repository, state)}
 					>
 						<GithubRepositoryLabel {repository} {state} {nowMs} compact />
 					</Button>
@@ -368,8 +366,7 @@
 						disabled={connecting !== null}
 						ariaBusy={connecting === 'folder'}
 						class={DOOR}
-						onclick={() =>
-							pick('folder', () => openRepositoryFolderCommand({ open: 'workstream' }))}
+						onclick={() => pick('folder', () => openRepositoryFolderCommand())}
 					>
 						<span class={BADGE} aria-hidden="true">
 							<Icon name="folder-open" size={15} />

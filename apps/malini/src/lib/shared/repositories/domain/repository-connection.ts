@@ -15,10 +15,7 @@ export type RepositoryConnection = Readonly<{
 	key: string;
 }>;
 
-export type RepositoryConnectOptions = Readonly<{
-	open?: 'repository' | 'workstream';
-	onConnected?: () => void;
-}>;
+export type RepositoryConnectOptions = Readonly<{ onConnected?: () => void }>;
 
 export function repositoryConnectionFor(source: RepositoryImportSource): RepositoryConnection {
 	if (source.kind === 'local-folder') return { kind: 'folder', key: `folder:${source.path}` };
@@ -37,32 +34,21 @@ export type RepositoryConnectFailure = Readonly<{
 	technical: string | null;
 }>;
 
-export type RepositoryPreparation =
-	| Readonly<{ kind: 'ready' }>
-	| Readonly<{ kind: 'preparing' }>
-	| Readonly<{ kind: 'failed'; failure: RepositoryConnectFailure }>;
-
 export type GithubRepositoryState =
 	| Readonly<{ kind: 'available' }>
-	| Readonly<{ kind: 'cloning'; repository: Repository | null }>
-	| Readonly<{ kind: 'cloned'; repository: Repository }>
-	| Readonly<{ kind: 'failed'; repository: Repository }>;
+	| Readonly<{ kind: 'cloning' }>
+	| Readonly<{ kind: 'cloned'; repository: Repository }>;
 
 export function githubRepositoryState(
 	github: GithubRepository,
 	connectingKey: string | null,
 	connected: readonly Repository[],
-	preparationOf: (repository: Repository) => RepositoryPreparation,
 ): GithubRepositoryState {
 	const { key } = repositoryConnectionFor({ kind: 'clone-url', url: github.cloneUrl });
-	if (connectingKey === key) return { kind: 'cloning', repository: null };
+	if (connectingKey === key) return { kind: 'cloning' };
 	const fullName = github.fullName.toLowerCase();
 	const repository = connected.find((candidate) => candidate.fullName.toLowerCase() === fullName);
-	if (!repository) return { kind: 'available' };
-	const preparation = preparationOf(repository);
-	if (preparation.kind === 'preparing') return { kind: 'cloning', repository };
-	if (preparation.kind === 'failed') return { kind: 'failed', repository };
-	return { kind: 'cloned', repository };
+	return repository ? { kind: 'cloned', repository } : { kind: 'available' };
 }
 
 export function repositoryConnectFailure(
