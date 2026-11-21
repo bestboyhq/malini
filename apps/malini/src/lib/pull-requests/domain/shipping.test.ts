@@ -1033,9 +1033,19 @@ describe('a queued workstream', () => {
 
 describe('shipping helpers', () => {
 	it('backs off from 30 seconds, doubling up to 10 minutes', () => {
-		expect([1, 2, 3, 5, 6, 40].map((n) => shipBackoffMs(n, DEFAULT_SHIP_DELAYS))).toEqual([
+		expect([1, 2, 3, 5, 6, 40].map((n) => shipBackoffMs(n, DEFAULT_SHIP_DELAYS, 0))).toEqual([
 			30_000, 60_000, 120_000, 480_000, 600_000, 600_000,
 		]);
+	});
+
+	it('shortens each wait by up to a quarter, so workstreams that fail together retry apart and every wait still outlasts the one before', () => {
+		expect([1, 2, 6].map((n) => shipBackoffMs(n, DEFAULT_SHIP_DELAYS, 1))).toEqual([
+			22_500, 45_000, 450_000,
+		]);
+		expect(shipBackoffMs(1, DEFAULT_SHIP_DELAYS, 0.5)).toBe(26_250);
+		expect(shipBackoffMs(2, DEFAULT_SHIP_DELAYS, 1)).toBeGreaterThan(
+			shipBackoffMs(1, DEFAULT_SHIP_DELAYS, 0),
+		);
 	});
 
 	it('clamps the fix attempt setting to 1-20 the way Settings rounds it, defaulting when unset', () => {
