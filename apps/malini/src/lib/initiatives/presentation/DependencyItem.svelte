@@ -3,6 +3,7 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
+	import { Icon } from '$hyper-ui/icons';
 	import { deleteInitiativeDependencyCommand } from '$lib/initiatives/application/commands/delete-initiative-dependency.command';
 	import { updateInitiativeDependencyCommand } from '$lib/initiatives/application/commands/update-initiative-dependency.command';
 	import {
@@ -17,14 +18,17 @@
 	import StatusIcon from './StatusIcon.svelte';
 	import TitleEditor from './TitleEditor.svelte';
 	import WorkstreamLine from './WorkstreamLine.svelte';
+	import { caretAt } from './title-caret';
 
 	interface Props {
 		dependency: InitiativeDependency;
 		standingOf: StandingOf;
+		selected: boolean;
+		onselect: () => void;
 		onstart: () => void;
 	}
 
-	let { dependency, standingOf, onstart }: Props = $props();
+	let { dependency, standingOf, selected, onselect, onstart }: Props = $props();
 
 	type Line = Readonly<{
 		workstreamId: string;
@@ -43,6 +47,8 @@
 	};
 
 	let renaming: boolean = $state(false);
+	let caret: number | null = $state(null);
+	let regrab: boolean = $state(false);
 
 	const status = $derived(dependencyState(dependency, standingOf));
 	const lines = $derived(
@@ -55,11 +61,33 @@
 		lines.flatMap(({ standing, needs }) => (standing.dot === 'needs' && needs ? [needs] : [])),
 	);
 	const ticked = $derived(status === 'done');
+
+	function grab(title: HTMLElement): void {
+		title.focus();
+		regrab = false;
+	}
+
+	function rename(at: number | null): void {
+		caret = at;
+		renaming = true;
+	}
+
+	function close(byKey: boolean): void {
+		renaming = false;
+		regrab = byKey;
+	}
 </script>
 
 <div>
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 	<div
-		class="group/row hover:bg-surface-root-hover -mx-1.5 flex min-h-8 items-center gap-2.5 rounded-md px-1.5 text-sm"
+		class={[
+			'group/row -mx-1.5 flex min-h-8 items-center gap-2.5 rounded-md px-1.5 text-sm',
+			selected ? 'bg-surface-root-selected' : 'hover:bg-surface-root-hover',
+		]}
+		role="group"
+		aria-label={dependency.title}
+		onclick={onselect}
 	>
 		{#if status === 'todo' || status === 'done'}
 			<Tooltip content={ticked ? 'Done. Click to undo' : 'Mark done'} placement="top">
@@ -82,41 +110,52 @@
 			<TitleEditor
 				title={dependency.title}
 				label={`Rename ${dependency.title}`}
+				{caret}
 				onsave={(title) => updateInitiativeDependencyCommand(dependency.id, { title })}
-				onclose={() => (renaming = false)}
+				onclose={close}
 			/>
 		{:else}
-			<span
+			<Button
+				bare
+				ariaLabel={`Rename ${dependency.title}`}
 				class={[
-					'min-w-0 flex-1 truncate',
+					'focus-visible:ring-border-default/50 flex min-h-8 min-w-0 cursor-text items-center rounded-md text-left outline-none focus-visible:ring-2',
 					isFinished(status) ? 'text-fg-quaternary line-through' : 'text-fg-default',
 				]}
+				onclick={(event) => rename(caretAt(event, dependency.title))}
+				{@attach regrab ? grab : null}
 			>
-				<SensitiveText text={dependency.title} />
-			</span>
-			<span class="flex shrink-0 items-center gap-2">
+				<span class="min-w-0 truncate"><SensitiveText text={dependency.title} /></span>
+			</Button>
+			{#if dependency.note}
+				<Icon name="note" size={12} ariaLabel="Has a note" class="text-fg-quaternary shrink-0" />
+			{/if}
+			<span class="min-w-0 flex-1"></span>
+			<span class="flex shrink-0 items-center">
 				{#each asks as ask, index (index)}
 					<Tooltip content={ask} placement="top" onlyWhenTruncated>
-						<span class="text-2xs text-brand-foreground max-w-56 truncate">
+						<span class="text-2xs text-brand-foreground mr-2 max-w-56 truncate">
 							<SensitiveText text={ask} />
 						</span>
 					</Tooltip>
 				{/each}
 				{#if status === 'todo'}
-					<Button
-						variant="secondary"
-						size="sm"
-						bordered
-						class="group-hover/row:bg-button-secondary-hover group-hover/row:text-fg-default"
-						onclick={onstart}
-					>
-						Start workstream
-					</Button>
+					<Tooltip content="Start workstream" placement="top">
+						<IconButton
+							variant="ghost"
+							size="sm"
+							ariaLabel="Start workstream"
+							class="text-fg-tertiary opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100"
+							onclick={onstart}
+						>
+							<Icon name="send" size={14} />
+						</IconButton>
+					</Tooltip>
 				{/if}
 				<RowMenu
 					name={dependency.title}
 					confirmsDelete={false}
-					onrename={() => (renaming = true)}
+					onrename={() => rename(null)}
 					onremovedate={null}
 					ondelete={() => deleteInitiativeDependencyCommand(dependency.id)}
 				/>

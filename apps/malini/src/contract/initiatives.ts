@@ -4,6 +4,7 @@ export type InitiativeDependency = Readonly<{
 	id: string;
 	title: string;
 	done: boolean;
+	note: string | null;
 	workstreams: readonly InitiativeWorkstream[];
 }>;
 
@@ -12,6 +13,7 @@ export type Initiative = Readonly<{
 	repositoryFullName: string;
 	title: string;
 	dueOn: string | null;
+	note: string | null;
 	dependencies: readonly InitiativeDependency[];
 }>;
 
@@ -21,7 +23,12 @@ export type CreateInitiativeArgs = Readonly<{
 	dueOn: string | null;
 }>;
 
-export type UpdateInitiativeArgs = Readonly<{ id: string; title?: string; dueOn?: string | null }>;
+export type UpdateInitiativeArgs = Readonly<{
+	id: string;
+	title?: string;
+	dueOn?: string | null;
+	note?: string | null;
+}>;
 
 export type InitiativeIdArgs = Readonly<{ id: string }>;
 
@@ -31,6 +38,7 @@ export type UpdateInitiativeDependencyArgs = Readonly<{
 	id: string;
 	title?: string;
 	done?: boolean;
+	note?: string | null;
 }>;
 
 export type LinkInitiativeWorkstreamArgs = Readonly<{ dependencyId: string; workstreamId: string }>;

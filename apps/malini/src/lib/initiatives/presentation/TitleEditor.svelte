@@ -7,39 +7,41 @@
 	interface Props {
 		title: string;
 		label: string;
+		caret: number | null;
 		class?: ClassValue;
 		onsave: (title: string) => void;
-		onclose: () => void;
+		onclose: (byKey: boolean) => void;
 	}
 
-	let { title, label, class: className, onsave, onclose }: Props = $props();
+	let { title, label, caret, class: className, onsave, onclose }: Props = $props();
 
 	let value: string = $state(untrack(() => title));
 	let editing: boolean = $state(true);
 
 	function grab(field: HTMLInputElement): void {
 		field.focus();
-		field.select();
+		if (caret === null) field.select();
+		else field.setSelectionRange(caret, caret);
 	}
 
-	function finish(save: boolean): void {
+	function finish(save: boolean, byKey: boolean): void {
 		if (!editing) return;
 		editing = false;
 		const next = value.trim();
 		if (save && next && next !== title) onsave(next);
-		onclose();
+		onclose(byKey);
 	}
 
 	function onkeydown(event: KeyboardEvent): void {
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			event.stopPropagation();
-			finish(false);
+			finish(false, true);
 			return;
 		}
 		if (event.key !== 'Enter' || event.isComposing) return;
 		event.preventDefault();
-		finish(true);
+		finish(true, true);
 	}
 </script>
 
@@ -52,6 +54,6 @@
 	class={['min-w-0 flex-1', className]}
 	inputClass="h-8"
 	{onkeydown}
-	onblur={() => finish(true)}
+	onblur={() => finish(true, false)}
 	{@attach grab}
 />

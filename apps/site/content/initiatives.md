@@ -33,11 +33,12 @@ The weeks after this one read **Next week**, then **Week of 30 Nov**.
 **Earlier** lists the initiatives whose day has passed and that are not finished.
 **No date** lists the ones without a day.
 
-Name an outcome on a day to add an initiative there, and click it to open it.
+Name an outcome on a day to add an initiative there.
+Its dependencies show under it, and the arrow at the end of its row hides them.
 
 ## Dependencies and when they are done
 
-Add dependencies to an open initiative.
+Add dependencies under an initiative.
 A dependency is done by one rule:
 
 - With no linked workstream, you tick it by hand.
@@ -52,15 +53,24 @@ Malini reads each workstream's state live, the way a chat's **Workstreams** card
 An initiative counts its finished dependencies, and it is finished once all of them are done.
 A finished initiative leaves the rail once its day has passed.
 
+## Notes
+
+Click an initiative or a dependency to select it.
+The pane beside the plan then shows its note in place of the scratchpad, and what you write there stays with that row.
+A row with a note shows a small note mark.
+**Scratchpad** above the note goes back to the scratchpad, and from a dependency's note the initiative's name opens the initiative's note.
+Deleting a row deletes its note.
+
 ## Start workstream
 
-**Start workstream** on a dependency starts a workstream for it in the background, in the initiative's repository, and links it.
+The send button on a dependency, **Start workstream**, starts a workstream for it in the background, in the initiative's repository, and links it.
 The first prompt is the dependency, with the initiative's name and date, so the agent knows what the work is for.
 Nothing opens, so you can start the next one right away.
 
 ## Move and edit
 
 Drag an initiative to another day, or press **⌥↑** and **⌥↓**.
+Click a title to edit it in place: Return saves, Escape drops the edit.
 A row's menu renames it, removes its date, or deletes it.
 Deleting an initiative deletes its dependencies and their links, and keeps the workstreams.
 

@@ -14,7 +14,11 @@ function updateInitiativeCommand(id: string, change: Omit<UpdateInitiativeArgs, 
 		} catch (error) {
 			const detail = sanitizeFailureDetail(error instanceof Error ? error.message : null);
 			const what =
-				change.title === undefined ? `"${title}" not moved` : `"${change.title}" not saved`;
+				change.title !== undefined
+					? `"${change.title}" not saved`
+					: change.note !== undefined
+						? `Note on "${title}" not saved`
+						: `"${title}" not moved`;
 			toast.error(`${what}${detail ? ` · ${detail}` : ''}.`);
 		}
 	})();

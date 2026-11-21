@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
+	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { addInitiativeDependencyCommand } from '$lib/initiatives/application/commands/add-initiative-dependency.command';
 	import { deleteInitiativeCommand } from '$lib/initiatives/application/commands/delete-initiative.command';
@@ -16,6 +18,7 @@
 	import QuietField from './QuietField.svelte';
 	import RowMenu from './RowMenu.svelte';
 	import TitleEditor from './TitleEditor.svelte';
+	import { caretAt } from './title-caret';
 
 	type Focus = 'row' | 'field';
 
@@ -23,8 +26,10 @@
 		initiative: Initiative;
 		standingOf: StandingOf;
 		open: boolean;
+		selected: string | null;
 		focus: Focus | null;
 		ontoggle: () => void;
+		onselect: (id: string) => void;
 		onmove: (days: -1 | 1) => void;
 		ondragstart: () => void;
 		ondragend: () => void;
@@ -36,8 +41,10 @@
 		initiative,
 		standingOf,
 		open,
+		selected,
 		focus,
 		ontoggle,
+		onselect,
 		onmove,
 		ondragstart,
 		ondragend,
@@ -50,6 +57,8 @@
 	const hintId = $props.id();
 
 	let renaming: boolean = $state(false);
+	let caret: number | null = $state(null);
+	let regrab: boolean = $state(false);
 
 	const progress = $derived(initiativeProgress(initiative, standingOf));
 	const needsYou = $derived(
@@ -70,7 +79,18 @@
 
 	function grab(row: HTMLElement): void {
 		row.focus();
-		onfocused();
+		regrab = false;
+		if (focus === 'row') onfocused();
+	}
+
+	function rename(at: number | null): void {
+		caret = at;
+		renaming = true;
+	}
+
+	function close(byKey: boolean): void {
+		renaming = false;
+		regrab = byKey;
 	}
 
 	function onrowkeydown(event: KeyboardEvent): void {
@@ -88,72 +108,103 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 <div
-	class="group/row hover:bg-surface-root-hover -mx-1.5 flex min-h-8 items-center gap-1 rounded-md px-1.5"
+	class={[
+		'group/row -mx-1.5 flex min-h-8 items-center gap-2.5 rounded-md px-1.5',
+		selected === initiative.id ? 'bg-surface-root-selected' : 'hover:bg-surface-root-hover',
+	]}
+	role="group"
+	aria-label={initiative.title}
 	draggable={!renaming}
 	ondragstart={onrowdragstart}
 	{ondragend}
+	onclick={() => onselect(initiative.id)}
 >
+	<ProgressRing done={progress.done} total={progress.total} />
 	{#if renaming}
-		<span class="flex min-w-0 flex-1 items-center gap-2.5 text-base font-medium">
-			<ProgressRing done={progress.done} total={progress.total} />
-			<TitleEditor
-				title={initiative.title}
-				label={`Rename ${initiative.title}`}
-				onsave={(title) => updateInitiativeCommand(initiative.id, { title })}
-				onclose={() => (renaming = false)}
-			/>
-		</span>
+		<TitleEditor
+			title={initiative.title}
+			label={`Rename ${initiative.title}`}
+			{caret}
+			class="text-base font-medium"
+			onsave={(title) => updateInitiativeCommand(initiative.id, { title })}
+			onclose={close}
+		/>
 	{:else}
 		<Button
 			bare
 			ariaLabel={initiative.title}
-			ariaExpanded={open}
 			ariaDescribedby={hintId}
 			ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-			class="focus-visible:ring-border-default/50 flex min-h-8 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md text-left outline-none focus-visible:ring-2"
-			onclick={ontoggle}
+			class="focus-visible:ring-border-default/50 text-fg-default flex min-h-8 min-w-0 cursor-text items-center rounded-md text-left text-base font-medium outline-none focus-visible:ring-2"
+			onclick={(event) => rename(caretAt(event, initiative.title))}
 			onkeydown={onrowkeydown}
-			{@attach focus === 'row' ? grab : null}
+			{@attach focus === 'row' || regrab ? grab : null}
 		>
-			<ProgressRing done={progress.done} total={progress.total} />
-			<span class="text-fg-default min-w-0 flex-1 truncate text-base font-medium">
-				<SensitiveText text={initiative.title} />
-			</span>
-			<span class="text-2xs text-fg-tertiary flex shrink-0 items-center gap-2.5 whitespace-nowrap">
-				{#if progress.total > 0}
-					<span>{progress.done} of {progress.total}</span>
-				{/if}
-				{#if needsYou}
-					<span class="text-brand-foreground">{needsYou}</span>
-				{/if}
-			</span>
-			<Icon
-				name="chevron-right"
-				size={12}
-				class={[
-					'text-fg-quaternary shrink-0 transition-transform duration-150 motion-reduce:transition-none',
-					open && 'rotate-90',
-				]}
-			/>
+			<span class="min-w-0 truncate"><SensitiveText text={initiative.title} /></span>
 		</Button>
-		<RowMenu
-			name={initiative.title}
-			confirmsDelete={initiative.dependencies.length > 0}
-			onrename={() => (renaming = true)}
-			onremovedate={initiative.dueOn === null
-				? null
-				: () => updateInitiativeCommand(initiative.id, { dueOn: null })}
-			ondelete={() => deleteInitiativeCommand(initiative.id)}
-		/>
+		{#if initiative.note}
+			<Icon name="note" size={12} ariaLabel="Has a note" class="text-fg-quaternary shrink-0" />
+		{/if}
+		<span class="min-w-0 flex-1"></span>
+		<span class="text-2xs text-fg-tertiary flex shrink-0 items-center gap-2.5 whitespace-nowrap">
+			{#if progress.total > 0}
+				<span>{progress.done} of {progress.total}</span>
+			{/if}
+			{#if needsYou}
+				<span class="text-brand-foreground">{needsYou}</span>
+			{/if}
+		</span>
+		<span class="flex shrink-0 items-center">
+			<Tooltip content={open ? 'Hide dependencies' : 'Show dependencies'} placement="top">
+				<IconButton
+					variant="ghost"
+					size="sm"
+					ariaLabel={`Dependencies of ${initiative.title}`}
+					ariaExpanded={open}
+					class={[
+						'text-fg-tertiary',
+						open && 'opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100',
+					]}
+					onclick={(event) => {
+						event.stopPropagation();
+						ontoggle();
+					}}
+				>
+					<Icon
+						name="chevron-down"
+						size={14}
+						class={[
+							'transition-transform duration-150 motion-reduce:transition-none',
+							!open && '-rotate-90',
+						]}
+					/>
+				</IconButton>
+			</Tooltip>
+			<RowMenu
+				name={initiative.title}
+				confirmsDelete={initiative.dependencies.length > 0}
+				onrename={() => rename(null)}
+				onremovedate={initiative.dueOn === null
+					? null
+					: () => updateInitiativeCommand(initiative.id, { dueOn: null })}
+				ondelete={() => deleteInitiativeCommand(initiative.id)}
+			/>
+		</span>
 	{/if}
 	<span id={hintId} class="sr-only">{hint}</span>
 </div>
 {#if open}
 	<div class="pt-0.5 pb-1 pl-[26px]">
 		{#each initiative.dependencies as dependency (dependency.id)}
-			<DependencyItem {dependency} {standingOf} onstart={() => onstart(dependency)} />
+			<DependencyItem
+				{dependency}
+				{standingOf}
+				selected={selected === dependency.id}
+				onselect={() => onselect(dependency.id)}
+				onstart={() => onstart(dependency)}
+			/>
 		{/each}
 		<QuietField
 			label={`Add a dependency to ${initiative.title}`}

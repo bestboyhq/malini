@@ -2004,6 +2004,10 @@ CREATE TABLE initiative_dependency_workstreams (
   PRIMARY KEY (dependency_id, workstream_id)
 );
 `,
+	`
+ALTER TABLE initiatives ADD COLUMN note TEXT;
+ALTER TABLE initiative_dependencies ADD COLUMN note TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
