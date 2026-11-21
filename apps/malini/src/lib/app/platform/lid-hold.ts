@@ -12,6 +12,7 @@ import {
 	type ProcessRunner,
 } from '$main/process/runner';
 import { holdsLid, LID_HOLD_SETTING } from '../domain/lid-hold';
+import { AppError } from './app-error';
 import { openAgentRunCount } from './graceful-shutdown';
 import { getSetting, setSetting } from './settings.repository';
 
@@ -150,7 +151,8 @@ export function startLidHold(
 		writeFileSync(agentFile, agentPlist);
 		await tool(tools.launchctl, ['bootout', `${domain}/${label}`]);
 		const run = await tool(tools.launchctl, ['bootstrap', domain, agentFile]);
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'launchctl'));
+		if (!boundedRunSucceeded(run))
+			throw new AppError('tool-failed', boundedRunFailureReason(run, 'launchctl'));
 	};
 	const removeAgent = async (): Promise<void> => {
 		await tool(tools.launchctl, ['bootout', `${domain}/${label}`]);
@@ -164,17 +166,19 @@ export function startLidHold(
 			`pid=$0; ${PROCESS_STARTED}`,
 			String(process.pid),
 		]);
-		if (!boundedRunSucceeded(started)) throw new Error(boundedRunFailureReason(started, 'ps'));
+		if (!boundedRunSucceeded(started))
+			throw new AppError('tool-failed', boundedRunFailureReason(started, 'ps'));
 		writeFileSync(`${marker}.tmp`, `${process.pid}\n${started.stdout}`);
 		renameSync(`${marker}.tmp`, marker);
 		if (!(await setSleepDisabled(true))) {
 			rmSync(marker, { force: true });
-			throw new Error('sudo refused to turn sleep off');
+			throw new AppError('sleep-refused', 'sudo refused to turn sleep off');
 		}
 		held = true;
 	};
 	const release = async (): Promise<void> => {
-		if (!(await setSleepDisabled(false))) throw new Error('sudo refused to turn sleep back on');
+		if (!(await setSleepDisabled(false)))
+			throw new AppError('sleep-refused', 'sudo refused to turn sleep back on');
 		rmSync(marker, { force: true });
 		held = false;
 	};
@@ -216,8 +220,10 @@ export function startLidHold(
 			PROMPT_TIMEOUT_MS,
 		);
 		if (run.exitCode === null || /User cancel+ed|\(-128\)/u.test(run.stderr)) return false;
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'osascript'));
-		if (!(await granted())) throw new Error('this Mac account is not an administrator');
+		if (!boundedRunSucceeded(run))
+			throw new AppError('tool-failed', boundedRunFailureReason(run, 'osascript'));
+		if (!(await granted()))
+			throw new AppError('not-administrator', 'this Mac account is not an administrator');
 		return true;
 	};
 	const switchOn = async (): Promise<boolean> => {

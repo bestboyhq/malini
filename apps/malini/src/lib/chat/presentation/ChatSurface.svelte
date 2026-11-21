@@ -63,6 +63,7 @@
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
 	import {
+		CheckoutHealthBanner,
 		DependencyInstallBanner,
 		WorkstreamProvisioningBanner,
 		type AgentSessionChangedFile,
@@ -417,6 +418,7 @@
 	style:padding-right="{splitInset.secondarySize}px"
 >
 	<WorkstreamProvisioningBanner {workstreamId} />
+	<CheckoutHealthBanner {workstreamId} />
 	{#if !setupInView}
 		<DependencyInstallBanner {workstreamId} />
 	{/if}

@@ -2,7 +2,11 @@ import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { GitCredentialEnv } from '$main/git/credentials';
 import { fastForwardCheckout, recordedRemoteBase, syncRemoteBase } from '$main/git/remote';
-import { UNKNOWN_WORKSTREAM_REPOSITORY, type CheckoutResolver } from './checkout-resolver';
+import {
+	UNKNOWN_WORKSTREAM_REPOSITORY,
+	WorkstreamError,
+	type CheckoutResolver,
+} from './checkout-resolver';
 import { getProject } from './projects.repository';
 import { getWorkstream } from './workstreams.repository';
 
@@ -83,7 +87,7 @@ export class WorkstreamBaseSync {
 			const workstream = getWorkstream(this.deps.db, workstreamId);
 			const project = workstream ? getProject(this.deps.db, workstream.projectId) : null;
 			if (!workstream || !project) {
-				throw new Error(`${UNKNOWN_WORKSTREAM_REPOSITORY}: ${workstreamId}`);
+				throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM_REPOSITORY}: ${workstreamId}`);
 			}
 			const remoteRef = await this.#fetch(project.repoPath, workstream.baseBranch, null);
 			if (entry.cancelled) return 'cancelled';

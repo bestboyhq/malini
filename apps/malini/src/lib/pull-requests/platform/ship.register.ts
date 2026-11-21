@@ -12,6 +12,7 @@ import { PullRequestReader } from './pull-request-reader.service';
 import { clickShip, openDraft, queueMerge } from './ship-intents';
 import { getShip, listShips, shipRecord } from './ship.repository';
 import { createShippingRule } from './ship-rule';
+import { ShipError } from './ship-target';
 import { dropDraftShip, type ShipDeps, type ShipWake } from './ship-store';
 
 export interface ShippingOptions {
@@ -82,6 +83,6 @@ export function registerShip(
 function button(args: unknown): ShipButton {
 	const value = requireString(args, 'button');
 	const known = SHIP_BUTTONS.find((candidate) => candidate === value);
-	if (!known) throw new Error(`Unknown button: ${value}`);
+	if (!known) throw new ShipError('invalid-argument', `Unknown button: ${value}`);
 	return known;
 }

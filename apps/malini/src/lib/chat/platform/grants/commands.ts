@@ -8,6 +8,7 @@ import {
 	projectFullName,
 	repositoryName,
 } from '$shared/repositories/repositories.platform';
+import { LifecycleError } from '../agent/lifecycle';
 import { maliniActionLabel } from '../agent/malini-approvals.service';
 import {
 	listActivePermissionRules,
@@ -26,7 +27,10 @@ export function installPermissionGrants(context: MainContext): () => void {
 	commands.define('chat.revoke-permission-grant', (args: unknown) => {
 		const grantId = isRecord(args) ? args['grantId'] : undefined;
 		if (typeof grantId !== 'string' || grantId.length === 0) {
-			throw new Error('invalid args: `grantId` must be a non-empty string');
+			throw new LifecycleError(
+				'invalid-argument',
+				'invalid args: `grantId` must be a non-empty string',
+			);
 		}
 		revokePermissionRuleById(db, grantId, nowIso8601());
 	});

@@ -14,7 +14,7 @@ const MAX_RESTORED_CONVERSATION_MESSAGES = 4_096;
 
 export function validateAgentModel(model: string | null | undefined): void {
 	if (model === null || model === undefined || isValidAgentModel(model)) return;
-	throw new Error(`model \`${model}\` is not in the agent catalog`);
+	throw new LifecycleError('invalid-argument', `model \`${model}\` is not in the agent catalog`);
 }
 
 export function repairPersistedModel(
@@ -28,11 +28,7 @@ export function repairPersistedModel(
 }
 
 export function worktreePath(checkoutsRoot: string, workstreamId: string): string {
-	try {
-		return resolveWorkstreamCheckoutCanonical(checkoutsRoot, workstreamId);
-	} catch (error) {
-		throw new Error(error instanceof Error ? error.message : String(error));
-	}
+	return resolveWorkstreamCheckoutCanonical(checkoutsRoot, workstreamId);
 }
 
 export function worktreeExists(checkoutsRoot: string, workstreamId: string): boolean {

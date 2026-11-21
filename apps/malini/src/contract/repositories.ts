@@ -3,6 +3,36 @@ export type WorkstreamStatus = 'active' | 'paused' | 'merged' | 'archived';
 export type WorkstreamCheckoutState =
 	'healthy' | 'path-diverged' | 'missing' | 'not-a-checkout' | 'unresolvable';
 
+export const CHECKOUT_FINDINGS = [
+	'folder-missing',
+	'git-link-missing',
+	'admin-missing',
+	'base-repository-missing',
+	'stale-lock',
+	'index-corrupt',
+	'head-invalid',
+	'dubious-ownership',
+	'git-unavailable',
+	'developer-tools-missing',
+	'permission-denied',
+	'disk-full',
+	'unknown',
+] as const;
+
+export type CheckoutFinding = (typeof CHECKOUT_FINDINGS)[number];
+
+export const CHECKOUT_HEALTH_STATES = ['healthy', 'broken', 'repairing'] as const;
+
+export type CheckoutHealthState = (typeof CHECKOUT_HEALTH_STATES)[number];
+
+export type CheckoutHealth = Readonly<{
+	state: CheckoutHealthState;
+	finding: CheckoutFinding | null;
+	repairable: boolean;
+}>;
+
+export type WorkstreamCheckoutHealthPayload = CheckoutHealth & Readonly<{ workstreamId: string }>;
+
 export type CheckoutsFolderProblem =
 	'inside-checkouts' | 'other-disk' | 'not-empty' | 'not-writable' | 'move-failed';
 

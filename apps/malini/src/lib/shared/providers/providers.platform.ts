@@ -11,5 +11,5 @@ export {
 	ProviderNotConnectedError,
 	providerEnvironment,
 	type ProviderEnvironmentInput,
-} from './domain/provider-env';
+} from './platform/provider-env';
 export { ProviderKeys } from './platform/provider-keys.service';

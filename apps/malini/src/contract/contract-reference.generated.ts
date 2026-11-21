@@ -249,6 +249,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type GithubFailure = 'unreachable' | 'down' | 'rate-limited';\n\ntype GithubReach = 'ok' | GithubFailure;\n\ntype GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;",
 		},
 		{
+			channel: 'repositories:workstream-checkout-health',
+			description:
+				"Fires when a workstream's checkout breaks, while Malini repairs it, and when it reads again, with `state` and the `finding` Malini made about what broke.",
+			facts: ['workstreamId', 'state', 'finding', 'repairable'],
+			payloadType: 'WorkstreamCheckoutHealthPayload',
+			payload:
+				"const CHECKOUT_HEALTH_STATES = ['healthy', 'broken', 'repairing'] as const;\n\ntype CheckoutHealthState = (typeof CHECKOUT_HEALTH_STATES)[number];\n\nconst CHECKOUT_FINDINGS = [\n\t'folder-missing',\n\t'git-link-missing',\n\t'admin-missing',\n\t'base-repository-missing',\n\t'stale-lock',\n\t'index-corrupt',\n\t'head-invalid',\n\t'dubious-ownership',\n\t'git-unavailable',\n\t'developer-tools-missing',\n\t'permission-denied',\n\t'disk-full',\n\t'unknown',\n] as const;\n\ntype CheckoutFinding = (typeof CHECKOUT_FINDINGS)[number];\n\ntype CheckoutHealth = Readonly<{\n\tstate: CheckoutHealthState;\n\tfinding: CheckoutFinding | null;\n\trepairable: boolean;\n}>;\n\ntype WorkstreamCheckoutHealthPayload = CheckoutHealth & Readonly<{ workstreamId: string }>;",
+		},
+		{
 			channel: 'providers:claude-code-install-progress',
 			description:
 				'Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.',

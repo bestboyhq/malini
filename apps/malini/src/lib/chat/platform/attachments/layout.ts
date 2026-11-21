@@ -11,6 +11,8 @@ import { basename, dirname, join } from 'node:path';
 import { attachmentIdIsSafe, MAX_ATTACHMENT_FILE_BYTES } from '../attachments.repository';
 import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '$contract/protocol-contract.generated';
 import { isInsideDirectory } from '$main/fs/paths';
+import { describeError, isErrnoException } from '$main/errors';
+import { AttachmentError } from './errors';
 
 export const ATTACHMENT_ROOT = BRIDGE_AGENT_ATTACHMENTS_PATH;
 
@@ -78,7 +80,7 @@ const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
 export function validateName(source: string): string {
 	const name = fileNameOf(source);
 	if (name === null) {
-		throw new Error('attachment filename must be valid UTF-8');
+		throw new AttachmentError('unsafe-name', 'attachment filename must be valid UTF-8');
 	}
 	if (
 		name.length === 0 ||
@@ -87,30 +89,20 @@ export function validateName(source: string): string {
 		Buffer.byteLength(name, 'utf8') > 255 ||
 		CONTROL_CHARACTER.test(name)
 	) {
-		throw new Error('attachment filename is unsafe');
+		throw new AttachmentError('unsafe-name', 'attachment filename is unsafe');
 	}
 	return name;
 }
 
 export function expectedRelativePath(id: string, displayName: string): string {
 	if (!attachmentIdIsSafe(id)) {
-		throw new Error('attachment id is unsafe');
+		throw new AttachmentError('invalid-argument', 'attachment id is unsafe');
 	}
 	const validated = validateName(displayName);
 	if (validated !== displayName) {
-		throw new Error('attachment filename is not normalized');
+		throw new AttachmentError('unsafe-name', 'attachment filename is not normalized');
 	}
 	return `${ATTACHMENT_ROOT}/${id}/${displayName}`;
-}
-
-function describe(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
-function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
-	return (
-		typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
-	);
 }
 
 export function attachmentsRoot(worktree: string): string {
@@ -118,7 +110,7 @@ export function attachmentsRoot(worktree: string): string {
 	try {
 		canonicalWorktree = realpathSync(worktree);
 	} catch (error) {
-		throw new Error(`canonicalize worktree: ${describe(error)}`);
+		throw new AttachmentError('io', `canonicalize worktree: ${describeError(error)}`, error);
 	}
 	let current = canonicalWorktree;
 	for (const component of ATTACHMENT_ROOT.split('/')) {
@@ -128,18 +120,29 @@ export function attachmentsRoot(worktree: string): string {
 			metadata = lstatSync(current);
 		} catch (error) {
 			if (!isErrnoException(error) || error.code !== 'ENOENT') {
-				throw new Error(`inspect attachment staging directory: ${describe(error)}`);
+				throw new AttachmentError(
+					'io',
+					`inspect attachment staging directory: ${describeError(error)}`,
+					error,
+				);
 			}
 		}
 		if (metadata) {
 			if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
-				throw new Error('attachment staging directory is not a real directory');
+				throw new AttachmentError(
+					'unsafe-path',
+					'attachment staging directory is not a real directory',
+				);
 			}
 		} else {
 			try {
 				mkdirSync(current);
 			} catch (error) {
-				throw new Error(`create attachment staging directory: ${describe(error)}`);
+				throw new AttachmentError(
+					'io',
+					`create attachment staging directory: ${describeError(error)}`,
+					error,
+				);
 			}
 		}
 	}
@@ -147,17 +150,21 @@ export function attachmentsRoot(worktree: string): string {
 	try {
 		canonicalRoot = realpathSync(current);
 	} catch (error) {
-		throw new Error(`canonicalize attachment staging directory: ${describe(error)}`);
+		throw new AttachmentError(
+			'io',
+			`canonicalize attachment staging directory: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!isInsideDirectory(canonicalWorktree, canonicalRoot)) {
-		throw new Error('attachment staging directory escapes the worktree');
+		throw new AttachmentError('unsafe-path', 'attachment staging directory escapes the worktree');
 	}
 	return canonicalRoot;
 }
 
 export function deleteAttachmentDirectory(worktree: string, id: string): void {
 	if (!attachmentIdIsSafe(id)) {
-		throw new Error('attachment id is unsafe');
+		throw new AttachmentError('invalid-argument', 'attachment id is unsafe');
 	}
 	const root = attachmentsRoot(worktree);
 	const directory = join(root, id);
@@ -166,24 +173,36 @@ export function deleteAttachmentDirectory(worktree: string, id: string): void {
 		metadata = lstatSync(directory);
 	} catch (error) {
 		if (isErrnoException(error) && error.code === 'ENOENT') return;
-		throw new Error(`inspect staged attachment directory: ${describe(error)}`);
+		throw new AttachmentError(
+			'io',
+			`inspect staged attachment directory: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
-		throw new Error('staged attachment directory is not a real directory');
+		throw new AttachmentError('unsafe-path', 'staged attachment directory is not a real directory');
 	}
 	let canonical: string;
 	try {
 		canonical = realpathSync(directory);
 	} catch (error) {
-		throw new Error(`canonicalize staged attachment directory: ${describe(error)}`);
+		throw new AttachmentError(
+			'io',
+			`canonicalize staged attachment directory: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!isInsideDirectory(root, canonical) || dirname(canonical) !== root) {
-		throw new Error('staged attachment directory escapes its root');
+		throw new AttachmentError('unsafe-path', 'staged attachment directory escapes its root');
 	}
 	try {
 		rmSync(canonical, { recursive: true, force: false });
 	} catch (error) {
-		throw new Error(`remove staged attachment directory: ${describe(error)}`);
+		throw new AttachmentError(
+			'io',
+			`remove staged attachment directory: ${describeError(error)}`,
+			error,
+		);
 	}
 }
 
@@ -193,6 +212,10 @@ export function openSourceNoFollow(path: string): number {
 	try {
 		return openSync(path, flags);
 	} catch (error) {
-		throw new Error(`open selected attachment without following links: ${describe(error)}`);
+		throw new AttachmentError(
+			'io',
+			`open selected attachment without following links: ${describeError(error)}`,
+			error,
+		);
 	}
 }

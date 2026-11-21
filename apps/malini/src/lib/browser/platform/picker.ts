@@ -4,6 +4,7 @@ import type {
 	BrowserScreenshot,
 	BrowserThreadStarted,
 } from '$contract/browser';
+import { BrowserError } from '../browser.platform';
 import { MALINI_WORLD_ID, type PageContents, type PageImage, type Rectangle } from './page';
 import { pickerScript, sourceScript, type PickerCommand, type PickerModel } from './picker-page';
 
@@ -146,7 +147,10 @@ export function cropArea(
 async function captureElement(page: PickerPage, selection: Selection): Promise<BrowserScreenshot> {
 	const image = await page.capture(cropArea(selection.rect, selection.viewport, page.zoomFactor()));
 	if (image.isEmpty())
-		throw new Error('The browser returned an empty frame for the picked element.');
+		throw new BrowserError(
+			'empty-capture',
+			'The browser returned an empty frame for the picked element.',
+		);
 	return { mediaType: 'image/png', base64: image.toPNG().toString('base64') };
 }
 
@@ -184,7 +188,10 @@ function readSelection(value: unknown): Selection | null {
 		rect === null ||
 		viewport === null
 	) {
-		throw new Error('The element picker returned a selection Malini cannot read.');
+		throw new BrowserError(
+			'bad-answer',
+			'The element picker returned a selection Malini cannot read.',
+		);
 	}
 	return {
 		domPath,
@@ -217,7 +224,7 @@ function readAnswer(value: unknown, request: PickRequest): Answer | null {
 			return { kind, prompt: trimmed.slice(0, MAX_PROMPT_CHARS), provider, model };
 		}
 	}
-	throw new Error('The element picker returned a prompt Malini cannot read.');
+	throw new BrowserError('bad-answer', 'The element picker returned a prompt Malini cannot read.');
 }
 
 function failureMessage(failure: unknown): string {

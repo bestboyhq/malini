@@ -1,11 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Linter } from 'eslint';
-import { noAsCasts, noComments, noThenChains, textParser } from '../src/index.mjs';
+import { noAsCasts, noComments, noThenChains, noUntypedThrow, textParser } from '../src/index.mjs';
 
 test('no-then-chains reports promise chains', () => {
 	assert.deepEqual(runRule(noThenChains, 'load().then(onLoaded);'), [6]);
 	assert.deepEqual(runRule(noThenChains, 'const value = await load();'), []);
+});
+
+test('no-untyped-throw reports a plain Error wherever it is made', () => {
+	assert.equal(runScriptRule(noUntypedThrow, "throw new Error('gone');").length, 1);
+	assert.equal(runScriptRule(noUntypedThrow, "throw new TypeError('gone');").length, 1);
+	assert.equal(runScriptRule(noUntypedThrow, "reject(new Error('gone'));").length, 1);
+	assert.equal(
+		runScriptRule(noUntypedThrow, 'try { run(); } catch (e) { throw new Error(String(e)); }')
+			.length,
+		1,
+	);
+	assert.equal(runScriptRule(noUntypedThrow, "throw Error('gone');").length, 1);
+	assert.equal(runScriptRule(noUntypedThrow, 'class Gone extends Error {}').length, 1);
+});
+
+test('no-untyped-throw allows named errors, the base class and a plain cause', () => {
+	assert.deepEqual(runScriptRule(noUntypedThrow, "throw new GitError('git', 'gone');"), []);
+	assert.deepEqual(runScriptRule(noUntypedThrow, 'class MaliniError extends Error {}'), []);
+	assert.deepEqual(runScriptRule(noUntypedThrow, 'class GitError extends MaliniError {}'), []);
+	assert.deepEqual(
+		runScriptRule(noUntypedThrow, "throw new GitError('git', 'gone', { cause: new Error('x') });"),
+		[],
+	);
+	assert.deepEqual(runScriptRule(noUntypedThrow, 'if (error instanceof Error) throw error;'), []);
 });
 
 test('no-as-casts preserves const assertions', () => {
@@ -125,6 +149,20 @@ function applyFix(rule, source) {
 		},
 		'Example.svelte',
 	).output;
+}
+
+/**
+ * @param {import('eslint').Rule.RuleModule} rule
+ * @param {string} source
+ * @returns {import('eslint').Linter.LintMessage[]}
+ */
+function runScriptRule(rule, source) {
+	return linter
+		.verify(source, {
+			plugins: { local: { rules: { rule } } },
+			rules: { 'local/rule': 'error' },
+		})
+		.filter((message) => message.ruleId !== null);
 }
 
 /**

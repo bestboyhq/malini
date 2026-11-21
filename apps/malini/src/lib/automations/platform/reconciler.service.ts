@@ -17,7 +17,12 @@ import {
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import {
+	describeError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import {
 	getSession,
 	latestSessionForWorkstream,
@@ -76,13 +81,19 @@ import {
 } from './reconciler-decisions.repository';
 import { BackgroundWork } from './background-work';
 
-export class ReconcilerError extends Error {
-	readonly kind: 'not-found' | 'invalid-args' | 'decided';
+const RECONCILER_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'not-found': 'bug',
+	'invalid-args': 'bug',
+	decided: 'expected',
+	'rule-failed': 'bug',
+} as const satisfies ErrorVerdicts;
 
-	constructor(kind: ReconcilerError['kind'], message: string) {
-		super(message);
-		this.name = 'ReconcilerError';
-		this.kind = kind;
+export type ReconcilerErrorKind = keyof typeof RECONCILER_ERROR_VERDICTS;
+
+export class ReconcilerError extends MaliniError<ReconcilerErrorKind> {
+	constructor(kind: ReconcilerErrorKind, message: string) {
+		super('ReconcilerError', RECONCILER_ERROR_VERDICTS, kind, message);
 	}
 }
 
@@ -185,7 +196,8 @@ export class Reconciler {
 		const matched = heard.includes('triggers') && (await apply('triggers')) === true;
 		await Promise.all(heard.filter((rule) => rule !== 'triggers').map(apply));
 		if (ruleHears('model', event.channel)) await this.#consider(event, matched);
-		if (failed.length > 0) throw new Error(`the ${failed.join(', ')} rule failed`);
+		if (failed.length > 0)
+			throw new ReconcilerError('rule-failed', `the ${failed.join(', ')} rule failed`);
 	}
 
 	async #apply(rule: Rule, event: DispatchedEvent): Promise<unknown> {
@@ -440,7 +452,7 @@ export class Reconciler {
 	): Promise<ReconcilerDecisionRecord> {
 		const definition = getAutomationDefinition(this.#context.db, candidate.definitionId);
 		try {
-			if (!definition) throw new Error('That automation no longer exists.');
+			if (!definition) throw new ReconcilerError('not-found', 'That automation no longer exists.');
 			const run = await this.#context.commands.call('automations.run', {
 				definitionId: definition.id,
 				workstreamId: candidate.workstreamId,

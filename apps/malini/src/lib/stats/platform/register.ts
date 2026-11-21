@@ -54,6 +54,7 @@ import { ResourceSampler, type BrowserTab } from './resource-sampler';
 import { StatsProfile } from './stats-profile';
 import type { WorkstreamFolder } from './running-docker';
 import { WorkstreamRunningMonitor } from './workstream-running';
+import { StatsError } from './stats-error';
 
 export interface StatsDeps {
 	readonly runner: ProcessRunner;
@@ -171,7 +172,10 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	commands.define('stats.pick-repositories', (args: unknown) => {
 		const repositories = isRecord(args) ? args['repositories'] : undefined;
 		if (!Array.isArray(repositories)) {
-			throw new Error('invalid args: `repositories` must be an array of repository names');
+			throw new StatsError(
+				'invalid-argument',
+				'invalid args: `repositories` must be an array of repository names',
+			);
 		}
 		return profile.pick(repositories);
 	});
@@ -270,7 +274,8 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 
 function requiredText(args: unknown, key: string): string {
 	const value = isRecord(args) ? args[key] : undefined;
-	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	if (typeof value !== 'string')
+		throw new StatsError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	return value;
 }
 
@@ -278,9 +283,13 @@ function setProjectArgs(args: unknown): SetProjectArgs {
 	const repositoryId = isRecord(args) ? args['repositoryId'] : undefined;
 	const on = isRecord(args) ? args['on'] : undefined;
 	if (typeof repositoryId !== 'string' || repositoryId === '') {
-		throw new Error('invalid args: `repositoryId` must be a non-empty string');
+		throw new StatsError(
+			'invalid-argument',
+			'invalid args: `repositoryId` must be a non-empty string',
+		);
 	}
-	if (typeof on !== 'boolean') throw new Error('invalid args: `on` must be a boolean');
+	if (typeof on !== 'boolean')
+		throw new StatsError('invalid-argument', 'invalid args: `on` must be a boolean');
 	return { repositoryId, on, link: requiredText(args, 'link') };
 }
 
@@ -288,10 +297,13 @@ function stopRunningArgs(args: unknown): StopRunningArgs {
 	const workstreamId = isRecord(args) ? args['workstreamId'] : undefined;
 	const itemIds = isRecord(args) ? args['itemIds'] : undefined;
 	if (typeof workstreamId !== 'string' || workstreamId === '') {
-		throw new Error('invalid args: `workstreamId` must be a non-empty string');
+		throw new StatsError(
+			'invalid-argument',
+			'invalid args: `workstreamId` must be a non-empty string',
+		);
 	}
 	if (!Array.isArray(itemIds) || !itemIds.every((id): id is string => typeof id === 'string')) {
-		throw new Error('invalid args: `itemIds` must be an array of strings');
+		throw new StatsError('invalid-argument', 'invalid args: `itemIds` must be an array of strings');
 	}
 	return { workstreamId, itemIds };
 }

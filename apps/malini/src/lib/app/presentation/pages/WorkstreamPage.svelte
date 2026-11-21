@@ -23,6 +23,7 @@
 	import {
 		archiveWorkstreamCommand,
 		changeTotalsQuery,
+		checkoutHealthQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
 		provisioningRecordQuery,
@@ -76,7 +77,8 @@
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
-	const checkoutReady = $derived(repositoryScopeReady && !worktreePending);
+	const checkoutHealthy = $derived(checkoutHealthQuery.data(workstreamId).state === 'healthy');
+	const checkoutReady = $derived(repositoryScopeReady && !worktreePending && checkoutHealthy);
 	const mediaReady = $derived(checkoutReady && workstream !== null);
 	const changeTotals = $derived(changeTotalsQuery.data[workstreamId] ?? null);
 	const provisioning = $derived(provisioningRecordQuery.data(workstreamId));

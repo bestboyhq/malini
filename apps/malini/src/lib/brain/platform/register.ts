@@ -1,4 +1,5 @@
 import type { MainContext } from '$main/context';
+import { BrainError } from './brain-documents';
 import { Brain, type BrainDeps } from './brain.service';
 
 export type BrainPlatform = Readonly<{
@@ -29,14 +30,15 @@ function field(args: unknown, key: string): unknown {
 
 function requireFlag(args: unknown, key: string): boolean {
 	const value = field(args, key);
-	if (typeof value !== 'boolean') throw new Error(`invalid args: \`${key}\` must be a boolean`);
+	if (typeof value !== 'boolean')
+		throw new BrainError('invalid-argument', `invalid args: \`${key}\` must be a boolean`);
 	return value;
 }
 
 function requireText(args: unknown, key: string): string {
 	const value = field(args, key);
 	if (typeof value !== 'string' || value.length === 0) {
-		throw new Error(`invalid args: \`${key}\` must be a non-empty string`);
+		throw new BrainError('invalid-argument', `invalid args: \`${key}\` must be a non-empty string`);
 	}
 	return value;
 }

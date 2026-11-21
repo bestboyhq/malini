@@ -16,6 +16,7 @@ import {
 import { dirname, join, relative, sep } from 'node:path';
 import { rmSync } from 'original-fs';
 import { isInsideDirectory } from '$main/fs/paths';
+import { describeError } from '$main/errors';
 import {
 	attachmentIdIsSafe,
 	collectExpiredAttachments,
@@ -48,16 +49,13 @@ import {
 } from './layout';
 import type { AdoptedAgentAttachment, StagedAgentAttachmentBytes } from '$contract/agent';
 import { promptChipIds, promptChipMarker } from '$lib/chat/domain/prompt-chip';
+import { AttachmentError } from './errors';
 
 export type { StagedAgentAttachmentBytes };
 
 export type CheckoutOf = (workstreamId: string) => Promise<string> | string;
 
 const COPY_BUFFER_BYTES = 64 * 1024;
-
-function describe(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
 function isHex(value: string): boolean {
 	return /^[0-9a-fA-F]*$/.test(value);
@@ -77,7 +75,10 @@ export function persistStagedAttachments(
 	for (const attachment of attachments) {
 		const expected = expectedRelativePath(attachment.id, attachment.displayName);
 		if (attachment.relativePath !== expected) {
-			throw new Error('staged attachment path does not match its descriptor');
+			throw new AttachmentError(
+				'invariant',
+				'staged attachment path does not match its descriptor',
+			);
 		}
 	}
 	insertStagedAttachments(db, workstreamId, attachments, createdAt, expiresAt);
@@ -94,10 +95,17 @@ function canonicalAttachmentDirectory(
 	try {
 		parent = realpathSync(dirname(path));
 	} catch (error) {
-		throw new Error(`canonicalize attachment directory: ${describe(error)}`);
+		throw new AttachmentError(
+			'io',
+			`canonicalize attachment directory: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!isInsideDirectory(root, parent) || dirname(parent) !== root) {
-		throw new Error(`attachment \`${attachment.id}\` escaped the staging root`);
+		throw new AttachmentError(
+			'unsafe-path',
+			`attachment \`${attachment.id}\` escaped the staging root`,
+		);
 	}
 	return path;
 }
@@ -110,7 +118,10 @@ export function verifyStagedFile(
 	const attachment = stored.descriptor;
 	const expected = expectedRelativePath(attachment.id, attachment.displayName);
 	if (attachment.relativePath !== expected) {
-		throw new Error(`attachment \`${attachment.id}\` has an invalid stored path`);
+		throw new AttachmentError(
+			'invariant',
+			`attachment \`${attachment.id}\` has an invalid stored path`,
+		);
 	}
 	if (
 		attachment.mediaType !== mediaType(attachment.displayName) ||
@@ -118,7 +129,10 @@ export function verifyStagedFile(
 		attachment.sha256.length !== 64 ||
 		!isHex(attachment.sha256)
 	) {
-		throw new Error(`attachment \`${attachment.id}\` has invalid descriptor metadata`);
+		throw new AttachmentError(
+			'invariant',
+			`attachment \`${attachment.id}\` has invalid descriptor metadata`,
+		);
 	}
 
 	const path = canonicalAttachmentDirectory(worktree, root, attachment, expected);
@@ -128,10 +142,10 @@ export function verifyStagedFile(
 		try {
 			before = fstatSync(fd);
 		} catch (error) {
-			throw new Error(`inspect staged attachment: ${describe(error)}`);
+			throw new AttachmentError('io', `inspect staged attachment: ${describeError(error)}`, error);
 		}
 		if (!before.isFile() || before.size !== attachment.size) {
-			throw new Error(`attachment \`${attachment.id}\` changed after staging`);
+			throw new AttachmentError('changed', `attachment \`${attachment.id}\` changed after staging`);
 		}
 		const hasher = createHash('sha256');
 		const buffer = Buffer.allocUnsafe(COPY_BUFFER_BYTES);
@@ -141,13 +155,17 @@ export function verifyStagedFile(
 			try {
 				read = readSync(fd, buffer, 0, buffer.length, null);
 			} catch (error) {
-				throw new Error(`read staged attachment: ${describe(error)}`);
+				throw new AttachmentError('io', `read staged attachment: ${describeError(error)}`, error);
 			}
 			if (read === 0) break;
 			readTotal += read;
-			if (!Number.isSafeInteger(readTotal)) throw new Error('attachment size overflow');
+			if (!Number.isSafeInteger(readTotal))
+				throw new AttachmentError('invariant', 'attachment size overflow');
 			if (readTotal > MAX_ATTACHMENT_FILE_BYTES || readTotal > attachment.size) {
-				throw new Error(`attachment \`${attachment.id}\` exceeded its staged size`);
+				throw new AttachmentError(
+					'changed',
+					`attachment \`${attachment.id}\` exceeded its staged size`,
+				);
 			}
 			hasher.update(buffer.subarray(0, read));
 		}
@@ -155,7 +173,11 @@ export function verifyStagedFile(
 		try {
 			after = fstatSync(fd);
 		} catch (error) {
-			throw new Error(`reinspect staged attachment: ${describe(error)}`);
+			throw new AttachmentError(
+				'io',
+				`reinspect staged attachment: ${describeError(error)}`,
+				error,
+			);
 		}
 		const digest = hasher.digest('hex');
 		if (
@@ -163,7 +185,10 @@ export function verifyStagedFile(
 			after.size !== before.size ||
 			digest !== attachment.sha256
 		) {
-			throw new Error(`attachment \`${attachment.id}\` failed send-time integrity verification`);
+			throw new AttachmentError(
+				'changed',
+				`attachment \`${attachment.id}\` failed send-time integrity verification`,
+			);
 		}
 	} finally {
 		closeSync(fd);
@@ -203,18 +228,25 @@ export function readStaged(
 	attachmentId: string,
 ): StagedAgentAttachmentBytes {
 	if (!attachmentIdIsSafe(attachmentId)) {
-		throw new Error('attachment id is unsafe');
+		throw new AttachmentError('invalid-argument', 'attachment id is unsafe');
 	}
 	const stored = loadStoredAttachment(db, attachmentId);
-	if (!stored) throw new Error(`staged attachment \`${attachmentId}\` not found`);
+	if (!stored)
+		throw new AttachmentError('not-found', `staged attachment \`${attachmentId}\` not found`);
 	if (stored.workstreamId !== workstreamId || stored.state !== 'staged') {
-		throw new Error(`attachment \`${attachmentId}\` is not staged for this workstream`);
+		throw new AttachmentError(
+			'not-found',
+			`attachment \`${attachmentId}\` is not staged for this workstream`,
+		);
 	}
 	const attachment = stored.descriptor;
 	const root = attachmentsRoot(worktree);
 	const expected = expectedRelativePath(attachment.id, attachment.displayName);
 	if (attachment.relativePath !== expected) {
-		throw new Error(`attachment \`${attachment.id}\` has an invalid stored path`);
+		throw new AttachmentError(
+			'invariant',
+			`attachment \`${attachment.id}\` has an invalid stored path`,
+		);
 	}
 	const path = canonicalAttachmentDirectory(worktree, root, attachment, expected);
 
@@ -226,17 +258,17 @@ export function readStaged(
 		try {
 			metadata = fstatSync(fd);
 		} catch (error) {
-			throw new Error(`inspect staged attachment: ${describe(error)}`);
+			throw new AttachmentError('io', `inspect staged attachment: ${describeError(error)}`, error);
 		}
 		if (!metadata.isFile() || metadata.size !== attachment.size) {
-			throw new Error(`attachment \`${attachment.id}\` changed after staging`);
+			throw new AttachmentError('changed', `attachment \`${attachment.id}\` changed after staging`);
 		}
 		while (total < buffer.length) {
 			let read: number;
 			try {
 				read = readSync(fd, buffer, total, buffer.length - total, null);
 			} catch (error) {
-				throw new Error(`read staged attachment: ${describe(error)}`);
+				throw new AttachmentError('io', `read staged attachment: ${describeError(error)}`, error);
 			}
 			if (read === 0) break;
 			total += read;
@@ -246,7 +278,7 @@ export function readStaged(
 	}
 	const data = buffer.subarray(0, total);
 	if (total !== attachment.size || sha256Hex(data) !== attachment.sha256) {
-		throw new Error(`attachment \`${attachment.id}\` changed after staging`);
+		throw new AttachmentError('changed', `attachment \`${attachment.id}\` changed after staging`);
 	}
 
 	return {
@@ -275,13 +307,17 @@ function createAttachmentDirectory(root: string, id: string): string {
 	try {
 		mkdirSync(directory);
 	} catch (error) {
-		throw new Error(`create attachment directory: ${describe(error)}`);
+		throw new AttachmentError('io', `create attachment directory: ${describeError(error)}`, error);
 	}
 	if (process.platform !== 'win32') {
 		try {
 			chmodSync(directory, 0o700);
 		} catch (error) {
-			throw new Error(`secure attachment directory: ${describe(error)}`);
+			throw new AttachmentError(
+				'io',
+				`secure attachment directory: ${describeError(error)}`,
+				error,
+			);
 		}
 	}
 	return directory;
@@ -291,7 +327,7 @@ function openTemporaryForWrite(path: string): number {
 	try {
 		return openSync(path, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, 0o600);
 	} catch (error) {
-		throw new Error(`create staged attachment: ${describe(error)}`);
+		throw new AttachmentError('io', `create staged attachment: ${describeError(error)}`, error);
 	}
 }
 
@@ -299,18 +335,18 @@ function publishStagedFile(directory: string, temporary: string, destination: st
 	try {
 		renameSync(temporary, destination);
 	} catch (error) {
-		throw new Error(`publish staged attachment: ${describe(error)}`);
+		throw new AttachmentError('io', `publish staged attachment: ${describeError(error)}`, error);
 	}
 	let fd: number;
 	try {
 		fd = openSync(directory, fsConstants.O_RDONLY);
 	} catch (error) {
-		throw new Error(`sync attachment directory: ${describe(error)}`);
+		throw new AttachmentError('io', `sync attachment directory: ${describeError(error)}`, error);
 	}
 	try {
 		fsyncSync(fd);
 	} catch (error) {
-		throw new Error(`sync attachment directory: ${describe(error)}`);
+		throw new AttachmentError('io', `sync attachment directory: ${describeError(error)}`, error);
 	} finally {
 		closeSync(fd);
 	}
@@ -321,11 +357,11 @@ function relativeToWorktree(worktree: string, destination: string): string {
 	try {
 		canonicalWorktree = realpathSync(worktree);
 	} catch (error) {
-		throw new Error(describe(error));
+		throw new AttachmentError('io', describeError(error), error);
 	}
 	const rel = relative(canonicalWorktree, destination);
 	if (rel.length === 0 || rel.startsWith('..') || rel.startsWith(sep) || /^[A-Za-z]:/.test(rel)) {
-		throw new Error('staged attachment escaped the worktree');
+		throw new AttachmentError('unsafe-path', 'staged attachment escaped the worktree');
 	}
 	return rel.split(sep).join('/');
 }
@@ -335,7 +371,10 @@ export function stageSelectedPaths(
 	sources: readonly string[],
 ): StagedAgentAttachment[] {
 	if (sources.length > MAX_ATTACHMENT_FILES) {
-		throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
+		throw new AttachmentError(
+			'too-many-files',
+			`at most ${MAX_ATTACHMENT_FILES} files can be attached`,
+		);
 	}
 	if (sources.length === 0) return [];
 
@@ -347,18 +386,32 @@ export function stageSelectedPaths(
 		try {
 			metadata = lstatSync(source);
 		} catch (error) {
-			throw new Error(`inspect selected attachment: ${describe(error)}`);
+			throw new AttachmentError(
+				'io',
+				`inspect selected attachment: ${describeError(error)}`,
+				error,
+			);
 		}
 		if (metadata.isSymbolicLink() || !metadata.isFile()) {
-			throw new Error('attachments must be regular files, not links or directories');
+			throw new AttachmentError(
+				'not-a-file',
+				'attachments must be regular files, not links or directories',
+			);
 		}
 		if (metadata.size > MAX_ATTACHMENT_FILE_BYTES) {
-			throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`);
+			throw new AttachmentError(
+				'too-large',
+				`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`,
+			);
 		}
 		total += metadata.size;
-		if (!Number.isSafeInteger(total)) throw new Error('attachment size overflow');
+		if (!Number.isSafeInteger(total))
+			throw new AttachmentError('invariant', 'attachment size overflow');
 		if (total > MAX_ATTACHMENT_TOTAL_BYTES) {
-			throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
+			throw new AttachmentError(
+				'too-large',
+				`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`,
+			);
 		}
 		validated.push({ source, displayName: validateName(source), expectedSize: metadata.size });
 	}
@@ -399,10 +452,10 @@ function copyIntoDirectory(
 		try {
 			opened = fstatSync(input);
 		} catch (error) {
-			throw new Error(`inspect opened attachment: ${describe(error)}`);
+			throw new AttachmentError('io', `inspect opened attachment: ${describeError(error)}`, error);
 		}
 		if (!opened.isFile() || opened.size !== expectedSize) {
-			throw new Error('attachment changed before copying');
+			throw new AttachmentError('changed', 'attachment changed before copying');
 		}
 		output = openTemporaryForWrite(temporary);
 		const buffer = Buffer.allocUnsafe(COPY_BUFFER_BYTES);
@@ -411,27 +464,30 @@ function copyIntoDirectory(
 			try {
 				read = readSync(input, buffer, 0, buffer.length, null);
 			} catch (error) {
-				throw new Error(`read selected attachment: ${describe(error)}`);
+				throw new AttachmentError('io', `read selected attachment: ${describeError(error)}`, error);
 			}
 			if (read === 0) break;
 			copied += read;
 			if (copied > MAX_ATTACHMENT_FILE_BYTES || copied > expectedSize) {
-				throw new Error('attachment changed or exceeded its size limit while copying');
+				throw new AttachmentError(
+					'changed',
+					'attachment changed or exceeded its size limit while copying',
+				);
 			}
 			hasher.update(buffer.subarray(0, read));
 			try {
 				writeSync(output, buffer, 0, read);
 			} catch (error) {
-				throw new Error(`write staged attachment: ${describe(error)}`);
+				throw new AttachmentError('io', `write staged attachment: ${describeError(error)}`, error);
 			}
 		}
 		if (copied !== expectedSize) {
-			throw new Error('attachment changed while copying');
+			throw new AttachmentError('changed', 'attachment changed while copying');
 		}
 		try {
 			fsyncSync(output);
 		} catch (error) {
-			throw new Error(`sync staged attachment: ${describe(error)}`);
+			throw new AttachmentError('io', `sync staged attachment: ${describeError(error)}`, error);
 		}
 		closeSync(output);
 		output = null;
@@ -455,11 +511,11 @@ const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/;
 
 export function decodeStrictBase64(base64: string): Buffer {
 	if (base64.length % 4 !== 0 || !BASE64_ALPHABET.test(base64)) {
-		throw new Error('decode pasted attachment: invalid base64');
+		throw new AttachmentError('invalid-argument', 'decode pasted attachment: invalid base64');
 	}
 	const bytes = Buffer.from(base64, 'base64');
 	if (bytes.toString('base64') !== base64) {
-		throw new Error('decode pasted attachment: invalid base64');
+		throw new AttachmentError('invalid-argument', 'decode pasted attachment: invalid base64');
 	}
 	return bytes;
 }
@@ -470,21 +526,30 @@ export function decodePastedAttachment(
 ): { displayName: string; bytes: Buffer } {
 	const displayName = validateName(fileName);
 	if (displayName !== fileName) {
-		throw new Error('attachment filename is not normalized');
+		throw new AttachmentError('unsafe-name', 'attachment filename is not normalized');
 	}
 	if (displayName.startsWith('.')) {
-		throw new Error('attachment filename must not start with a dot');
+		throw new AttachmentError('unsafe-name', 'attachment filename must not start with a dot');
 	}
 	const type = mediaType(displayName);
 	if (!PASTEABLE_MEDIA_TYPES.includes(type)) {
-		throw new Error(`\`${displayName}\` is not a type that can be pasted as an attachment`);
+		throw new AttachmentError(
+			'unsupported-type',
+			`\`${displayName}\` is not a type that can be pasted as an attachment`,
+		);
 	}
 	if (base64.length > MAX_ATTACHMENT_BASE64_CHARS) {
-		throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`);
+		throw new AttachmentError(
+			'too-large',
+			`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`,
+		);
 	}
 	const bytes = decodeStrictBase64(base64);
 	if (bytes.length > MAX_ATTACHMENT_FILE_BYTES) {
-		throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`);
+		throw new AttachmentError(
+			'too-large',
+			`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`,
+		);
 	}
 	return { displayName, bytes };
 }
@@ -520,12 +585,12 @@ export function writeStagedBytes(
 			try {
 				writeSync(output, bytes);
 			} catch (error) {
-				throw new Error(`write staged attachment: ${describe(error)}`);
+				throw new AttachmentError('io', `write staged attachment: ${describeError(error)}`, error);
 			}
 			try {
 				fsyncSync(output);
 			} catch (error) {
-				throw new Error(`sync staged attachment: ${describe(error)}`);
+				throw new AttachmentError('io', `sync staged attachment: ${describeError(error)}`, error);
 			}
 		} finally {
 			closeSync(output);
@@ -533,7 +598,10 @@ export function writeStagedBytes(
 		publishStagedFile(directory, temporary, destination);
 		const relativePath = relativeToWorktree(worktree, destination);
 		if (relativePath !== expectedRelativePath(id, displayName)) {
-			throw new Error('staged attachment is not a direct child of its own directory');
+			throw new AttachmentError(
+				'unsafe-path',
+				'staged attachment is not a direct child of its own directory',
+			);
 		}
 		return {
 			id,
@@ -561,12 +629,19 @@ export function stageBytes(
 	const { displayName, bytes } = decodePastedAttachment(fileName, base64);
 	const budget = stagedAttachmentBudget(db, workstreamId, createdAt);
 	if (budget.count >= MAX_ATTACHMENT_FILES) {
-		throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
+		throw new AttachmentError(
+			'too-many-files',
+			`at most ${MAX_ATTACHMENT_FILES} files can be attached`,
+		);
 	}
 	const projected = budget.bytes + bytes.length;
-	if (!Number.isSafeInteger(projected)) throw new Error('attachment size overflow');
+	if (!Number.isSafeInteger(projected))
+		throw new AttachmentError('invariant', 'attachment size overflow');
 	if (projected > MAX_ATTACHMENT_TOTAL_BYTES) {
-		throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
+		throw new AttachmentError(
+			'too-large',
+			`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`,
+		);
 	}
 
 	const staged = writeStagedBytes(worktree, displayName, bytes);
@@ -593,10 +668,17 @@ function cloneStoredAttachment(
 	const source = stored.descriptor;
 	verifyStagedFile(sourceWorktree, stored);
 	const [copy] = stageSelectedPaths(worktree, [join(sourceWorktree, source.relativePath)]);
-	if (!copy) throw new Error(`attachment \`${source.displayName}\` could not be copied`);
+	if (!copy)
+		throw new AttachmentError(
+			'invariant',
+			`attachment \`${source.displayName}\` could not be copied`,
+		);
 	try {
 		if (copy.sha256 !== source.sha256) {
-			throw new Error(`attachment \`${source.displayName}\` changed while it was copied`);
+			throw new AttachmentError(
+				'changed',
+				`attachment \`${source.displayName}\` changed while it was copied`,
+			);
 		}
 		persistStagedAttachments(db, workstreamId, [copy], createdAt, expiresAt);
 	} catch (error) {
@@ -630,8 +712,10 @@ async function cloneAttachment(
 			expiresAt,
 		);
 	} catch (error) {
-		throw new Error(
-			`attachment \`${stored.descriptor.displayName}\` is no longer available: ${describe(error)}`,
+		throw new AttachmentError(
+			'unavailable',
+			`attachment \`${stored.descriptor.displayName}\` is no longer available: ${describeError(error)}`,
+			error,
 		);
 	}
 }
@@ -649,13 +733,19 @@ export async function adoptAttachments(
 	for (const sourceId of new Set(ids)) {
 		try {
 			const stored = attachmentIdIsSafe(sourceId) ? loadStoredAttachment(db, sourceId) : null;
-			if (!stored) throw new Error('this attachment no longer exists');
+			if (!stored) throw new AttachmentError('not-found', 'this attachment no longer exists');
 			const budget = stagedAttachmentBudget(db, workstreamId, createdAt);
 			if (budget.count >= MAX_ATTACHMENT_FILES) {
-				throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
+				throw new AttachmentError(
+					'too-many-files',
+					`at most ${MAX_ATTACHMENT_FILES} files can be attached`,
+				);
 			}
 			if (budget.bytes + stored.descriptor.size > MAX_ATTACHMENT_TOTAL_BYTES) {
-				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
+				throw new AttachmentError(
+					'too-large',
+					`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`,
+				);
 			}
 			const attachment = await cloneAttachment(
 				db,
@@ -668,7 +758,7 @@ export async function adoptAttachments(
 			);
 			adopted.push({ sourceId, attachment });
 		} catch (error) {
-			adopted.push({ sourceId, error: describe(error) });
+			adopted.push({ sourceId, error: describeError(error) });
 		}
 	}
 	return adopted;

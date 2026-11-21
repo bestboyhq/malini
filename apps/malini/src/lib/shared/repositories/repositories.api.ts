@@ -204,6 +204,7 @@ export { syncWorkstreamsHook } from './application/hooks/sync-workstreams.hook';
 export { trackWorkstreamChangeTotalsHook } from './application/hooks/track-workstream-change-totals.hook';
 export { watchGithubAuthHook } from './application/hooks/watch-github-auth.hook';
 export { watchGithubReachHook } from './application/hooks/watch-github-reach.hook';
+export { watchCheckoutHealthHook } from './application/hooks/watch-checkout-health.hook';
 export { watchWorkstreamFilesChangedHook } from './application/hooks/watch-workstream-files-changed.hook';
 export { workstreamSnapshotsHook } from './application/hooks/workstream-snapshots.hook';
 
@@ -256,6 +257,7 @@ export { worktreePendingQuery } from './application/queries/worktree-pending.que
 export { checkedOutWorkstreamsQuery } from './application/queries/checked-out-workstreams.query.svelte';
 export { workstreamCheckedOutQuery } from './application/queries/workstream-checked-out.query.svelte';
 export { workstreamReadyForPromptsQuery } from './application/queries/workstream-ready-for-prompts.query.svelte';
+export { checkoutHealthQuery } from './application/queries/checkout-health.query.svelte';
 
 export {
 	default as ConnectRepositoryContextMenu,
@@ -278,6 +280,7 @@ export {
 export { default as WorkstreamPathContextMenu } from './presentation/WorkstreamPathContextMenu.svelte';
 export { default as WorkstreamProvisioningBanner } from './presentation/WorkstreamProvisioningBanner.svelte';
 export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
+export { default as CheckoutHealthBanner } from './presentation/CheckoutHealthBanner.svelte';
 export { default as WorkstreamSetupSteps } from './presentation/WorkstreamSetupSteps.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
 export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';

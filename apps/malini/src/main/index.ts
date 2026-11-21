@@ -24,7 +24,7 @@ import { startReaper } from './process/reaper';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
-import { CommandRegistry } from './ipc/registry';
+import { CommandRegistry, CommandRegistryError } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
@@ -143,7 +143,8 @@ function assertContractIsRegistered(registered: readonly CommandName[]): void {
 	const missing = [...declared].filter((name) => !present.has(name)).sort();
 	const unexpected = [...present].filter((name) => !declared.has(name)).sort();
 	if (missing.length === 0 && unexpected.length === 0) return;
-	throw new Error(
+	throw new CommandRegistryError(
+		'invariant',
 		`the command registry does not match the contract: ${missing.length} declared but not registered (${missing.join(', ')}), ${unexpected.length} registered but not declared (${unexpected.join(', ')})`,
 	);
 }

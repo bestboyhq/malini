@@ -8,7 +8,7 @@ import type {
 	TurnedOffSkills,
 } from '$contract/skills';
 import { isRecord } from '$main/db/rows';
-import { errorCode } from '$main/errors';
+import { errorCode, MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { atomicReplaceFile } from '$main/fs/atomic';
 
 export interface ClaudeConfigFiles {
@@ -84,7 +84,10 @@ export function withSkillSwitched(settings: JsonObject, name: string, on: boolea
 export function withPluginSwitched(settings: JsonObject, id: string, on: boolean): JsonObject {
 	const plugins = settings['enabledPlugins'];
 	if (!isRecord(plugins) || !(id in plugins)) {
-		throw new Error(`The plugin \`${id}\` is not in your Claude Code settings.`);
+		throw new ClaudeSettingsError(
+			'not-found',
+			`The plugin \`${id}\` is not in your Claude Code settings.`,
+		);
 	}
 	return { ...settings, enabledPlugins: { ...plugins, [id]: on } };
 }
@@ -120,13 +123,18 @@ function claudePlugins(settings: JsonObject): ClaudePlugin[] {
 	});
 }
 
-class ClaudeSettingsError extends Error {
-	override readonly name = 'ClaudeSettingsError';
-	readonly kind: 'invalid-json' | 'not-an-object';
+const CLAUDE_SETTINGS_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'invalid-json': 'expected',
+	'not-an-object': 'expected',
+	'not-found': 'bug',
+} as const satisfies ErrorVerdicts;
 
-	constructor(kind: ClaudeSettingsError['kind'], message: string) {
-		super(message);
-		this.kind = kind;
+type ClaudeSettingsErrorKind = keyof typeof CLAUDE_SETTINGS_ERROR_VERDICTS;
+
+class ClaudeSettingsError extends MaliniError<ClaudeSettingsErrorKind> {
+	constructor(kind: ClaudeSettingsErrorKind, message: string) {
+		super('ClaudeSettingsError', CLAUDE_SETTINGS_ERROR_VERDICTS, kind, message);
 	}
 }
 

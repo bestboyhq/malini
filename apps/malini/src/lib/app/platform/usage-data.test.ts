@@ -14,6 +14,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
@@ -23,6 +24,7 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
+import { GhError, GitError } from '$main/errors';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
@@ -36,8 +38,9 @@ const NOW = new Date(2026, 9, 15, 10);
 const INSTALL_ID = 'usage-data.install-id';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-const LATER_DAY = { week_first: 'yes', month_first: 'yes', age: 'later' };
-const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1' };
+const VERSION = '0.1.0';
+const LATER_DAY = { week_first: 'yes', month_first: 'yes', age: 'later', version: VERSION };
+const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1', version: VERSION };
 
 interface HarnessOptions {
 	readonly now?: () => Date;
@@ -57,6 +60,7 @@ function harness(
 	const tags: Readonly<Record<string, string | number>>[] = [];
 	const accounts: (string | null)[] = [];
 	const errors: string[] = [];
+	const fingerprints: unknown[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
 	let goneProcess: (process: string, reason: string, status: number) => void = () => undefined;
 	const delivered = options.delivered ?? (() => true);
@@ -75,7 +79,8 @@ function harness(
 				return Promise.resolve(delivered('loop'));
 			},
 			error: (headline, details) => {
-				errors.push(errorLine(headline, details));
+				fingerprints.push(details['fingerprint']);
+				errors.push(errorLine(headline, { ...details, fingerprint: null }));
 				return Promise.resolve(true);
 			},
 			shutdown: () => Promise.resolve(),
@@ -105,6 +110,7 @@ function harness(
 		tags,
 		accounts,
 		errors,
+		fingerprints,
 		start: () => context.events.emit(APP_STARTED_CHANNEL, { version: '1.0.0' }),
 		throwUncaught: (error: unknown) => throwUncaught(error),
 		goneProcess: (process: string, reason: string, status: number) =>
@@ -253,12 +259,71 @@ describe('usage data', () => {
 
 	it('leaves out failures Malini expects, like a signed-out GitHub', async () => {
 		const { context, errors } = harness();
-		await failCommand(
-			context,
-			Object.assign(new Error('sign in'), { name: 'GhError', kind: 'auth-required' }),
-		);
+		await failCommand(context, new GhError('auth-required', 'sign in'));
 		await settled();
 		expect(errors).toEqual([]);
+	});
+
+	it('fingerprints a line by where it was thrown and what it is, never by its line number or message', async () => {
+		const { context, errors, fingerprints, throwUncaught } = harness();
+		const thrownHere = () => new TypeError('first /Users/me/a');
+		const thrownBelow = () => new TypeError('second /Users/me/b');
+		throwUncaught(thrownHere());
+		throwUncaught(thrownBelow());
+		throwUncaught(new RangeError('third'));
+		await failCommand(context, new TypeError('fourth'));
+		await settled();
+		expect(errors).toHaveLength(4);
+		expect(fingerprints).toEqual(
+			Array.from({ length: 4 }, () => expect.stringMatching(/^[0-9a-f]{12}$/u)),
+		);
+		const [here, below, range, command] = fingerprints;
+		expect(below).toBe(here);
+		expect(new Set([here, range, command]).size).toBe(3);
+	});
+
+	it('sends only the facts from their closed lists, under error', async () => {
+		const { context, errors } = harness();
+		const failure = GitError.commandFailed({
+			args: ['-C', '/Users/me/acme', 'status', '--porcelain'],
+			exitCode: 128,
+			signal: null,
+			output: "fatal: unable to read tree 'abc123' in /Users/me/acme\n",
+		});
+		Object.assign(failure, {
+			facts: { ...failure.facts, path: '/Users/me/acme', said: 'whatever git said', exit: 1.5 },
+		});
+		await failCommand(context, failure);
+		await settled();
+		const [line] = errors.map(splitLine);
+		expect(line?.details).toMatchObject({ error: { subcommand: 'status' } });
+		expect(Reflect.get(Object(line?.details), 'error')).toEqual({ subcommand: 'status' });
+	});
+
+	it('logs a broken checkout once with what the doctor found', async () => {
+		const { context, errors, activity, tags } = harness();
+		for (const workstreamId of ['w1', 'w2'])
+			context.events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, {
+				workstreamId,
+				state: 'broken',
+				finding: 'index-corrupt',
+				repairable: true,
+			});
+		context.events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, {
+			workstreamId: 'w1',
+			state: 'healthy',
+			finding: null,
+			repairable: false,
+		});
+		await settled();
+		expect(errors).toEqual([
+			'checkout broken: index-corrupt {"app":{"version":"1.0.0"},"error":{"finding":"index-corrupt"}}',
+		]);
+		expect(tags[activity.indexOf('error')]).toEqual({
+			fingerprint: expect.stringMatching(/^[0-9a-f]{12}$/u),
+			kind: 'index-corrupt',
+			version: VERSION,
+		});
 	});
 
 	it('logs crashes and uncaught exceptions', async () => {
@@ -692,6 +757,7 @@ describe('usage journeys', () => {
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'later',
+			version: VERSION,
 		});
 	});
 });
@@ -716,6 +782,7 @@ describe('usage days', () => {
 			week_first: 'no',
 			month_first: 'no',
 			age: 'week_1',
+			version: VERSION,
 		});
 
 		clock = new Date(2026, 9, 19, 9);
@@ -725,6 +792,7 @@ describe('usage days', () => {
 			week_first: 'yes',
 			month_first: 'no',
 			age: 'week_1',
+			version: VERSION,
 		});
 
 		clock = new Date(2026, 10, 1, 9);
@@ -735,6 +803,7 @@ describe('usage days', () => {
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'month_1',
+			version: VERSION,
 		});
 	});
 
@@ -782,6 +851,7 @@ describe('usage days', () => {
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'month_1',
+			version: VERSION,
 		});
 	});
 
@@ -928,7 +998,28 @@ describe('the Logdash sink', () => {
 		const logged = fetchMock.mock.calls
 			.filter(([url]) => String(url).endsWith('/logs'))
 			.map(([, init]) => (JSON.parse(String(init.body)) as { message: string }).message);
-		expect(logged).toEqual(['GPU process gone: crashed, SIGABRT {"app":{"version":"1.0.0"}}']);
+		expect(logged).toEqual([
+			expect.stringMatching(
+				/^GPU process gone: crashed, SIGABRT \{"fingerprint":"[0-9a-f]{12}","app":\{"version":"1\.0\.0"\}\}$/u,
+			),
+		]);
+		const fingerprint = /"fingerprint":"([0-9a-f]{12})"/u.exec(logged[0] ?? '')?.[1];
+		const errorEvents = fetchMock.mock.calls
+			.filter(([url]) => String(url).endsWith('/web_events'))
+			.map(
+				([, init]) =>
+					(JSON.parse(String(init.body)) as { events: Array<Record<string, unknown>> }).events[0],
+			)
+			.filter((event) => event?.['name'] === 'malini_desktop_error');
+		expect(errorEvents).toEqual([
+			{
+				id: expect.stringMatching(UUID),
+				timestamp: expect.any(String),
+				name: 'malini_desktop_error',
+				path: '/',
+				props: { fingerprint, kind: 'process-gone', version: VERSION },
+			},
+		]);
 		context.db.close();
 	});
 

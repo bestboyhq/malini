@@ -52,6 +52,19 @@ Malini used to keep checkouts there too.
 The first launch after the update moves them to `~/malini`, archived workstreams included, and leaves a link at each old folder, so an old path still opens.
 It repairs each checkout's git links, moves its Claude Code chat records along, and reinstalls each moved workstream's dependencies once in the background, carrying on at the next launch if you quit first.
 
+## A broken checkout
+
+When git can no longer read a workstream's checkout, Malini checks once what broke and shows it above the chat, such as "This folder lost its link to git".
+It stops reading that checkout until it works again, so a broken checkout does not fill your log or keep git busy.
+Prompts wait, and run once the checkout works again.
+Malini looks again after 5 seconds, then less often up to every 5 minutes, and each time you come back to its window.
+
+**Repair** fixes what Malini can fix on its own: a missing folder, `.git` link or git record of the checkout, a lock a stopped git command left behind, a damaged index and a `HEAD` that names no commit.
+It moves each git file it replaces to `malini-repairs` in the repository's git folder first, and it never changes your files.
+A missing folder comes back from its branch with the newest checkpoint of its uncommitted work.
+A lock goes only when it is more than 2 minutes old and no git command holds it.
+For the rest, such as a folder git does not trust, missing Command Line Tools or a full disk, the banner says what to do.
+
 ## Disk space
 
 Workstreams share disk space, so you can keep as many as you like.

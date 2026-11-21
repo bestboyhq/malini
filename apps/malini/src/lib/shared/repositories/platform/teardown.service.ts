@@ -4,7 +4,15 @@ import { join } from 'node:path';
 import { listWorkstreamSnapshotRefs, type WorkstreamSnapshotRefs } from '$lib/chat/chat.platform';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
-import { describeError, failureOutput, isErrnoException, isNotFoundError } from '$main/errors';
+import {
+	describeError,
+	errorCode,
+	failureOutput,
+	isErrnoException,
+	isNotFoundError,
+	MaliniError,
+	type ErrorVerdicts,
+} from '$main/errors';
 import { redactSensitiveText } from '$main/diagnostics/redaction';
 import {
 	NestedRepositoryWorkError,
@@ -82,12 +90,17 @@ export class WorkstreamTeardowns {
 	}
 }
 
-export class WorkstreamRetiredError extends Error {
-	override readonly name = 'WorkstreamRetiredError';
-	readonly kind = 'retired';
+const WORKSTREAM_RETIRED_ERROR_VERDICTS: ErrorVerdicts<'retired'> = { retired: 'expected' };
 
+export class WorkstreamRetiredError extends MaliniError<'retired'> {
 	constructor(workstreamId: string, cause: unknown) {
-		super(`Workstream \`${workstreamId}\` was archived or deleted`, { cause });
+		super(
+			'WorkstreamRetiredError',
+			WORKSTREAM_RETIRED_ERROR_VERDICTS,
+			'retired',
+			`Workstream \`${workstreamId}\` was archived or deleted`,
+			{ cause },
+		);
 	}
 }
 
@@ -310,15 +323,22 @@ async function putCheckoutBack(
 type RemovalFailureKind =
 	'save-failed' | 'nested-work' | 'move-failed' | 'stranded' | 'run-active' | 'busy' | 'failed';
 
-class WorkstreamRemovalError extends Error {
-	override readonly name = 'WorkstreamRemovalError';
-	readonly kind: RemovalFailureKind;
-	readonly code: string | null;
+const REMOVAL_FAILURE_VERDICTS: ErrorVerdicts<RemovalFailureKind> = {
+	'save-failed': 'bug',
+	'nested-work': 'expected',
+	'move-failed': 'bug',
+	stranded: 'bug',
+	'run-active': 'expected',
+	busy: 'expected',
+	failed: 'bug',
+};
 
+export class WorkstreamRemovalError extends MaliniError<RemovalFailureKind> {
 	constructor(kind: RemovalFailureKind, message: string, cause: unknown) {
-		super(message, { cause });
-		this.kind = kind;
-		this.code = isErrnoException(cause) ? (cause.code ?? null) : null;
+		super('WorkstreamRemovalError', REMOVAL_FAILURE_VERDICTS, kind, message, {
+			code: errorCode(cause),
+			cause,
+		});
 	}
 }
 

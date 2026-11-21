@@ -46,8 +46,8 @@ test('a chat whose workstream folder is gone keeps its change counts and says wh
 		await expect(page.getByText(FOLDER_MISSING)).toBeInViewport({ ratio: 1 });
 		await expect(page.getByText(/io error|Could not resolve/u)).toHaveCount(0);
 		await expect(
-			page.getByText("This workstream's folder is missing.", { exact: false }),
-		).not.toHaveCount(0);
+			page.getByRole('alert', { name: 'The folder of this workstream is gone' }),
+		).toBeVisible();
 		await captureFlow(app, 'missing-checkout-diff');
 		expect(app.pageErrors).toEqual([]);
 		expect(app.consoleErrors.filter((line) => !INSPECTOR_DID_NOT_START.test(line))).toEqual([]);

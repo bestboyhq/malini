@@ -163,6 +163,7 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		).rejects.toMatchObject({
 			name: 'SupervisorError',
 			kind: 'stopped',
+			verdict: 'expected',
 			message: 'bridge stopped before command acknowledgement',
 		});
 		await supervisor.kill();

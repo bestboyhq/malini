@@ -11,7 +11,12 @@ import {
 } from '$contract/automations';
 import type { MainContext } from '$main/context';
 import { nowIso8601 } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import {
+	describeError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import { followsEveryRule } from '../domain/automation-output-checks';
 import type { OneShotAutomation } from './one-shot-automations.service';
 import {
@@ -45,7 +50,15 @@ const EXPERIMENT_NAME = /^Experiment (\d+)$/u;
 export type OneShotAutomationDefinition = AutomationDefinitionRecord &
 	Readonly<{ builtin: OneShotAutomationBuiltin }>;
 
-export type AutomationExperimentErrorKind = 'not-found' | 'locked' | 'busy' | 'not-ready';
+const AUTOMATION_EXPERIMENT_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'not-found': 'bug',
+	locked: 'bug',
+	busy: 'expected',
+	'not-ready': 'expected',
+} as const satisfies ErrorVerdicts;
+
+export type AutomationExperimentErrorKind = keyof typeof AUTOMATION_EXPERIMENT_ERROR_VERDICTS;
 
 export type ReplayWithAutomation = (
 	builtin: OneShotAutomationBuiltin,
@@ -53,13 +66,9 @@ export type ReplayWithAutomation = (
 	automation: OneShotAutomation,
 ) => Promise<string>;
 
-export class AutomationExperimentError extends Error {
-	readonly kind: AutomationExperimentErrorKind;
-
+export class AutomationExperimentError extends MaliniError<AutomationExperimentErrorKind> {
 	constructor(kind: AutomationExperimentErrorKind, message: string) {
-		super(message);
-		this.name = 'AutomationExperimentError';
-		this.kind = kind;
+		super('AutomationExperimentError', AUTOMATION_EXPERIMENT_ERROR_VERDICTS, kind, message);
 	}
 }
 

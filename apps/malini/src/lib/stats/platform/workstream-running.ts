@@ -49,6 +49,7 @@ import {
 	type ServiceName,
 } from './running-names';
 import { readPortsByFile, type PortTool } from './running-ports';
+import { StatsError } from './stats-error';
 
 const POLL_MS = 5_000;
 const DOCKER_SCAN_MS = 15_000;
@@ -219,7 +220,8 @@ export class WorkstreamRunningMonitor {
 			deadline: Date.now() + DOCKER_STOP_TIMEOUT_MS,
 			env: buildSpawnEnvironment(),
 		});
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'docker stop'));
+		if (!boundedRunSucceeded(run))
+			throw new StatsError('stop-failed', boundedRunFailureReason(run, 'docker stop'));
 	}
 
 	#heard(envelope: LiveEventEnvelope): void {

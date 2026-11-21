@@ -10,12 +10,14 @@ import type { EventBus } from '$main/events';
 import { SANDBOX_SCRATCH_PATH } from '$main/git/paths';
 import { runGit } from '$main/git/run';
 import { buildSpawnEnvironment, resolveToolPath } from '$main/process/environment';
+import { ProcessError } from '$main/process/errors';
 import type { ProcessExit, ProcessHandle, ProcessRunner } from '$main/process/runner';
 import type { InstallSkipReason, InstallStatus } from '$contract/system';
 import {
 	REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL,
 	type WorkstreamInstallStatusPayload,
 } from '$contract/events';
+import { WorkstreamError } from './checkout-resolver';
 
 export type { WorkstreamInstallStatusPayload };
 
@@ -449,7 +451,8 @@ export async function installWithArgv(
 	emit(deps.events, workstreamId, 'running', { command: display });
 	const started = Date.now();
 	const [manager, ...args] = argv;
-	if (manager === undefined) throw new Error('detectInstallPlan never produces an empty argv');
+	if (manager === undefined)
+		throw new WorkstreamError('invariant', 'detectInstallPlan never produces an empty argv');
 	const file = resolveToolPath(manager) ?? manager;
 	let stdout = '';
 	let stderr = '';
@@ -519,7 +522,10 @@ async function runInstallChild(
 	});
 	if (handle.pid === null) {
 		const outcome = await handle.exit;
-		throw new Error(outcome.kind === 'failed' ? outcome.error : 'spawn produced no process');
+		throw new ProcessError(
+			'spawn-failed',
+			outcome.kind === 'failed' ? outcome.error : 'spawn produced no process',
+		);
 	}
 	const pid = handle.pid;
 	if (!slot.attach(pid)) {
@@ -543,7 +549,7 @@ async function runInstallChild(
 		}
 		exit = first;
 		if (slot.isAborted()) return { kind: 'aborted' };
-		if (exit.kind === 'failed') throw new Error(exit.error);
+		if (exit.kind === 'failed') throw new ProcessError('spawn-failed', exit.error);
 		return { kind: 'exited', code: exit.kind === 'exited' ? exit.code : -1 };
 	} finally {
 		if (timer) clearTimeout(timer);

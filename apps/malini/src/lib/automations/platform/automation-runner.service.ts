@@ -51,6 +51,7 @@ import {
 	workstreamWasBusy,
 } from '../domain/automation-run';
 import { updateFromMainAutomationContext } from '../domain/update-from-main-context';
+import { AutomationError } from './commands';
 import { triggeredBefore } from './event-log.repository';
 import { findString, type DispatchedEvent } from './event-log.service';
 import {
@@ -300,10 +301,10 @@ export class AutomationRunner {
 		const { db, commands } = this.#context;
 		try {
 			const definition = getAutomationDefinition(db, automationRun.definitionId);
-			if (!definition) throw new Error('This automation no longer exists.');
+			if (!definition) throw new AutomationError('not-found', 'This automation no longer exists.');
 			if (isAgentlessAutomationBuiltin(definition.builtin)) {
 				if (automationRun.workstreamId === null)
-					throw new Error(`${definition.name} needs a workstream.`);
+					throw new AutomationError('invariant', `${definition.name} needs a workstream.`);
 				await this.#runAgentless(automationRun, definition.builtin, automationRun.workstreamId);
 				return;
 			}
@@ -395,7 +396,8 @@ export class AutomationRunner {
 	async #updateFromMain(automationRun: AutomationRunRecord, workstreamId: string): Promise<void> {
 		const workstream = this.#workstream(workstreamId);
 		const baseBranch = await this.#baseBranch(workstream);
-		if (!baseBranch) throw new Error('This workstream has no base branch to update from.');
+		if (!baseBranch)
+			throw new AutomationError('not-found', 'This workstream has no base branch to update from.');
 		const status = await this.#context.commands.call('repositories.workstream-status', {
 			workstreamId,
 		});
@@ -433,7 +435,11 @@ export class AutomationRunner {
 
 	#workstream(workstreamId: string): Workstream {
 		const workstream = getWorkstream(this.#context.db, workstreamId);
-		if (!workstream) throw new Error('The workstream for this automation no longer exists.');
+		if (!workstream)
+			throw new AutomationError(
+				'not-found',
+				'The workstream for this automation no longer exists.',
+			);
 		return workstream;
 	}
 
@@ -489,7 +495,11 @@ export class AutomationRunner {
 			automationRun.repositoryId === null
 				? null
 				: await planRepositoryWorkstream(db, automationRun.repositoryId);
-		if (!planned) throw new Error('The repository for this automation is no longer connected.');
+		if (!planned)
+			throw new AutomationError(
+				'not-found',
+				'The repository for this automation is no longer connected.',
+			);
 		const plan =
 			automationRun.origin === 'schedule' ? { ...planned, name: automationRun.title } : planned;
 		await createPlannedWorkstream(commands, plan, await clonePlannedRepository(commands, plan));

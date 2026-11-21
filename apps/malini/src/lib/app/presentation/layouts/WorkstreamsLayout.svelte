@@ -25,6 +25,7 @@
 		retryRepositoriesScopeCommand,
 		syncWorkstreamsHook,
 		trackWorkstreamChangeTotalsHook,
+		watchCheckoutHealthHook,
 		watchWorkstreamFilesChangedHook,
 		workstreamCheckedOutQuery,
 	} from '$shared/repositories/repositories.api';
@@ -116,6 +117,7 @@
 			syncChatNamesHook(),
 			watchAgentChangeTriggersHook(refreshWorkstreamAfterChangeCommand),
 			watchWorkstreamFilesChangedHook(),
+			watchCheckoutHealthHook(),
 		);
 	});
 

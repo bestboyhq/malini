@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { checkoutHealthQuery } from '$shared/repositories/application/queries/checkout-health.query.svelte';
 	import { provisioningRecordQuery } from '$shared/repositories/application/queries/provisioning-record.query.svelte';
 	import { workstreamByIdQuery } from '$shared/repositories/application/queries/workstream-by-id.query.svelte';
 	import { isWorkstreamCheckoutUsable } from '$shared/repositories/domain/workstream';
@@ -12,8 +13,12 @@
 
 	const provisioningRecord = $derived(provisioningRecordQuery.data(workstreamId));
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
+	const checkoutDiagnosed = $derived(checkoutHealthQuery.data(workstreamId).state !== 'healthy');
 	const unusableCheckout = $derived(
-		!provisioningRecord && workstream && !isWorkstreamCheckoutUsable(workstream)
+		!provisioningRecord &&
+			!checkoutDiagnosed &&
+			workstream &&
+			!isWorkstreamCheckoutUsable(workstream)
 			? workstream
 			: null,
 	);

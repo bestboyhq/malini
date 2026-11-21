@@ -28,6 +28,7 @@ import {
 	stageSelectedPaths,
 } from './service';
 import { deleteAttachmentDirectory } from './layout';
+import { AttachmentError } from './errors';
 
 export const ATTACHMENT_COMMAND_NAMES = [
 	'chat.adopt-attachments',
@@ -69,7 +70,7 @@ function isRecord(value: unknown): value is Args {
 function requireString(args: unknown, key: string): string {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (typeof value !== 'string') {
-		throw new Error(`invalid args: \`${key}\` must be a string`);
+		throw new AttachmentError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	}
 	return value;
 }
@@ -77,7 +78,10 @@ function requireString(args: unknown, key: string): string {
 function requireStringArray(args: unknown, key: string): string[] {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
-		throw new Error(`invalid args: \`${key}\` must be a list of strings`);
+		throw new AttachmentError(
+			'invalid-argument',
+			`invalid args: \`${key}\` must be a list of strings`,
+		);
 	}
 	return value;
 }
@@ -85,7 +89,7 @@ function requireStringArray(args: unknown, key: string): string[] {
 function requireSeq(args: unknown, key: string): number {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
-		throw new Error(`invalid args: \`${key}\` must be an event seq`);
+		throw new AttachmentError('invalid-argument', `invalid args: \`${key}\` must be an event seq`);
 	}
 	return value;
 }
@@ -141,7 +145,10 @@ export function installAttachments(context: MainContext, deps: AttachmentsDeps =
 		const workstreamId = requireString(args, 'workstreamId');
 		const attachmentIds = requireStringArray(args, 'attachmentIds');
 		if (attachmentIds.length > MAX_ATTACHMENT_FILES) {
-			throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
+			throw new AttachmentError(
+				'too-many-files',
+				`at most ${MAX_ATTACHMENT_FILES} files can be attached`,
+			);
 		}
 		const { worktree, now, expiresAt } = await prepareStaging(workstreamId);
 		return adoptAttachments(
@@ -170,7 +177,10 @@ export function installAttachments(context: MainContext, deps: AttachmentsDeps =
 		const atSeq = requireSeq(args, 'atSeq');
 		const chat = sessionContextIdentity(db, sessionId);
 		if (chat?.workstreamId !== workstreamId) {
-			throw new Error(`chat \`${sessionId}\` is not in this workstream`);
+			throw new AttachmentError(
+				'invalid-argument',
+				`chat \`${sessionId}\` is not in this workstream`,
+			);
 		}
 		const transcript = forkTranscript(
 			chat.displayName,

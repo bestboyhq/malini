@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { copyFile, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { MaliniError, type ErrorVerdicts } from '$main/errors';
 import { retryingVanishedFileRace, withTemporaryIndex } from './diff';
 import { ensureStagingPrecondition } from './excludes';
 import { WORKTREE_CONTENT_PATHSPEC, deriveProjectId, validateWorkstreamId } from './paths';
@@ -38,13 +39,20 @@ export interface ArchivedWork {
 
 export type NestedRepositoryWork = 'uncommitted' | 'unpushed';
 
-export class NestedRepositoryWorkError extends Error {
-	override readonly name = 'NestedRepositoryWorkError';
+const NESTED_REPOSITORY_WORK_VERDICTS: ErrorVerdicts<NestedRepositoryWork> = {
+	uncommitted: 'expected',
+	unpushed: 'expected',
+};
+
+export class NestedRepositoryWorkError extends MaliniError<NestedRepositoryWork> {
 	readonly path: string;
 	readonly work: NestedRepositoryWork;
 
 	constructor(path: string, work: NestedRepositoryWork) {
 		super(
+			'NestedRepositoryWorkError',
+			NESTED_REPOSITORY_WORK_VERDICTS,
+			work,
 			work === 'uncommitted'
 				? `the nested repository ${path} has uncommitted changes`
 				: `the nested repository ${path} has commits that are on no remote`,
@@ -70,8 +78,8 @@ export async function saveLocalOnlyWork(
 		await tipsNotKeptBy(source.repository, [checkoutHead, branchTip], keepers),
 	);
 	const wipTree = source.checkout ? await uncommittedTree(source, source.checkout, base) : null;
-	if (wipTree === null && unkeptTips.length === 0) return null;
 	const commit = await archivedCommit(source.repository, wipTree, base, unkeptTips);
+	if (commit === null) return null;
 	const commits = await commitCount(source.repository, unkeptTips, keepers);
 	const ref = await writeArchivedRef(source.repository, workstreamId, commit);
 	return { ref, commit, uncommitted: wipTree !== null, commits };
@@ -192,14 +200,14 @@ async function archivedCommit(
 	wipTree: string | null,
 	base: string | null,
 	unkeptTips: readonly string[],
-): Promise<string> {
+): Promise<string | null> {
 	if (wipTree !== null) {
 		const parents =
 			base === null ? [...unkeptTips] : [base, ...unkeptTips.filter((tip) => tip !== base)];
 		return commitTree(repository, wipTree, parents, UNCOMMITTED_WORK_SUBJECT);
 	}
 	const [only, ...more] = unkeptTips;
-	if (only === undefined) throw new Error('there was no work to save');
+	if (only === undefined) return null;
 	if (more.length === 0) return only;
 	const tree = (await runGit(['-C', repository, 'rev-parse', `${only}^{tree}`])).trim();
 	return commitTree(repository, tree, unkeptTips, LOCAL_WORK_SUBJECT);

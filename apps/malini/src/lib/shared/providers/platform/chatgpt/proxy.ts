@@ -31,11 +31,6 @@ const USAGE_LIMIT_CODES: ReadonlySet<string> = new Set([
 	'subscription_sharing_workplace_individual_usage_limit_exceeded',
 ]);
 const RETRYABLE_KINDS: ReadonlySet<UpstreamErrorKind> = new Set(['overloaded', 'server']);
-const UNREACHABLE_CODES: ReadonlySet<string> = new Set([
-	'network_error',
-	'keys_unavailable',
-	'discovery_failed',
-]);
 
 export interface ChatGptProxyDeps {
 	readonly endpoints: ChatGptEndpoints;
@@ -236,7 +231,7 @@ function errorOf(error: unknown): UpstreamError {
 		return new UpstreamError('invalid-request', 'Malini could not read this request.');
 	}
 	if (error instanceof ChatGptError) {
-		const kind = UNREACHABLE_CODES.has(error.code) ? 'overloaded' : 'authentication';
+		const kind = error.kind === 'unreachable' ? 'overloaded' : 'authentication';
 		return new UpstreamError(kind, error.message, error.code);
 	}
 	return new UpstreamError('server', error instanceof Error ? error.message : String(error));

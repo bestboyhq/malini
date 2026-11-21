@@ -1,4 +1,5 @@
 import { isWorkstreamCheckoutUsable } from '$shared/repositories/domain/workstream';
+import { checkoutHealthAggregate } from '$shared/repositories/infrastructure/aggregates/checkout-health.aggregate.svelte';
 import { workstreamProvisioning } from '$shared/repositories/infrastructure/aggregates/workstream-provisioning.aggregate.svelte';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { workstreamRetirementStore } from '$shared/repositories/infrastructure/stores/workstream-retirement.store.svelte';
@@ -6,12 +7,18 @@ import { workstreamRetirementStore } from '$shared/repositories/infrastructure/s
 export { workstreamReadyForPromptsQuery };
 
 class WorkstreamReadyForPromptsQuery {
-	public readonly data: (workstreamId: string) => boolean = $derived((workstreamId: string) => {
-		if (workstreamProvisioning.get(workstreamId)) return false;
-		if (workstreamRetirementStore.isRetiring(workstreamId)) return false;
-		if (!workstreamsAggregate.loaded || workstreamsAggregate.lastError !== null) return true;
-		const workstream = workstreamsAggregate.workstreams.find((entry) => entry.id === workstreamId);
-		return workstream !== undefined && isWorkstreamCheckoutUsable(workstream);
+	public readonly data: (workstreamId: string) => boolean = $derived.by(() => {
+		const health = checkoutHealthAggregate.byWorkstream;
+		return (workstreamId: string) => {
+			if (workstreamProvisioning.get(workstreamId)) return false;
+			if (workstreamRetirementStore.isRetiring(workstreamId)) return false;
+			if ((health[workstreamId]?.state ?? 'healthy') !== 'healthy') return false;
+			if (!workstreamsAggregate.loaded || workstreamsAggregate.lastError !== null) return true;
+			const workstream = workstreamsAggregate.workstreams.find(
+				(entry) => entry.id === workstreamId,
+			);
+			return workstream !== undefined && isWorkstreamCheckoutUsable(workstream);
+		};
 	});
 }
 

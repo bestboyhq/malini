@@ -15,6 +15,7 @@ import {
 import { RENDERER_LOG_STEM } from '$main/diagnostics/diagnostics-files';
 import { appendNdjsonRecord } from '$main/diagnostics/ndjson-log';
 import { sanitizeDiagnosticText, sanitizeRoute } from '$main/diagnostics/redaction';
+import { AppError } from './app-error';
 
 export const SCHEMA_VERSION = 1;
 export const MAX_PENDING_WRITES = 8;
@@ -86,7 +87,7 @@ export class RendererErrorLog {
 
 	claimPermit(): () => void {
 		if (this.#pendingWrites >= MAX_PENDING_WRITES) {
-			throw new Error(PERSISTENCE_BUSY_ERROR);
+			throw new AppError('diagnostics-busy', PERSISTENCE_BUSY_ERROR);
 		}
 		this.#pendingWrites += 1;
 		let released = false;
@@ -174,7 +175,7 @@ export function diagnosticLevelOfToast(level: ToastDiagnosticLevel): DiagnosticL
 
 export function normalizeToastPayload(value: unknown): RendererToastPayload {
 	const invalid = (why: string): never => {
-		throw new Error(`invalid toast payload: ${why}`);
+		throw new AppError('invalid-argument', `invalid toast payload: ${why}`);
 	};
 	if (!isRecord(value)) return invalid('expected an object');
 	if (value.schemaVersion !== SCHEMA_VERSION) {
@@ -209,7 +210,10 @@ export function normalizeToastPayload(value: unknown): RendererToastPayload {
 export function normalizePayload(value: unknown): RendererErrorPayload {
 	const payload = requirePayloadShape(value);
 	if (payload.schemaVersion !== SCHEMA_VERSION) {
-		throw new Error(`unsupported renderer error schema version: ${payload.schemaVersion}`);
+		throw new AppError(
+			'invalid-argument',
+			`unsupported renderer error schema version: ${payload.schemaVersion}`,
+		);
 	}
 	const stack =
 		payload.error.stack === null
@@ -243,7 +247,7 @@ interface IncomingPayload {
 
 function requirePayloadShape(value: unknown): IncomingPayload {
 	const invalid = (why: string): never => {
-		throw new Error(`invalid renderer error payload: ${why}`);
+		throw new AppError('invalid-argument', `invalid renderer error payload: ${why}`);
 	};
 	if (!isRecord(value)) return invalid('expected an object');
 	if (typeof value.schemaVersion !== 'number') return invalid('schemaVersion must be a number');
@@ -282,11 +286,14 @@ const RFC3339 =
 export function normalizeUtcTimestamp(value: string, field: string): string {
 	const match = RFC3339.exec(value);
 	if (!match) {
-		throw new Error(`invalid renderer error ${field}: expected an RFC 3339 timestamp`);
+		throw new AppError(
+			'invalid-argument',
+			`invalid renderer error ${field}: expected an RFC 3339 timestamp`,
+		);
 	}
 	const parsed = new Date(value.replace(' ', 'T'));
 	if (Number.isNaN(parsed.getTime())) {
-		throw new Error(`invalid renderer error ${field}: out of range`);
+		throw new AppError('invalid-argument', `invalid renderer error ${field}: out of range`);
 	}
 	return parsed.toISOString();
 }

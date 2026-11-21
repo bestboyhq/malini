@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { DockerError } from './errors';
 import type { ContainerOwner } from './records';
 
 export const LABEL_APP = 'app.malini.app';
@@ -68,7 +69,8 @@ export function assertSafeComposeServiceName(value: string): void {
 		!value.startsWith('-') &&
 		/^[A-Za-z0-9._-]+$/.test(value);
 	if (valid) return;
-	throw new Error(
+	throw new DockerError(
+		'invalid-argument',
 		`Docker Compose service name must be 1-255 ASCII letters, numbers, dots, underscores, or hyphens and cannot start with a hyphen, not \`${value}\``,
 	);
 }
@@ -77,7 +79,8 @@ export function assertSafeComposeProjectName(value: string): void {
 	const valid =
 		value.length <= MAX_COMPOSE_PROJECT_NAME_LENGTH && /^[a-z0-9][a-z0-9_-]*$/.test(value);
 	if (valid) return;
-	throw new Error(
+	throw new DockerError(
+		'invalid-argument',
 		`Docker Compose project name must be 1-${MAX_COMPOSE_PROJECT_NAME_LENGTH} lowercase letters, digits, dashes, or underscores and must start with a letter or digit, not \`${value}\``,
 	);
 }
@@ -85,7 +88,8 @@ export function assertSafeComposeProjectName(value: string): void {
 export function assertSafeLabelValue(what: string, value: string): void {
 	const valid = value.length > 0 && value.length <= 255 && /^[A-Za-z0-9._\-/:+]+$/.test(value);
 	if (valid) return;
-	throw new Error(
+	throw new DockerError(
+		'invalid-argument',
 		`docker ownership ${what} must be 1-255 ASCII letters, numbers, or \`._-/:+\`, not \`${value}\``,
 	);
 }

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { DEVELOPMENT_BUNDLE_IDENTIFIER } from '../src/lib/app/platform/runtime-identity.ts';
+import { DEVELOPMENT_BUNDLE_IDENTIFIER } from '../src/lib/app/platform/bundle-identifier.ts';
 
 const BUNDLE = 'Malini.app';
 const EXECUTABLE = `${BUNDLE}/Contents/MacOS/Electron`;
