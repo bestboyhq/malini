@@ -13,6 +13,7 @@ import type {
 	AgentSessionChangeScope,
 	AgentSessionOrigin,
 	AgentSessionSummary,
+	ClosedAgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
 	AgentPlanUsage,
@@ -105,6 +106,15 @@ import type {
 	SwitchExtensionArgs,
 	UninstallExtensionArgs,
 } from './marketplace';
+import type {
+	AddInitiativeDependencyArgs,
+	CreateInitiativeArgs,
+	Initiative,
+	InitiativeIdArgs,
+	LinkInitiativeWorkstreamArgs,
+	UpdateInitiativeArgs,
+	UpdateInitiativeDependencyArgs,
+} from './initiatives';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
 	BrainCapture,
@@ -146,6 +156,7 @@ import type {
 	AddressedReviewThreadsDto,
 	ArchivedWorkstreamDto,
 	AuthStatusDto,
+	CheckoutHealth,
 	CheckoutsFolder,
 	GitSetupStatus,
 	ConnectedRepositoryDto,
@@ -541,6 +552,7 @@ export interface ContractCommands {
 	'app.recent-diagnostics': { args: RecentDiagnosticsArgs; result: DiagnosticEntry[] };
 	'repositories.abort-workstream-operation': { args: WorkstreamIdArgs; result: void };
 	'chat.archive-session': { args: SessionIdArgs; result: void };
+	'chat.reopen-session': { args: SessionIdArgs; result: void };
 	'repositories.archive-workstream': {
 		args: WorkstreamIdArgs;
 		result: WorkstreamRetirementReceipt;
@@ -695,6 +707,14 @@ export interface ContractCommands {
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
 	'scratchpad.save': { args: SaveScratchpadArgs; result: void };
+	'initiatives.list': { args: undefined; result: Initiative[] };
+	'initiatives.create': { args: CreateInitiativeArgs; result: Initiative[] };
+	'initiatives.update': { args: UpdateInitiativeArgs; result: Initiative[] };
+	'initiatives.delete': { args: InitiativeIdArgs; result: Initiative[] };
+	'initiatives.add-dependency': { args: AddInitiativeDependencyArgs; result: Initiative[] };
+	'initiatives.update-dependency': { args: UpdateInitiativeDependencyArgs; result: Initiative[] };
+	'initiatives.delete-dependency': { args: InitiativeIdArgs; result: Initiative[] };
+	'initiatives.link-workstream': { args: LinkInitiativeWorkstreamArgs; result: Initiative[] };
 	'brain.status': { args: undefined; result: BrainStatus };
 	'brain.set-up': { args: SetUpBrainArgs; result: BrainStatus };
 	'brain.set-sync': { args: SetBrainSyncArgs; result: BrainStatus };
@@ -722,6 +742,7 @@ export interface ContractCommands {
 	'chat.list-claude-plan-usage': { args: undefined; result: Record<string, unknown>[] };
 	'chat.tool-output': { args: ToolOutputArgs; result: string | null };
 	'chat.list-sessions': { args: WorkstreamIdArgs; result: AgentSessionSummary[] };
+	'chat.list-closed-sessions': { args: WorkstreamIdArgs; result: ClosedAgentSessionSummary[] };
 	'extensions.list-sources': { args: undefined; result: ExtensionSourceSnapshot[] };
 	'extensions.list-workstream-files': {
 		args: ListExtensionWorkstreamFilesArgs;
@@ -730,6 +751,8 @@ export interface ContractCommands {
 	'repositories.list-owned-docker-containers': { args: undefined; result: OwnedContainer[] };
 	'repositories.list-repositories': { args: undefined; result: ProjectDto[] };
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
+	'repositories.checkout-health': { args: WorkstreamIdArgs; result: CheckoutHealth };
+	'repositories.repair-checkout': { args: WorkstreamIdArgs; result: CheckoutHealth };
 	'repositories.workstream-context-media': { args: WorkstreamIdArgs; result: ContextMedia[] };
 	'repositories.base-files': { args: RepositoryBaseFilesArgs; result: string[] };
 	'repositories.list-workstreams': { args: undefined; result: WorkstreamDto[] };
@@ -944,6 +967,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.recent-diagnostics',
 	'repositories.abort-workstream-operation',
 	'chat.archive-session',
+	'chat.reopen-session',
 	'repositories.archive-workstream',
 	'repositories.save-workstream-for-later',
 	'chat.cancel-run',
@@ -1032,6 +1056,14 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'skills.switch',
 	'scratchpad.load',
 	'scratchpad.save',
+	'initiatives.list',
+	'initiatives.create',
+	'initiatives.update',
+	'initiatives.delete',
+	'initiatives.add-dependency',
+	'initiatives.update-dependency',
+	'initiatives.delete-dependency',
+	'initiatives.link-workstream',
 	'brain.status',
 	'brain.set-up',
 	'brain.set-sync',
@@ -1059,11 +1091,14 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.list-claude-plan-usage',
 	'chat.tool-output',
 	'chat.list-sessions',
+	'chat.list-closed-sessions',
 	'extensions.list-sources',
 	'extensions.list-workstream-files',
 	'repositories.list-owned-docker-containers',
 	'repositories.list-repositories',
 	'repositories.workstream-files',
+	'repositories.checkout-health',
+	'repositories.repair-checkout',
 	'repositories.workstream-context-media',
 	'repositories.base-files',
 	'repositories.list-workstreams',

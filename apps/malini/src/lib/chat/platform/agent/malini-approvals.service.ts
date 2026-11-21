@@ -1,5 +1,6 @@
+import type { AgentEventEnvelope } from '$contract/agent';
 import type { MaliniEditReview } from '$contract/approvals';
-import type { AutomationDefinitionRecord } from '$contract/automations';
+import type { AgentActionApproval, AutomationDefinitionRecord } from '$contract/automations';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
 import type { CommandOutcome } from '$main/ipc/registry';
@@ -27,6 +28,7 @@ export type MaliniApproval = Readonly<{
 }>;
 
 const ASK: MaliniApproval = { permission: null, review: null };
+const BRIDGE_ANSWERED_TOOLS: ReadonlySet<string> = new Set(['mcp_servers_add']);
 
 export function withMaliniApproval(db: MaliniDatabase, event: BridgeEvent): BridgeEvent {
 	if (event.type !== 'approval.requested') return event;
@@ -57,6 +59,8 @@ export function assessMaliniApproval(
 			return grant('repositories.clone');
 		case 'repositories_hide':
 			return grant('repositories.hide');
+		case 'mcp_servers_add':
+			return grant('mcp-servers.add');
 		case 'workstreams_create':
 			return grant('workstreams.create');
 		case 'workstreams_send':
@@ -154,6 +158,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
 	'automations.save': 'Save automations',
 	'repositories.clone': 'Clone repositories',
 	'repositories.hide': 'Hide repositories',
+	'mcp-servers.add': 'Add MCP servers',
 	'workstreams.create': 'Start workstreams',
 	'workstreams.send': 'Send prompts to started workstreams',
 	'workstreams.archive': 'Archive workstreams',
@@ -194,6 +199,42 @@ export function recordDeniedMaliniCall(context: AgentActionContext, outcome: Com
 		approval: 'denied',
 		output: null,
 	});
+}
+
+export function recordBridgeAnsweredCall(
+	context: AgentActionContext,
+	{ sessionId, runId, event }: AgentEventEnvelope,
+): void {
+	const { type, name, toolCallId } = event;
+	if (type !== 'tool.completed' && type !== 'tool.failed') return;
+	if (typeof name !== 'string' || !name.startsWith(MALINI_TOOL_PREFIX)) return;
+	const tool = name.slice(MALINI_TOOL_PREFIX.length);
+	if (!BRIDGE_ANSWERED_TOOLS.has(tool) || typeof toolCallId !== 'string') return;
+	const record = getInteraction(context.db, 'approval', sessionId, runId, `approval-${toolCallId}`);
+	const response = record?.response ?? record?.intendedResponse;
+	if (!record || !isRecord(response) || response['decision'] !== 'allow') return;
+	const request = record.requestPayload;
+	const input = isRecord(response['updatedInput'])
+		? response['updatedInput']
+		: isRecord(request) && isRecord(request['input'])
+			? request['input']
+			: {};
+	const output = type === 'tool.completed' ? event['output'] : event['error'];
+	recordAgentAction(context, {
+		sessionId,
+		runId,
+		workstreamId: record.workstreamId,
+		tool,
+		input,
+		status: type === 'tool.completed' ? 'succeeded' : 'failed',
+		approval: answeredApproval(response),
+		output: typeof output === 'string' ? output : null,
+	});
+}
+
+export function answeredApproval(response: Readonly<Record<string, unknown>>): AgentActionApproval {
+	if (response['tree'] === true) return 'not-needed';
+	return response['scope'] === 'once' ? 'allowed' : 'always-allowed';
 }
 
 function runsWithoutAsking(

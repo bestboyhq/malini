@@ -14,6 +14,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
@@ -23,11 +24,13 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
+import { GhError, GitError } from '$main/errors';
 import { HEARD_ABOUT_SETTING } from '../domain/heard-about';
 import { USAGE_DATA_SETTING } from '../domain/usage-data';
 import { getSetting, setSetting } from './settings.repository';
+import { elapsed, gigabytes, type ErrorMoment } from './error-context';
 import { createTestContext } from './test-support';
-import { logdashUserId, startUsageData, type UsageActivity } from './usage-data';
+import { errorLine, logdashUserId, startUsageData, type UsageActivity } from './usage-data';
 import { isUsageStep } from './usage-steps';
 
 const NOW = new Date(2026, 9, 15, 10);
@@ -35,14 +38,16 @@ const NOW = new Date(2026, 9, 15, 10);
 const INSTALL_ID = 'usage-data.install-id';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-const LATER_DAY = { week_first: 'yes', month_first: 'yes', age: 'later' };
-const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1' };
+const VERSION = '0.1.0';
+const LATER_DAY = { week_first: 'yes', month_first: 'yes', age: 'later', version: VERSION };
+const FIRST_DAY = { week_first: 'yes', month_first: 'yes', age: 'day_1', version: VERSION };
 
 interface HarnessOptions {
 	readonly now?: () => Date;
 	readonly freshInstall?: boolean;
 	readonly delivered?: (name: UsageActivity | 'loop') => boolean;
 	readonly published?: () => boolean;
+	readonly moment?: () => ErrorMoment | null;
 }
 
 function harness(
@@ -55,8 +60,9 @@ function harness(
 	const tags: Readonly<Record<string, string | number>>[] = [];
 	const accounts: (string | null)[] = [];
 	const errors: string[] = [];
+	const fingerprints: unknown[] = [];
 	let throwUncaught: (error: unknown) => void = () => undefined;
-	let goneProcess: (process: string, reason: string, exitCode: number) => void = () => undefined;
+	let goneProcess: (process: string, reason: string, status: number) => void = () => undefined;
 	const delivered = options.delivered ?? (() => true);
 	const usageData = startUsageData(context, {
 		account: () => Promise.resolve(account()),
@@ -72,8 +78,9 @@ function harness(
 				accounts.push(carried);
 				return Promise.resolve(delivered('loop'));
 			},
-			error: (message) => {
-				errors.push(message);
+			error: (headline, details) => {
+				fingerprints.push(details['fingerprint']);
+				errors.push(errorLine(headline, { ...details, fingerprint: null }));
 				return Promise.resolve(true);
 			},
 			shutdown: () => Promise.resolve(),
@@ -88,7 +95,8 @@ function harness(
 		processGone: (listener) => {
 			goneProcess = listener;
 		},
-		system: 'malini 1.0.0',
+		system: { app: { version: '1.0.0' } },
+		moment: options.moment ?? (() => null),
 		now: options.now ?? (() => NOW),
 		...(options.freshInstall === undefined ? {} : { freshInstall: options.freshInstall }),
 		...(options.published ? { published: options.published } : {}),
@@ -102,11 +110,18 @@ function harness(
 		tags,
 		accounts,
 		errors,
+		fingerprints,
 		start: () => context.events.emit(APP_STARTED_CHANNEL, { version: '1.0.0' }),
 		throwUncaught: (error: unknown) => throwUncaught(error),
-		goneProcess: (process: string, reason: string) => goneProcess(process, reason, 9),
+		goneProcess: (process: string, reason: string, status: number) =>
+			goneProcess(process, reason, status),
 		shutdown: () => usageData.shutdown(),
 	};
+}
+
+function splitLine(line: string): { headline: string; details: unknown } {
+	const at = line.indexOf(' {');
+	return { headline: line.slice(0, at), details: JSON.parse(line.slice(at + 1)) };
 }
 
 function settled(): Promise<void> {
@@ -215,7 +230,7 @@ describe('usage data', () => {
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
-				/^repositories\.list-workstreams failed: Error ENOENT at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+				/^repositories\.list-workstreams failed: Error ENOENT \{"app":\{"version":"1\.0\.0"\},"last_commands":\["repositories\.list-workstreams"\],"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\]\}$/u,
 			),
 		]);
 	});
@@ -232,31 +247,154 @@ describe('usage data', () => {
 		expect(errors).toHaveLength(1);
 		await shutdown();
 		await shutdown();
-		const [first, repeats] = errors;
+		const [first, repeats] = errors.map(splitLine);
 		expect(errors).toHaveLength(2);
-		expect(repeats).toBe(first?.replace(' · malini 1.0.0', ' · 3 more · malini 1.0.0'));
+		expect(repeats?.headline).toBe(first?.headline);
+		expect(repeats?.details).toEqual({
+			app: { version: '1.0.0' },
+			stack: [expect.stringMatching(/^lib\/app\/platform\/usage-data\.test\.ts:\d+$/u)],
+			repeats_since_last_line: 3,
+		});
 	});
 
 	it('leaves out failures Malini expects, like a signed-out GitHub', async () => {
 		const { context, errors } = harness();
-		await failCommand(
-			context,
-			Object.assign(new Error('sign in'), { name: 'GhError', kind: 'auth-required' }),
-		);
+		await failCommand(context, new GhError('auth-required', 'sign in'));
 		await settled();
 		expect(errors).toEqual([]);
+	});
+
+	it('fingerprints a line by where it was thrown and what it is, never by its line number or message', async () => {
+		const { context, errors, fingerprints, throwUncaught } = harness();
+		const thrownHere = () => new TypeError('first /Users/me/a');
+		const thrownBelow = () => new TypeError('second /Users/me/b');
+		throwUncaught(thrownHere());
+		throwUncaught(thrownBelow());
+		throwUncaught(new RangeError('third'));
+		await failCommand(context, new TypeError('fourth'));
+		await settled();
+		expect(errors).toHaveLength(4);
+		expect(fingerprints).toEqual(
+			Array.from({ length: 4 }, () => expect.stringMatching(/^[0-9a-f]{12}$/u)),
+		);
+		const [here, below, range, command] = fingerprints;
+		expect(below).toBe(here);
+		expect(new Set([here, range, command]).size).toBe(3);
+	});
+
+	it('sends only the facts from their closed lists, under error', async () => {
+		const { context, errors } = harness();
+		const failure = GitError.commandFailed({
+			args: ['-C', '/Users/me/acme', 'status', '--porcelain'],
+			exitCode: 128,
+			signal: null,
+			output: "fatal: unable to read tree 'abc123' in /Users/me/acme\n",
+		});
+		Object.assign(failure, {
+			facts: { ...failure.facts, path: '/Users/me/acme', said: 'whatever git said', exit: 1.5 },
+		});
+		await failCommand(context, failure);
+		await settled();
+		const [line] = errors.map(splitLine);
+		expect(line?.details).toMatchObject({ error: { subcommand: 'status' } });
+		expect(Reflect.get(Object(line?.details), 'error')).toEqual({ subcommand: 'status' });
+	});
+
+	it('logs a broken checkout once with what the doctor found', async () => {
+		const { context, errors, activity, tags } = harness();
+		for (const workstreamId of ['w1', 'w2'])
+			context.events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, {
+				workstreamId,
+				state: 'broken',
+				finding: 'index-corrupt',
+				repairable: true,
+				said: null,
+				restored: null,
+			});
+		context.events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, {
+			workstreamId: 'w1',
+			state: 'healthy',
+			finding: null,
+			repairable: false,
+			said: null,
+			restored: null,
+		});
+		await settled();
+		expect(errors).toEqual([
+			'checkout broken: index-corrupt {"app":{"version":"1.0.0"},"error":{"finding":"index-corrupt"}}',
+		]);
+		expect(tags[activity.indexOf('error')]).toEqual({
+			fingerprint: expect.stringMatching(/^[0-9a-f]{12}$/u),
+			kind: 'index-corrupt',
+			version: VERSION,
+		});
 	});
 
 	it('logs crashes and uncaught exceptions', async () => {
 		const { errors, throwUncaught, goneProcess } = harness();
 		throwUncaught(new TypeError('x is undefined in /Users/me'));
-		goneProcess('renderer', 'oom');
+		goneProcess('renderer', 'killed', 9);
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
-				/^uncaught exception: TypeError at lib\/app\/platform\/usage-data\.test\.ts:\d+ · malini 1\.0\.0$/u,
+				/^uncaught exception: TypeError \{"app":\{"version":"1\.0\.0"\},"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\]\}$/u,
 			),
-			'renderer process gone: oom, exit 9 · malini 1.0.0',
+			'renderer process gone: killed, SIGKILL {"app":{"version":"1.0.0"}}',
+		]);
+	});
+
+	it('adds the moment and the latest distinct commands before it, never their arguments or what it does not know', async () => {
+		const moment: ErrorMoment = {
+			running_for: '42m',
+			memory_used: '1.3 GB',
+			rendering: 'gpu',
+			route: null,
+			agent_runs: 2,
+		};
+		const { context, errors, goneProcess } = harness(undefined, () => null, {
+			moment: () => moment,
+		});
+		context.commands.define('browser.hide', () => undefined);
+		context.commands.define('browser.show', () => undefined);
+		for (const command of ['browser.hide', 'browser.show', 'browser.hide'] as const)
+			await context.commands.handle({ command, args: { path: '/Users/me/secret' } });
+		goneProcess('GPU', 'abnormal-exit', 512);
+		await settled();
+		expect(errors).toEqual([
+			'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0","running_for":"42m","memory_used":"1.3 GB","rendering":"gpu","agent_runs":2},"last_commands":["browser.hide","browser.show"]}',
+		]);
+	});
+
+	it('names the app lines a failure passed through, thrower first', async () => {
+		const { context, errors } = harness();
+		const error = Object.assign(new Error('/Users/me/acme'), { name: 'GitError', kind: 'git' });
+		error.stack = [
+			'GitError: /Users/me/acme',
+			'    at run (/a/apps/malini/src/main/git/run.ts:12:3)',
+			'    at fetch (/a/apps/malini/src/main/git/remote.ts:40:1)',
+		].join('\n');
+		await failCommand(context, error);
+		await settled();
+		expect(errors).toEqual([
+			'repositories.list-workstreams failed: GitError (git) {"app":{"version":"1.0.0"},"last_commands":["repositories.list-workstreams"],"stack":["main/git/run.ts:12","main/git/remote.ts:40"]}',
+		]);
+	});
+
+	it('writes running time and memory the way a person reads them', () => {
+		expect([61, 42 * 60, 5 * 3600, 3 * 86_400].map(elapsed)).toEqual(['61s', '42m', '5h', '3d']);
+		expect([gigabytes(18 * 2 ** 30, 0), gigabytes(1.25 * 2 ** 30, 1)]).toEqual(['18 GB', '1.3 GB']);
+	});
+
+	it('names the signal or the exit code of a gone process, not its wait status', async () => {
+		const { errors, goneProcess } = harness();
+		goneProcess('GPU', 'crashed', 6);
+		goneProcess('GPU', 'abnormal-exit', 512);
+		goneProcess('Utility', 'launch-failed', 1003);
+		await settled();
+		expect(errors).toEqual([
+			'GPU process gone: crashed, SIGABRT {"app":{"version":"1.0.0"}}',
+			'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0"}}',
+			'Utility process gone: launch-failed, code 1003 {"app":{"version":"1.0.0"}}',
 		]);
 	});
 
@@ -623,6 +761,7 @@ describe('usage journeys', () => {
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'later',
+			version: VERSION,
 		});
 	});
 });
@@ -647,6 +786,7 @@ describe('usage days', () => {
 			week_first: 'no',
 			month_first: 'no',
 			age: 'week_1',
+			version: VERSION,
 		});
 
 		clock = new Date(2026, 9, 19, 9);
@@ -656,6 +796,7 @@ describe('usage days', () => {
 			week_first: 'yes',
 			month_first: 'no',
 			age: 'week_1',
+			version: VERSION,
 		});
 
 		clock = new Date(2026, 10, 1, 9);
@@ -666,6 +807,7 @@ describe('usage days', () => {
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'month_1',
+			version: VERSION,
 		});
 	});
 
@@ -713,6 +855,7 @@ describe('usage days', () => {
 			week_first: 'yes',
 			month_first: 'yes',
 			age: 'month_1',
+			version: VERSION,
 		});
 	});
 
@@ -758,8 +901,9 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve('u1'),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 			freshInstall: true,
 		});
 		await settled();
@@ -812,8 +956,9 @@ describe('the Logdash sink', () => {
 			const usageData = startUsageData(context, {
 				hooks: noHooks,
 				processGone: () => undefined,
+				moment: () => null,
 				now: () => NOW,
-				system: 'malini 1.0.0',
+				system: { app: { version: '1.0.0' } },
 				freshInstall: true,
 			});
 			await settled();
@@ -838,6 +983,50 @@ describe('the Logdash sink', () => {
 		context.db.close();
 	});
 
+	it('sends an error line with no account or install id', async () => {
+		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
+		vi.stubEnv('MAIN_VITE_LOGDASH_API_KEY', 'key');
+		fetchMock.mockClear();
+		fetchMock.mockImplementation(() => Promise.resolve(new Response('{}')));
+		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
+		const usageData = startUsageData(context, {
+			account: () => Promise.resolve('u1'),
+			hooks: noHooks,
+			processGone: (listener) => listener('GPU', 'crashed', 6),
+			moment: () => null,
+			now: () => NOW,
+			system: { app: { version: '1.0.0' } },
+		});
+		await settled();
+		await usageData.shutdown();
+		const logged = fetchMock.mock.calls
+			.filter(([url]) => String(url).endsWith('/logs'))
+			.map(([, init]) => (JSON.parse(String(init.body)) as { message: string }).message);
+		expect(logged).toEqual([
+			expect.stringMatching(
+				/^GPU process gone: crashed, SIGABRT \{"fingerprint":"[0-9a-f]{12}","app":\{"version":"1\.0\.0"\}\}$/u,
+			),
+		]);
+		const fingerprint = /"fingerprint":"([0-9a-f]{12})"/u.exec(logged[0] ?? '')?.[1];
+		const errorEvents = fetchMock.mock.calls
+			.filter(([url]) => String(url).endsWith('/web_events'))
+			.map(
+				([, init]) =>
+					(JSON.parse(String(init.body)) as { events: Array<Record<string, unknown>> }).events[0],
+			)
+			.filter((event) => event?.['name'] === 'malini_desktop_error');
+		expect(errorEvents).toEqual([
+			{
+				id: expect.stringMatching(UUID),
+				timestamp: expect.any(String),
+				name: 'malini_desktop_error',
+				path: '/',
+				props: { fingerprint, kind: 'process-gone', version: VERSION },
+			},
+		]);
+		context.db.close();
+	});
+
 	it('posts signed-out counts with the hash of this install id, and stats_off with none', async () => {
 		vi.stubEnv('MAIN_VITE_LOGDASH_SITE', 'malini-site');
 		fetchMock.mockClear();
@@ -846,8 +1035,9 @@ describe('the Logdash sink', () => {
 		const usageData = startUsageData(context, {
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 		});
 		await settled();
 		const install = `install:${getSetting(context.db, INSTALL_ID)}`;
@@ -875,8 +1065,9 @@ describe('the Logdash sink', () => {
 			const usageData = startUsageData(context, {
 				hooks: noHooks,
 				processGone: () => undefined,
+				moment: () => null,
 				now: () => NOW,
-				system: 'malini 1.0.0',
+				system: { app: { version: '1.0.0' } },
 			});
 			await settled();
 			await usageData.shutdown();
@@ -900,8 +1091,9 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 			freshInstall: true,
 		});
 		await settled();
@@ -919,8 +1111,9 @@ describe('the Logdash sink', () => {
 			account: () => Promise.resolve(null),
 			hooks: noHooks,
 			processGone: () => undefined,
+			moment: () => null,
 			now: () => NOW,
-			system: 'malini 1.0.0',
+			system: { app: { version: '1.0.0' } },
 			freshInstall: true,
 		});
 		await settled();

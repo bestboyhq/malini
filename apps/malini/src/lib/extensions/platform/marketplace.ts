@@ -21,6 +21,7 @@ import { renameWhenFree } from '$main/fs/atomic';
 import { runGit } from '$main/git/run';
 import { BestboyError, type BestboyAccess } from '$lib/stats/stats.platform';
 import { isExtensionOn } from '../domain/extension-entry';
+import { ExtensionError } from './extension-error';
 import {
 	LICENSE_FILE,
 	MANIFEST_FILE,
@@ -111,7 +112,10 @@ export class Marketplace {
 		return this.#serial(async () => {
 			const installed = this.#requireInstalled(name);
 			if (enabled && installed.withdrawn) {
-				throw new Error(`Its publisher withdrew ${installed.displayName} ${installed.version}.`);
+				throw new ExtensionError(
+					'withdrawn',
+					`Its publisher withdrew ${installed.displayName} ${installed.version}.`,
+				);
 			}
 			if (enabled) this.#requireRoom(name);
 			switchInstalledExtension(this.#deps.db, name, enabled);
@@ -150,14 +154,17 @@ export class Marketplace {
 
 	async publish(repositoryId: string): Promise<ExtensionListing> {
 		const session = this.#deps.bestboy().session();
-		if (!session) throw new Error('Sign in to Bestboy first.');
-		if (!session.handle) throw new Error('Pick your handle first: you publish under it.');
+		if (!session) throw new ExtensionError('signed-out', 'Sign in to Bestboy first.');
+		if (!session.handle)
+			throw new ExtensionError('no-handle', 'Pick your handle first: you publish under it.');
 		const source = (await this.#deps.sources()).find((each) => each.id === repositoryId);
-		if (!source) throw new Error('Malini has no checkout of that repository.');
-		const extension = extensionFrom(await committedFiles(source.dir));
+		if (!source)
+			throw new ExtensionError('not-found', 'Malini has no checkout of that repository.');
+		const extension = yourExtension(await committedFiles(source.dir));
 		const { publisher, name, version } = extension.manifest;
 		if (publisher !== session.handle) {
-			throw new Error(
+			throw new ExtensionError(
+				'local-extension-invalid',
 				`malini.json names publisher ${publisher}, and you publish as @${session.handle}.`,
 			);
 		}
@@ -172,7 +179,7 @@ export class Marketplace {
 		} catch (error) {
 			if (error instanceof BestboyError && error.signedOut) {
 				await this.#deps.bestboy().signedOut();
-				throw new Error('Sign in to Bestboy again, then publish.');
+				throw new ExtensionError('signed-out', 'Sign in to Bestboy again, then publish.', error);
 			}
 			throw error;
 		}
@@ -190,21 +197,26 @@ export class Marketplace {
 		const { db } = this.#deps;
 		const current = getInstalledExtension(db, listing.name);
 		if (current && current.publisher !== listing.publisher) {
-			throw new Error(
+			throw new ExtensionError(
+				'name-taken',
 				`${current.displayName} by @${current.publisher} is installed under the name ${listing.name}. Uninstall it first.`,
 			);
 		}
 		if (!current) this.#requireRoom(listing.name);
 		const bytes = await this.#deps.client.download(listing);
 		if (sha256Of(bytes) !== listing.package.sha256) {
-			throw new Error(
+			throw new ExtensionError(
+				'package-mismatch',
 				`${listing.displayName} ${listing.version} does not match what the marketplace listed.`,
 			);
 		}
 		const extension = readExtensionPackage(bytes);
 		const { publisher, name, version } = extension.manifest;
 		if (publisher !== listing.publisher || name !== listing.name || version !== listing.version) {
-			throw new Error(`${listing.displayName} ${listing.version} holds a different extension.`);
+			throw new ExtensionError(
+				'package-mismatch',
+				`${listing.displayName} ${listing.version} holds a different extension.`,
+			);
 		}
 		await this.#unpack(extension, current?.version ?? null);
 		const record: InstalledExtensionRecord = {
@@ -266,7 +278,10 @@ export class Marketplace {
 			(extension) => isExtensionOn(extension) && extension.name !== name,
 		);
 		if (enabled.length >= ENABLED_MAX) {
-			throw new Error(`An agent gets at most ${ENABLED_MAX} extensions. Turn one off first.`);
+			throw new ExtensionError(
+				'limit-reached',
+				`An agent gets at most ${ENABLED_MAX} extensions. Turn one off first.`,
+			);
 		}
 	}
 
@@ -352,7 +367,7 @@ export class Marketplace {
 
 	#requireInstalled(name: string): InstalledExtensionRecord {
 		const installed = getInstalledExtension(this.#deps.db, name);
-		if (!installed) throw new Error(`${name} is not installed.`);
+		if (!installed) throw new ExtensionError('not-installed', `${name} is not installed.`);
 		return installed;
 	}
 
@@ -432,7 +447,8 @@ async function committedFiles(dir: string): Promise<PackageFile[]> {
 		...PUBLISHED_PATHS,
 	]);
 	if (changed.length > 0) {
-		throw new Error(
+		throw new ExtensionError(
+			'uncommitted',
 			'Commit malini.json, README.md, LICENSE and skills/ first: Malini publishes what is committed.',
 		);
 	}
@@ -475,4 +491,13 @@ function withoutPackage(listing: MarketplaceListing): ExtensionListing {
 function withoutSha(record: InstalledExtensionRecord): InstalledExtension {
 	const { sha256: _sha256, ...shown } = record;
 	return shown;
+}
+
+function yourExtension(files: readonly PackageFile[]): ExtensionPackage {
+	try {
+		return extensionFrom(files);
+	} catch (error) {
+		if (!(error instanceof ExtensionError)) throw error;
+		throw new ExtensionError('local-extension-invalid', error.message, error);
+	}
 }

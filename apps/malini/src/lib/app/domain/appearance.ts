@@ -16,15 +16,15 @@ export const THEME_MODES: readonly ThemeMode[] = ['system', 'light', 'dark'];
 export const MAX_TINT_CHROMA = 0.05;
 
 export const DEFAULT_APPEARANCE: Appearance = {
-	hue: 55,
-	chroma: 0.0076,
-	brightness: 0,
-	contrast: 0,
+	hue: 65,
+	chroma: 0.0081,
+	brightness: 0.24,
+	contrast: -0.17,
 };
 
 export const GREY_PRESETS: readonly GreyPreset[] = [
 	{ name: 'Neutral', hue: 0, chroma: 0 },
-	{ name: 'Stone', hue: 55, chroma: 0.0076 },
+	{ name: 'Stone', hue: 65, chroma: 0.0081 },
 	{ name: 'Paper', hue: 85, chroma: 0.01 },
 	{ name: 'Sand', hue: 70, chroma: 0.016 },
 	{ name: 'Clay', hue: 40, chroma: 0.014 },

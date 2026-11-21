@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ProviderPlan } from '$contract/agent';
+import { ProviderError } from './provider-error';
 
 export type PlanFetch = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -79,15 +80,19 @@ function modelIds(body: unknown): string[] {
 async function send(probe: PlanProbe, url: string, init: RequestInit): Promise<Response> {
 	try {
 		return await probe.fetch(url, { ...init, signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
-	} catch {
-		throw cannotCheck();
+	} catch (error) {
+		throw cannotCheck(error);
 	}
 }
 
-function refused(): Error {
-	return new Error('OpenCode did not accept this key.');
+function refused(): ProviderError {
+	return new ProviderError('key-rejected', 'OpenCode did not accept this key.');
 }
 
-function cannotCheck(): Error {
-	return new Error('Malini could not check this key with OpenCode. Try again.');
+function cannotCheck(cause?: unknown): ProviderError {
+	return new ProviderError(
+		'unreachable',
+		'Malini could not check this key with OpenCode. Try again.',
+		cause,
+	);
 }

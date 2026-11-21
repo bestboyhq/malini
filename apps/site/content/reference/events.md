@@ -467,6 +467,56 @@ type GithubReach = 'ok' | GithubFailure;
 type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
 ```
 
+## `repositories:workstream-checkout-health`
+
+Fires when a workstream's checkout breaks, while Malini repairs it, and when it reads again, with `state` and the `finding` Malini made about what broke.
+
+An automation sees: `workstreamId`, `state`, `finding`, `repairable`
+
+Payload: `WorkstreamCheckoutHealthPayload`
+
+```ts
+const CHECKOUT_HEALTH_STATES = ['healthy', 'broken', 'repairing'] as const;
+
+type CheckoutHealthState = (typeof CHECKOUT_HEALTH_STATES)[number];
+
+const CHECKOUT_FINDINGS = [
+	'folder-missing',
+	'git-link-missing',
+	'admin-missing',
+	'base-repository-missing',
+	'github-signed-out',
+	'remote-missing',
+	'checkouts-folder-missing',
+	'stale-lock',
+	'index-corrupt',
+	'head-invalid',
+	'dubious-ownership',
+	'git-unavailable',
+	'developer-tools-missing',
+	'xcode-license',
+	'permission-denied',
+	'disk-full',
+	'unknown',
+] as const;
+
+type CheckoutFinding = (typeof CHECKOUT_FINDINGS)[number];
+
+const CHECKOUT_RESTORES = ['branch-from-github', 'commits-as-edits', 'nothing-lost'] as const;
+
+type CheckoutRestore = (typeof CHECKOUT_RESTORES)[number];
+
+type CheckoutHealth = Readonly<{
+	state: CheckoutHealthState;
+	finding: CheckoutFinding | null;
+	repairable: boolean;
+	said: string | null;
+	restored: CheckoutRestore | null;
+}>;
+
+type WorkstreamCheckoutHealthPayload = CheckoutHealth & Readonly<{ workstreamId: string }>;
+```
+
 ## `providers:claude-code-install-progress`
 
 Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.
@@ -1272,7 +1322,7 @@ type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
 ## `app:menu-command-chosen`
 
-Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
+Fires when you pick New Workstream, New Chat, Reopen Closed Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
 
 An automation sees: `command`
 
@@ -1280,7 +1330,13 @@ Payload: `MenuCommandChosen`
 
 ```ts
 type MenuCommand =
-	'new-workstream' | 'new-chat' | 'open-folder' | 'find-repository' | 'accounts' | 'settings';
+	| 'new-workstream'
+	| 'new-chat'
+	| 'reopen-chat'
+	| 'open-folder'
+	| 'find-repository'
+	| 'accounts'
+	| 'settings';
 
 type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 ```

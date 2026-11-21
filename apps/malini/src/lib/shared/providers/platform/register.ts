@@ -9,7 +9,7 @@ import {
 	currentEnvironment,
 	resolveToolPath,
 } from '$main/process/environment';
-import { withoutProviderVariables } from '$shared/providers/domain/provider-env';
+import { withoutProviderVariables } from './provider-env';
 import {
 	ClaudeAccounts,
 	type ClaudeAccountsDeps,
@@ -29,6 +29,7 @@ import { ModelsDevCatalog, modelsDevUrl, type CatalogFetch } from './models-dev.
 import { KeyProxy } from './key-proxy';
 import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
 import { loadOpencodeUsage } from './opencode-usage';
+import { ProviderError } from './provider-error';
 import { ProviderKeys } from './provider-keys.service';
 import { registerWindowsSandbox } from './windows-sandbox';
 
@@ -208,7 +209,10 @@ function providerKeyArgs(args: unknown): Readonly<{ providerId: string; apiKey: 
 	const providerId = isRecord(args) ? args['providerId'] : undefined;
 	const apiKey = isRecord(args) ? args['apiKey'] : undefined;
 	if (typeof providerId !== 'string' || typeof apiKey !== 'string') {
-		throw new Error('invalid args: `providerId` and `apiKey` must be strings');
+		throw new ProviderError(
+			'invalid-argument',
+			'invalid args: `providerId` and `apiKey` must be strings',
+		);
 	}
 	return { providerId, apiKey };
 }
@@ -216,7 +220,7 @@ function providerKeyArgs(args: unknown): Readonly<{ providerId: string; apiKey: 
 function providerIdArg(args: unknown): string {
 	const providerId = isRecord(args) ? args['providerId'] : undefined;
 	if (typeof providerId !== 'string')
-		throw new Error('invalid args: `providerId` must be a string');
+		throw new ProviderError('invalid-argument', 'invalid args: `providerId` must be a string');
 	return providerId;
 }
 
@@ -234,7 +238,7 @@ function parseEmail(args: unknown): string | null {
 }
 
 function invalidEmail(): never {
-	throw new Error('invalid args: `email` must be an email address');
+	throw new ProviderError('invalid-argument', 'invalid args: `email` must be an email address');
 }
 
 function claudeExecutable(): string | null {

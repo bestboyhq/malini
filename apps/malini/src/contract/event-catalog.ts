@@ -9,6 +9,7 @@ import {
 	UNFINISHED_AUTOMATION_RUN_STATUSES,
 } from './automations';
 import type { ContractEvents, EventChannel } from './events';
+import { CHECKOUT_FINDINGS, CHECKOUT_HEALTH_STATES } from './repositories';
 
 type Keys<T> = T extends unknown ? keyof T & string : never;
 
@@ -215,6 +216,12 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 		description:
 			"Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.",
 		facts: ['reach'],
+	},
+	'repositories:workstream-checkout-health': {
+		description:
+			"Fires when a workstream's checkout breaks, while Malini repairs it, and when it reads again, with `state` and the `finding` Malini made about what broke.",
+		facts: ['workstreamId', 'state', 'finding', 'repairable'],
+		values: { state: CHECKOUT_HEALTH_STATES, finding: CHECKOUT_FINDINGS },
 	},
 	'providers:claude-code-install-progress': {
 		description:
@@ -507,7 +514,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'app:menu-command-chosen': {
 		description:
-			"Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's {menu} or its {tray} icon, with which one you picked.",
+			"Fires when you pick New Workstream, New Chat, Reopen Closed Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's {menu} or its {tray} icon, with which one you picked.",
 		facts: ['command'],
 	},
 	'app:streaming-changed': {

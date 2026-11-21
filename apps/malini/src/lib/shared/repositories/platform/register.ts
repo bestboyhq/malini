@@ -1,12 +1,15 @@
 import { canSandbox } from '@malini/agent-bridge/sandbox';
-import { net, type BrowserWindow } from 'electron';
+import { app, net, type BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
 import {
 	REPOSITORIES_CHANGED_CHANNEL,
 	REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL,
 	REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
+	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
+import { listWorkstreamSnapshotRefs } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { DEVELOPMENT_BUNDLE_IDENTIFIER, PRODUCTION_BUNDLE_IDENTIFIER } from '$main/docker/labels';
@@ -22,7 +25,12 @@ import {
 } from '$main/docker/reclaim';
 import { describeError, failureOutput } from '$main/errors';
 import { noPromptCredentialEnv, type GitCredentialEnv } from '$main/git/credentials';
-import { validateBaseBranch, validateWorkstreamId, workstreamBranchName } from '$main/git/paths';
+import {
+	validateBaseBranch,
+	validateWorkstreamId,
+	workstreamBranchName,
+	workstreamPath,
+} from '$main/git/paths';
 import { ghVendor } from '$main/process/gh';
 import type { Fetch } from '$main/fs/download';
 import { installGh } from '$main/process/gh-install';
@@ -59,11 +67,21 @@ import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './ava
 import { listBaseFiles } from './base-files.service';
 import { BASE_FETCH_EVERY_MS, BASE_QUIET_MS, BaseOverlapWatch } from './base-overlap.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
-import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
+import { examineCheckout, repairCheckout, type CheckoutCase } from './checkout-doctor';
+import { fixCheckout } from './checkout-fixes';
+import { CheckoutHealthGuard } from './checkout-health';
+import {
+	createCheckoutResolver,
+	recordedBaseRepository,
+	recordedCheckoutPath,
+	UNKNOWN_WORKSTREAM,
+	WorkstreamError,
+} from './checkout-resolver';
 import { registerGitForWindows } from './git-for-windows';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
+import { listConnectedRepositories } from './connected-repositories.repository';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
@@ -88,6 +106,7 @@ import { continueOwnPullRequest, listOwnPullRequests } from './own-pull-requests
 import {
 	cloneSeedFolder,
 	githubFullNameFromRemote,
+	managedProjectIdForRepository,
 	resolveConnectedRepository,
 } from './repository.service';
 import { hiddenFromInstalls, InstallRegistry, installDependencies } from './provisioning.service';
@@ -103,6 +122,7 @@ import {
 	listWorkstreams,
 	recordMergedPullRequest,
 	workstreamActiveTimes,
+	type Workstream,
 } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
@@ -221,6 +241,55 @@ export function registerRepositories(
 
 	const guardRunLease = deps.guardRunLease;
 	const teardowns = new WorkstreamTeardowns();
+	const cloneOrigin = (projectId: string): string | null => {
+		const connected = listConnectedRepositories(db).find(
+			(repository) => managedProjectIdForRepository(repository) === projectId,
+		);
+		return connected?.remoteUrl ?? connected?.localPath ?? null;
+	};
+	const reclone = async (origin: string): Promise<string> => {
+		const seedFolder = cloneSeedFolder(db, origin);
+		return createRepository(workstreams, {
+			repoUrl: origin,
+			githubToken: null,
+			seedFolder,
+			sizeBytes: seedFolder === null ? await githubRepositorySize(gh, origin) : null,
+		});
+	};
+	const checkoutCase = (workstreamId: string): CheckoutCase => {
+		const { baseBranch, projectId } = knownWorkstream(workstreamId);
+		const refs = listWorkstreamSnapshotRefs(db, workstreamId);
+		return {
+			checkout: expectedCheckout(workstreamId),
+			checkoutsRoot,
+			repository: recordedBaseRepository(db, checkoutsRoot, workstreamId),
+			origin: cloneOrigin(projectId),
+			branch: recordedBranch(workstreamId),
+			snapshotRefs: [...refs.checkpointRefs, ...refs.runChangeRefs, ...refs.userBaselineRefs],
+			baseStart: async (repository) => (await baseSync.startRef(repository, baseBranch, null)).ref,
+			reclone,
+			runner,
+		};
+	};
+	const checkoutHealth = new CheckoutHealthGuard({
+		diagnose: (workstreamId) => examineCheckout(checkoutCase(workstreamId)),
+		repair: (workstreamId) => repairCheckout(checkoutCase(workstreamId)),
+		fix: (workstreamId, finding) => fixCheckout(finding, checkoutCase(workstreamId)),
+		live: (workstreamId) =>
+			getWorkstream(db, workstreamId)?.status === 'active' && !teardowns.tearingDown(workstreamId),
+		changed: (payload) => events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, payload),
+		listen: (probeBroken, forget) => {
+			app.on('browser-window-focus', probeBroken);
+			const unsubscribe = events.subscribe(
+				REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
+				({ workstreamId }) => forget(workstreamId),
+			);
+			return () => {
+				app.off('browser-window-focus', probeBroken);
+				unsubscribe();
+			};
+		},
+	});
 	const guardTeardown: TeardownGuard = async (workstreamId, teardown) => {
 		const finished = teardowns.start(workstreamId);
 		watchers.unwatch(workstreamId);
@@ -377,7 +446,7 @@ export function registerRepositories(
 		const baseBranch = requireNonEmptyString(args, 'baseBranch');
 		validateBaseBranch(baseBranch);
 		if (!listProjects(db).some((project) => project.repoPath === repoPath)) {
-			throw new Error(`Unknown repository: ${repoPath}`);
+			throw new WorkstreamError('unknown', `Unknown repository: ${repoPath}`);
 		}
 		return listBaseFiles(repoPath, baseBranch);
 	});
@@ -433,7 +502,10 @@ export function registerRepositories(
 		} catch (error) {
 			const text = failureOutput(error);
 			if (text.includes('nothing to commit') || text.includes('no changes added')) {
-				throw new Error('Nothing to commit - no repository changes.');
+				throw new WorkstreamError(
+					'nothing-to-commit',
+					'Nothing to commit - no repository changes.',
+				);
 			}
 			throw error;
 		}
@@ -525,7 +597,9 @@ export function registerRepositories(
 
 	commands.define('repositories.read-workstream-image', async (args: ReadWorkstreamImageArgs) => {
 		const workstreamId = parseWorkstreamId(args?.workstreamId);
-		if (typeof args?.path !== 'string') throw new Error('image path must be a string');
+		if (typeof args?.path !== 'string') {
+			throw new WorkstreamError('invalid-argument', 'image path must be a string');
+		}
 		return readImageAt(await media(workstreamId, args.path));
 	});
 
@@ -623,6 +697,14 @@ export function registerRepositories(
 
 	commands.define('repositories.list-owned-docker-containers', () => ownership.reconcile());
 
+	commands.define('repositories.checkout-health', (args: unknown) =>
+		checkoutHealth.health(knownWorkstreamId(args)),
+	);
+
+	commands.define('repositories.repair-checkout', (args: unknown) =>
+		checkoutHealth.repair(knownWorkstreamId(args)),
+	);
+
 	commands.define('repositories.provision-dependencies', async (args: unknown) => {
 		return provisionDependencies(requireString(args, 'workstreamId'));
 	});
@@ -643,7 +725,9 @@ export function registerRepositories(
 		read: (worktree: string) => Promise<T>,
 	): Promise<T> {
 		try {
-			return await read(await checkouts.resolveCheckout(workstreamId));
+			return await checkoutHealth.read(workstreamId, async () =>
+				read(await checkouts.resolveCheckout(workstreamId)),
+			);
 		} catch (error) {
 			if (!isRetired(workstreamId)) throw error;
 			throw new WorkstreamRetiredError(workstreamId, error);
@@ -660,6 +744,26 @@ export function registerRepositories(
 		const workstreamId = requireString(args, 'workstreamId');
 		validateWorkstreamId(workstreamId);
 		return workstreamId;
+	}
+
+	function knownWorkstreamId(args: unknown): string {
+		return knownWorkstream(checkedWorkstreamId(args)).id;
+	}
+
+	function knownWorkstream(workstreamId: string): Workstream {
+		const workstream = getWorkstream(db, workstreamId);
+		if (workstream === null) {
+			throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${workstreamId}`);
+		}
+		return workstream;
+	}
+
+	function expectedCheckout(workstreamId: string): string {
+		try {
+			return recordedCheckoutPath(db, checkoutsRoot, workstreamId);
+		} catch {
+			return workstreamPath(checkoutsRoot, workstreamId);
+		}
 	}
 
 	async function provisionDependencies(workstreamId: string) {
@@ -698,6 +802,7 @@ export function registerRepositories(
 		installs,
 		watchers,
 		overlaps,
+		checkoutHealth,
 		bundleIdentifier,
 		appInstanceId: ownership.appInstanceId,
 		containerCount: () => ownership.ownedContainerCount(),
@@ -758,7 +863,9 @@ const defaultFolderPicker: FolderPicker = {
 };
 
 function parseStartedContainers(value: unknown): StartedContainerInput[] {
-	if (!Array.isArray(value)) throw new Error('invalid args: `containers` must be an array');
+	if (!Array.isArray(value)) {
+		throw new WorkstreamError('invalid-argument', 'invalid args: `containers` must be an array');
+	}
 	return value.map((entry: unknown) => ({
 		containerId: requireString(entry, 'containerId'),
 		containerName: requireString(entry, 'containerName'),

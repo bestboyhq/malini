@@ -433,6 +433,68 @@ test('a new fork is named New chat again once the earlier fork tab is closed', a
 	}
 });
 
+test('a finished run forks while a later run of the same chat is still running, and the fork stops at that run', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId, worktree } = await seedWorkstream(
+			page,
+			source,
+			'e2e-fork-own-run-ws',
+			'Fork own run',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Explain login flow');
+		await expectAssistantReply(page);
+		const parent = currentSessionId(page);
+		if (!parent) throw new Error('the first chat did not commit a session id');
+		await sendPrompt(page, 'HANG');
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Stop current run');
+
+		const fork = page.getByRole('button', { name: 'Slice and fork' });
+		await expect(fork).toHaveCount(1);
+		await expect(fork).toBeEnabled();
+		await fork.hover();
+		await captureFlow(app, 'fork-while-own-run-open');
+		await fork.click();
+
+		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(parent);
+		const chip = page
+			.getByTestId('chat-composer-input')
+			.getByLabel('Attached file: Transcript of Explain login flow.md');
+		await expect(chip).toBeVisible({ timeout: 20_000 });
+		const stagedId = await chip.getAttribute('data-inline-attachment');
+		expect(
+			readFileSync(
+				join(
+					worktree,
+					BRIDGE_AGENT_ATTACHMENTS_PATH,
+					stagedId ?? '',
+					'Transcript of Explain login flow.md',
+				),
+				'utf8',
+			),
+		).toBe(
+			[
+				'# Transcript of Explain login flow',
+				'## User',
+				'Explain login flow',
+				'## Assistant',
+				'Hello from the fake bridge',
+				'[Result: done]',
+			].join('\n\n') + '\n',
+		);
+		expect(
+			(await listSessions(page, workstreamId)).find((session) => session.id === parent)?.status,
+		).toBe('running');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a finished chat forks while another chat in its workstream is still running', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

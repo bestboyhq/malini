@@ -7,6 +7,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { grantProblem, type SandboxGrant } from '@malini/agent-bridge/sandbox';
 import { activePermissionsForSession, listPermissionRules } from './permissions.repository';
 import { leavesTheSandbox } from '../domain/approval-request';
+import { ChatError } from './chat-error';
 
 import { isAtOrInsideDirectory, PATH_SEPARATORS } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
@@ -44,7 +45,7 @@ interface PermissionWire {
 export const MALINI_TOOL_PREFIX = 'mcp__malini__';
 
 const MALINI_ACTION =
-	/^(?:automations\.save|automations\.run:[^\s:]{1,256}|repositories\.(?:clone|hide)|workstreams\.(?:create|send|archive))$/u;
+	/^(?:automations\.save|automations\.run:[^\s:]{1,256}|repositories\.(?:clone|hide)|mcp-servers\.add|workstreams\.(?:create|send|archive))$/u;
 
 export type MaliniActionPermission = Readonly<{
 	capability: 'execute';
@@ -52,7 +53,8 @@ export type MaliniActionPermission = Readonly<{
 }>;
 
 export function maliniActionPermission(action: string): MaliniActionPermission {
-	if (!MALINI_ACTION.test(action)) throw new Error(`\`${action}\` is not a Malini action`);
+	if (!MALINI_ACTION.test(action))
+		throw new ChatError('invalid-argument', `\`${action}\` is not a Malini action`);
 	return {
 		capability: 'execute',
 		resources: [{ kind: 'action', value: action, boundary: 'workstream' }],
@@ -99,26 +101,33 @@ export function normalizeRememberablePermission(
 	try {
 		encoded = JSON.stringify(permission);
 	} catch (error) {
-		throw new Error(`permission descriptor is not serializable: ${describe(error)}`);
+		throw new ChatError(
+			'unrememberable',
+			`permission descriptor is not serializable: ${describe(error)}`,
+			error,
+		);
 	}
 	if (encoded === undefined || Buffer.byteLength(encoded) > MAX_PERMISSION_JSON_BYTES) {
-		throw new Error('permission descriptor exceeds the safe size limit');
+		throw new ChatError('unrememberable', 'permission descriptor exceeds the safe size limit');
 	}
 	const wire = parsePermissionWire(permission);
 	if (wire.resources.length === 0 || wire.resources.length > MAX_PERMISSION_RESOURCES) {
-		throw new Error(`remembered permissions require 1-${MAX_PERMISSION_RESOURCES} resources`);
+		throw new ChatError(
+			'unrememberable',
+			`remembered permissions require 1-${MAX_PERMISSION_RESOURCES} resources`,
+		);
 	}
 	if (toolName?.startsWith(MALINI_TOOL_PREFIX)) return normalizeMaliniAction(wire);
 	if (wire.capability === 'sandbox') return normalizeSandboxGrants(wire.resources, workstreamPath);
 	if (wire.capability !== 'read') {
-		throw new Error('only canonical external reads can be remembered');
+		throw new ChatError('unrememberable', 'only canonical external reads can be remembered');
 	}
 	return normalizeExternalReadPermission(wire.resources, workstreamPath);
 }
 
 function parsePermissionWire(permission: unknown): PermissionWire {
-	const invalid = (detail: string): Error =>
-		new Error(`permission descriptor is invalid: ${detail}`);
+	const invalid = (detail: string): ChatError =>
+		new ChatError('unrememberable', `permission descriptor is invalid: ${detail}`);
 	if (!isPlainObject(permission)) throw invalid('expected an object');
 	for (const key of Object.keys(permission)) {
 		if (key !== 'capability' && key !== 'resources') throw invalid(`unknown field \`${key}\``);
@@ -166,7 +175,7 @@ function normalizeMaliniAction(wire: PermissionWire): NormalizedPermission {
 		resource.canonicalValue !== undefined ||
 		resource.readOnly !== undefined
 	) {
-		throw new Error('a Malini tool is remembered only as one Malini action');
+		throw new ChatError('unrememberable', 'a Malini tool is remembered only as one Malini action');
 	}
 	return finishNormalization(JSON.stringify(maliniActionPermission(resource.value)));
 }
@@ -176,35 +185,45 @@ function normalizeExternalReadPermission(
 	workstreamPath: string,
 ): NormalizedPermission {
 	const workstream = canonicalizeAllowMissing(workstreamPath);
-	if (!isAbsolute(workstream)) throw new Error('workstream path is not absolute');
+	if (!isAbsolute(workstream)) throw new ChatError('invariant', 'workstream path is not absolute');
 	if (!isDirectory(workstream)) {
-		throw new Error('workstream path is not an existing directory');
+		throw new ChatError('unrememberable', 'workstream path is not an existing directory');
 	}
 	const paths: string[] = [];
 	for (const resource of resources) {
 		if (resource.kind !== 'path' || resource.boundary !== 'external') {
-			throw new Error('remembered permissions require only canonical external path resources');
+			throw new ChatError(
+				'unrememberable',
+				'remembered permissions require only canonical external path resources',
+			);
 		}
 		if (!isUsablePathValue(resource.value)) {
-			throw new Error('permission resource value is empty or too large');
+			throw new ChatError('unrememberable', 'permission resource value is empty or too large');
 		}
 		const canonicalValue = resource.canonicalValue;
 		if (canonicalValue === undefined) {
-			throw new Error('external path permission has no canonicalValue');
+			throw new ChatError('unrememberable', 'external path permission has no canonicalValue');
 		}
 		if (!isUsablePathValue(canonicalValue)) {
-			throw new Error('canonical external path is empty or too large');
+			throw new ChatError('unrememberable', 'canonical external path is empty or too large');
 		}
 		const candidate = strictlyNormalizedAbsolutePath(canonicalValue);
 		const hostCanonical = canonicalizeAllowMissing(candidate);
 		if (hostCanonical !== candidate) {
-			throw new Error(`external path \`${canonicalValue}\` is not host-canonical`);
+			throw new ChatError(
+				'unrememberable',
+				`external path \`${canonicalValue}\` is not host-canonical`,
+			);
 		}
 		if (isAtOrInsideDirectory(workstream, candidate)) {
-			throw new Error(`path \`${canonicalValue}\` is inside the active workstream`);
+			throw new ChatError(
+				'unrememberable',
+				`path \`${canonicalValue}\` is inside the active workstream`,
+			);
 		}
 		if (isSensitivePath(candidate)) {
-			throw new Error(
+			throw new ChatError(
+				'unrememberable',
 				`path \`${canonicalValue}\` is credential-sensitive and cannot be remembered`,
 			);
 		}
@@ -234,20 +253,28 @@ function normalizeSandboxGrants(
 			canonicalValue !== undefined ||
 			readOnly !== undefined
 		) {
-			throw new Error('a sandbox grant opens only external paths and sockets');
+			throw new ChatError(
+				'unrememberable',
+				'a sandbox grant opens only external paths and sockets',
+			);
 		}
-		if (!isUsablePathValue(value)) throw new Error('sandbox grant path is empty or too large');
+		if (!isUsablePathValue(value))
+			throw new ChatError('unrememberable', 'sandbox grant path is empty or too large');
 		const path = strictlyNormalizedAbsolutePath(value);
 		if (path !== value || canonicalizeAllowMissing(path) !== path) {
-			throw new Error(`sandbox grant \`${value}\` is not host-canonical`);
+			throw new ChatError('unrememberable', `sandbox grant \`${value}\` is not host-canonical`);
 		}
 		if (isAtOrInsideDirectory(workstream, path) || isAtOrInsideDirectory(path, workstream)) {
-			throw new Error(`sandbox grant \`${value}\` overlaps the active workstream`);
+			throw new ChatError(
+				'unrememberable',
+				`sandbox grant \`${value}\` overlaps the active workstream`,
+			);
 		}
 		const problem = isSensitivePath(path)
 			? 'holds credentials'
 			: grantProblem({ kind, path }, { checkout: workstream, hidden: [] });
-		if (problem !== null) throw new Error(`sandbox grant \`${value}\` ${problem}`);
+		if (problem !== null)
+			throw new ChatError('unrememberable', `sandbox grant \`${value}\` ${problem}`);
 		return { kind, value: path, boundary: 'external' };
 	});
 	const unique = [...new Map(grants.map((grant) => [`${grant.kind} ${grant.value}`, grant]))];
@@ -310,10 +337,11 @@ function isUsablePathValue(value: string): boolean {
 }
 
 export function strictlyNormalizedAbsolutePath(value: string): string {
-	if (!isAbsolute(value)) throw new Error(`external path \`${value}\` is not absolute`);
+	if (!isAbsolute(value))
+		throw new ChatError('unrememberable', `external path \`${value}\` is not absolute`);
 	for (const segment of value.split(PATH_SEPARATORS)) {
 		if (segment === '.' || segment === '..') {
-			throw new Error(`external path \`${value}\` is not normalized`);
+			throw new ChatError('unrememberable', `external path \`${value}\` is not normalized`);
 		}
 	}
 	const normalized = normalize(value);
@@ -329,7 +357,8 @@ export function canonicalizeAllowMissing(path: string): string {
 		try {
 			const canonical = realpathSync.native(current);
 			if (missing.length > 0 && !isDirectory(canonical)) {
-				throw new Error(
+				throw new ChatError(
+					'unrememberable',
 					`permission path \`${path}\` has a missing tail below a non-directory ancestor`,
 				);
 			}
@@ -337,13 +366,17 @@ export function canonicalizeAllowMissing(path: string): string {
 		} catch (error) {
 			const code = errorCode(error);
 			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
-				if (error instanceof Error && error.message.startsWith('permission path')) throw error;
-				throw new Error(`cannot canonicalize permission path \`${path}\`: ${describe(error)}`);
+				if (error instanceof ChatError) throw error;
+				throw new ChatError(
+					'unrememberable',
+					`cannot canonicalize permission path \`${path}\`: ${describe(error)}`,
+					error,
+				);
 			}
 			const name = basename(current);
 			const parent = dirname(current);
 			if (name.length === 0 || parent === current) {
-				throw new Error(`cannot canonicalize permission path \`${path}\``);
+				throw new ChatError('unrememberable', `cannot canonicalize permission path \`${path}\``);
 			}
 			missing.push(name);
 			current = parent;
@@ -447,10 +480,11 @@ export function validateApprovalDecision(
 	scope: string,
 ): asserts decision is AgentApprovalDecision {
 	if (decision !== 'allow' && decision !== 'deny') {
-		throw new Error('approval decision must be `allow` or `deny`');
+		throw new ChatError('invalid-argument', 'approval decision must be `allow` or `deny`');
 	}
 	if (!isAgentApprovalScope(scope)) {
-		throw new Error(
+		throw new ChatError(
+			'invalid-argument',
 			'approval scope must be `once`, `session`, `workstream`, `repository`, or `everywhere`',
 		);
 	}

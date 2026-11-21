@@ -20,6 +20,14 @@ const agentBridgeSourceRoots = ['src', 'protocol'].map((dir) =>
 	fileURLToPath(new URL(`../../packages/agent-bridge/${dir}/`, import.meta.url)),
 );
 
+function builtCommit(): string {
+	try {
+		return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { encoding: 'utf8' }).trim();
+	} catch {
+		return '';
+	}
+}
+
 function agentBridgeSourceFiles(): string[] {
 	return agentBridgeSourceRoots.flatMap((root) =>
 		readdirSync(root, { recursive: true, encoding: 'utf8' })
@@ -91,6 +99,7 @@ export default defineConfig({
 	main: {
 		plugins: [rebuildAgentBridgeOnChange(), thirdPartyNotices()],
 		resolve: { alias: nodeAlias },
+		define: { 'import.meta.env.MAIN_VITE_COMMIT': JSON.stringify(builtCommit()) },
 		build: {
 			target: 'node24',
 			sourcemap: 'hidden',

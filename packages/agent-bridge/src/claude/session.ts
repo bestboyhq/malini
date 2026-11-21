@@ -4,6 +4,7 @@ import {
 	query as sdkQuery,
 	type CanUseTool,
 	type HookCallback,
+	type McpServerConfig,
 	type McpServerStatus,
 	type Options,
 	type PermissionMode,
@@ -44,8 +45,12 @@ import { systemPromptAppend } from './instructions.js';
 import { claudeReplyChecker, sentBack, type ReplyChecker } from './reply-check.js';
 import {
 	mcpServerReport,
+	openInBrowser,
 	probeMcpServer,
+	saveUserMcpServer,
+	signInMcpServer,
 	switchMcpServerLive,
+	type AddedMcpServer,
 	type McpProbeOptions,
 	type McpServerEntry,
 } from './mcp-servers.js';
@@ -138,6 +143,7 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 		| 'mcpServerStatus'
 		| 'reconnectMcpServer'
 		| 'toggleMcpServer'
+		| 'setMcpServers'
 		| 'initializationResult'
 		| 'close'
 		| 'stopTask'
@@ -168,6 +174,7 @@ export interface ClaudeSessionOptions {
 	readonly sandbox?: boolean;
 	readonly denials?: SandboxDenialSource;
 	readonly checkReply?: ReplyChecker;
+	readonly openUrl?: (url: string) => Promise<void>;
 }
 
 interface Blocked {
@@ -217,6 +224,7 @@ interface ActiveRun {
 	pending: Promise<IteratorResult<SDKMessage>> | null;
 	idleTimeout: NodeJS.Timeout | null;
 	config: ConfigSnapshot | null;
+	mcpServers: Record<string, McpServerConfig>;
 	readonly approvedRetries: Set<string>;
 	readonly retriedCalls: Set<string>;
 	readonly allowRules: Set<string>;
@@ -240,6 +248,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #secrets: SessionSecrets;
 	readonly #sandbox: boolean;
 	readonly #checkReply: ReplyChecker;
+	readonly #openUrl: (url: string) => Promise<void>;
 	readonly #blockedCallRules = new Map<string, string>();
 	readonly #denials: SandboxDenialSource;
 	readonly #tag = `${SANDBOX_TAG_PREFIX}${randomBytes(8).toString('hex')}`;
@@ -268,6 +277,7 @@ export class ClaudeSession implements ProviderHandle {
 		this.#secrets = options.secrets;
 		this.#sandbox = options.sandbox ?? canSandbox();
 		this.#denials = options.denials ?? sandboxDenials;
+		this.#openUrl = options.openUrl ?? openInBrowser;
 		this.#checkReply =
 			options.checkReply ??
 			(options.executable
@@ -385,10 +395,8 @@ export class ClaudeSession implements ProviderHandle {
 		const finished = new Promise<void>((resolve) => (end = resolve));
 		let open!: (proceed: boolean) => void;
 		const turns = userTurns(finished, new Promise<boolean>((resolve) => (open = resolve)));
-		const query = this.#query({
-			prompt: turns.messages,
-			options: this.#options(executable, run, resumeAt, abort),
-		});
+		const options = this.#options(executable, run, resumeAt, abort);
+		const query = this.#query({ prompt: turns.messages, options });
 		if (this.#places) this.#unwatch ??= this.#denials.watch(this.#tag, (d) => this.#record(d));
 		void query
 			.setMcpPermissionModeOverride(MALINI_MCP_SERVER, 'default')
@@ -424,6 +432,7 @@ export class ClaudeSession implements ProviderHandle {
 			pending: null,
 			idleTimeout: null,
 			config: null,
+			mcpServers: { ...options.mcpServers },
 			approvedRetries: new Set(),
 			retriedCalls: new Set(),
 			allowRules: new Set(),
@@ -942,7 +951,11 @@ export class ClaudeSession implements ProviderHandle {
 				...(steReplies ? { Stop: [{ hooks: [this.#checkReplyHook(report !== 'high')] }] } : {}),
 			},
 			...(compactWindow ? { settings: { autoCompactWindow: compactWindow } } : {}),
-			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
+			...maliniTools(
+				this.#context.requestBrowser,
+				(call) => this.#requestPlatform(call),
+				(name, config) => this.#addMcpServer(name, config),
+			),
 			canUseTool: this.#canUseTool(),
 			...(model ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
@@ -1270,6 +1283,54 @@ export class ClaudeSession implements ProviderHandle {
 		return this.#context.requestPlatform({ ...call, runId });
 	}
 
+	async #addMcpServer(name: string, config: AddedMcpServer): Promise<string> {
+		const active = this.#active;
+		const executable = this.#executable;
+		if (!active || !executable) throw new Error('No Malini run is active.');
+		if (active.boundary?.internet === false) {
+			throw new Error('This run cannot reach the internet, so it cannot add MCP servers.');
+		}
+		if (name === MALINI_MCP_SERVER)
+			throw new Error(`${name} is Malini's own server. Pick another name.`);
+		const before = active.mcpServers;
+		const servers = { ...before, [name]: config };
+		const undo = () => active.query.setMcpServers(before).catch(() => undefined);
+		const { errors } = await active.query.setMcpServers(servers);
+		const status = (await active.query.mcpServerStatus()).find((server) => server.name === name);
+		if (status?.status !== 'connected' && status?.status !== 'needs-auth') {
+			await undo();
+			const error = errors[name] ?? status?.error ?? status?.status ?? 'it never showed up';
+			throw new Error(`${name} did not connect, so Malini did not save it: ${error}`);
+		}
+		try {
+			await saveUserMcpServer(executable, claudeEnvironment(this.#context.env), name, config);
+		} catch (error) {
+			await undo();
+			throw error;
+		}
+		active.mcpServers = servers;
+		if (active.config) active.config = restamped(active.config, claudeStateFile());
+		const live =
+			status.status === 'connected'
+				? connectedNow(status.tools?.length ?? 0)
+				: await this.#signIn(active, name);
+		await this.refreshSessionStatus().catch(() => undefined);
+		return `${name} is saved in Claude Code's user config, and every other chat loads it on its next prompt. ${live}`;
+	}
+
+	async #signIn(active: ActiveRun, name: string): Promise<string> {
+		await this.refreshSessionStatus().catch(() => undefined);
+		try {
+			const { authUrl, settled } = await signInMcpServer(active.query, name, active.abort.signal);
+			if (authUrl) await this.#openUrl(authUrl);
+			const server = await settled;
+			if (server?.status === 'connected') return connectedNow(server.toolCount ?? 0);
+			return 'It needs a sign-in, and the user did not finish the one Malini opened in their browser within 5 minutes. Call mcp_servers_add again to open the sign-in page again.';
+		} catch (error) {
+			return `It needs a sign-in, which did not start: ${describe(error)}`;
+		}
+	}
+
 	#promptWithSeed(prompt: string): string {
 		const history = this.#seedHistory;
 		if (!history || history.length === 0) return prompt;
@@ -1530,6 +1591,10 @@ function resultError(result: SDKResultMessage): string {
 		return `Claude Code is not signed in. Run \`${CLAUDE_LOGIN_COMMAND}\` in a terminal, then try again.`;
 	}
 	return text || 'Claude Code reported an error.';
+}
+
+function connectedNow(tools: number): string {
+	return `It is connected in this chat, and its tools work now: ${tools === 1 ? '1 tool' : `${tools} tools`}.`;
 }
 
 export function claudeEnvironment(

@@ -1978,6 +1978,36 @@ CREATE TABLE workstream_ports (
   PRIMARY KEY (workstream_id, name)
 );
 `,
+	`
+CREATE TABLE initiatives (
+  id TEXT PRIMARY KEY,
+  repository_full_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  due_on TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE initiative_dependencies (
+  id TEXT PRIMARY KEY,
+  initiative_id TEXT NOT NULL REFERENCES initiatives(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0 CHECK (done IN (0, 1)),
+  position INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_initiative_dependencies_initiative_position
+  ON initiative_dependencies(initiative_id, position);
+CREATE TABLE initiative_dependency_workstreams (
+  dependency_id TEXT NOT NULL REFERENCES initiative_dependencies(id) ON DELETE CASCADE,
+  workstream_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (dependency_id, workstream_id)
+);
+`,
+	`
+ALTER TABLE initiatives ADD COLUMN note TEXT;
+ALTER TABLE initiative_dependencies ADD COLUMN note TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -22,7 +22,7 @@
 				"label": "Files",
 				"icon": "file",
 				"order": 20,
-				"defaultVisible": true
+				"defaultVisible": false
 			},
 			{
 				"id": "malini.repository.file",

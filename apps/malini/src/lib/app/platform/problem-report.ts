@@ -18,6 +18,7 @@ import {
 } from '../domain/problem-report';
 import { currentSystemLabel } from './system-label';
 import { isPromptRun, userWorkstreams } from './usage-report';
+import { AppError } from './app-error';
 
 export type IssueRunner = (args: readonly string[]) => Promise<GhResult>;
 
@@ -72,10 +73,10 @@ function problemArgs(args: unknown): { text: string; facts: readonly string[] } 
 	const facts: unknown =
 		typeof args === 'object' && args !== null ? Reflect.get(args, 'facts') : null;
 	if (typeof text !== 'string' || problemTitle(text) === '') {
-		throw new Error('text must say what happened');
+		throw new AppError('invalid-argument', 'text must say what happened');
 	}
 	if (text.length > PROBLEM_TEXT_LIMIT) {
-		throw new Error(`text must be at most ${PROBLEM_TEXT_LIMIT} characters`);
+		throw new AppError('invalid-argument', `text must be at most ${PROBLEM_TEXT_LIMIT} characters`);
 	}
 	if (
 		!Array.isArray(facts) ||
@@ -84,7 +85,10 @@ function problemArgs(args: unknown): { text: string; facts: readonly string[] } 
 			(fact): fact is string => typeof fact === 'string' && fact.length <= PROBLEM_FACT_LIMIT,
 		)
 	) {
-		throw new Error(`facts must be at most ${PROBLEM_FACTS_MAX} short lines`);
+		throw new AppError(
+			'invalid-argument',
+			`facts must be at most ${PROBLEM_FACTS_MAX} short lines`,
+		);
 	}
 	return { text, facts };
 }

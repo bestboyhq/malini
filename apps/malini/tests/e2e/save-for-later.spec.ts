@@ -15,7 +15,7 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('a workstream saved for later waits in its repository scratchpad, comes back from there, or moves to the archive', async () => {
+test('a workstream saved for later waits on its repository page, comes back from there, or moves to the archive', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -53,6 +53,10 @@ test('a workstream saved for later waits in its repository scratchpad, comes bac
 		const repository = sidebar.getByRole('link', { name: 'Open alpha' });
 		await expect(repository).toHaveAccessibleDescription('1 workstream saved for later');
 		await repository.click();
+		const savedButton = page
+			.getByTestId('repository-bar')
+			.getByRole('button', { name: 'Saved for later 1', exact: true });
+		await savedButton.hover({ timeout: 20_000 });
 		const shelf = page.getByRole('list', { name: 'Saved for later' });
 		const resume = shelf.getByRole('button', { name: 'Resume Later work' });
 		await expect(resume).toBeVisible({ timeout: 20_000 });
@@ -69,11 +73,13 @@ test('a workstream saved for later waits in its repository scratchpad, comes bac
 		await clickRevealedOnHover(row, saveForLater);
 		await expect(row).toHaveCount(0);
 		await repository.click();
+		await savedButton.hover({ timeout: 20_000 });
 		await clickRevealedOnHover(
 			shelf.getByRole('listitem'),
 			shelf.getByRole('button', { name: 'Archive Later work' }),
 		);
 		await expect(shelf).toHaveCount(0);
+		await expect(savedButton).toHaveCount(0);
 		await expect(
 			page.getByRole('list', { name: 'Recently archived' }).getByRole('button', {
 				name: 'Restore Later work',

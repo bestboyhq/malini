@@ -10,6 +10,7 @@
 		type OwnPullRequest,
 	} from '$shared/repositories/repositories.api';
 	import { formatTimeAgo } from '$lib/stats/stats.api';
+	import RepositoryBarCard from './RepositoryBarCard.svelte';
 
 	interface Props {
 		repositoryId: string;
@@ -17,22 +18,21 @@
 
 	let { repositoryId }: Props = $props();
 
-	const TITLE_ID = 'own-pull-requests-title';
 	const CLOCK_MS = 30_000;
 
-	const loadedId = $derived(repositoryId);
-	const own = $derived(ownPullRequestsQuery.data(loadedId));
+	const own = $derived(ownPullRequestsQuery.data(repositoryId));
 	const continuing = $derived(ownPullRequestsQuery.continuing);
 	let nowMs = $state(Date.now());
-
-	$effect(() => {
-		loadOwnPullRequestsCommand(loadedId);
-	});
 
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), CLOCK_MS);
 		return () => clearInterval(clock);
 	});
+
+	function load(): void {
+		nowMs = Date.now();
+		loadOwnPullRequestsCommand(repositoryId);
+	}
 
 	function ago(iso: string): string {
 		const at = Date.parse(iso);
@@ -44,28 +44,23 @@
 	}
 </script>
 
-<aside
-	class="border-surface-50-border flex w-72 shrink-0 flex-col overflow-y-auto border-l-[0.5px] px-3 pt-20 pb-6"
-	aria-labelledby={TITLE_ID}
-	data-testid="own-pull-requests"
+<RepositoryBarCard
+	label="Pull requests"
+	heading="Your open pull requests"
+	icon="pr-open"
+	testId="own-pull-requests"
+	onopen={load}
 >
-	<h2
-		id={TITLE_ID}
-		class="text-fg-tertiary mb-1.5 flex items-center gap-1.5 px-2 text-xs font-medium"
-	>
-		<Icon name="pr-open" size={12} />
-		Your open pull requests
-	</h2>
 	{#if own.status === 'ready'}
 		{#if own.pullRequests.length === 0}
-			<p class="text-fg-quaternary px-2 text-xs">None in this repository.</p>
+			<p class="text-fg-quaternary px-2 pb-1 text-xs">None in this repository.</p>
 		{:else}
-			<ul class="flex flex-col" aria-labelledby={TITLE_ID}>
+			<ul class="flex flex-col" aria-label="Your open pull requests">
 				{#each own.pullRequests as pullRequest (pullRequest.head)}
 					{@const busy = continuing(pullRequest.head)}
 					{@const here = opensHere(pullRequest)}
 					<li
-						class="group/pr hover:bg-surface-50-hover focus-within:bg-surface-50-hover rounded-lg"
+						class="group/pr hover:bg-surface-elevated-hover focus-within:bg-surface-elevated-hover rounded-lg"
 						data-testid="own-pull-request"
 					>
 						<Button
@@ -115,6 +110,14 @@
 		{/if}
 	{:else if own.status === 'failed'}
 		{@const failure = describeFailure(own.error, { subject: 'Your pull requests' })}
-		<p class="text-fg-quaternary px-2 text-xs" role="status">{failure.detail} {failure.remedy}</p>
+		<p class="text-fg-quaternary px-2 pb-1 text-xs" role="status">
+			{failure.detail}
+			{failure.remedy}
+		</p>
+	{:else}
+		<p class="text-fg-quaternary flex items-center gap-1.5 px-2 pb-1 text-xs" role="status">
+			<BusyIcon size={11} />
+			Loading
+		</p>
 	{/if}
-</aside>
+</RepositoryBarCard>

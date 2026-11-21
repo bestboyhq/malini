@@ -2,6 +2,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BROWSER_WORKTREE_SCHEME } from '$contract/browser';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
+import { BrowserError } from '../browser.platform';
 
 export const BLANK_PAGE = 'about:blank';
 
@@ -38,16 +39,19 @@ export function isFileAddress(input: string): boolean {
 
 export function normalizeBrowserUrl(input: string): string {
 	const text = input.trim();
-	if (text.length === 0) throw new Error('Type a URL to open.');
+	if (text.length === 0) throw new BrowserError('bad-url', 'Type a URL to open.');
 	const candidate = SCHEME.test(text) ? text : `${schemeFor(text)}//${text}`;
 	let url: URL;
 	try {
 		url = new URL(candidate);
 	} catch {
-		throw new Error(`\`${text}\` is not a URL.`);
+		throw new BrowserError('bad-url', `\`${text}\` is not a URL.`);
 	}
 	if (!isAllowedUrl(url.href)) {
-		throw new Error('Only web pages and files in the worktree open in the browser.');
+		throw new BrowserError(
+			'bad-url',
+			'Only web pages and files in the worktree open in the browser.',
+		);
 	}
 	return url.href;
 }
@@ -58,7 +62,8 @@ export function worktreeFileUrl(input: string, workstreamId: string, worktree: s
 	const [, filePath = '', search = '', hash = ''] = PATH_QUERY_HASH.exec(text) ?? [];
 	const path = fileUrl ? fileURLToPath(fileUrl) : resolve(worktree, filePath);
 	if (!isAtOrInsideDirectory(worktree, path)) {
-		throw new Error(
+		throw new BrowserError(
+			'outside-worktree',
 			`\`${text}\` is outside the worktree; only files inside it open in the browser.`,
 		);
 	}

@@ -3,6 +3,7 @@ import {
 	closeWorkstreamChat,
 	closeWorkstreamDocument,
 	leaveWorkstreamDocuments,
+	moveWorkstreamTab,
 	NO_WORKSTREAM_TABS,
 	openWorkstreamDocument,
 	pinWorkstreamDocument,
@@ -142,9 +143,56 @@ describe('the center tab strip', () => {
 		expect(strip(state)).toEqual(['chat a', 'chat b']);
 	});
 
+	it('moves a chat or a file before or after any other tab, and keeps a file it moves', () => {
+		const state = open(syncWorkstreamChats(NO_WORKSTREAM_TABS, ['a', 'b', 'c'], 'a'), 'x.ts');
+		expect(strip(state)).toEqual(['chat a', '(x.ts)', 'chat b', 'chat c']);
+		expect(strip(moveWorkstreamTab(state, 'chat:a', 'chat:c', 'after'))).toEqual([
+			'(x.ts)',
+			'chat b',
+			'chat c',
+			'chat a',
+		]);
+		expect(strip(moveWorkstreamTab(state, 'document:x.ts', 'chat:a', 'before'))).toEqual([
+			'x.ts',
+			'chat a',
+			'chat b',
+			'chat c',
+		]);
+		expect(moveWorkstreamTab(state, 'chat:b', 'document:x.ts', 'after')).toBe(state);
+		expect(moveWorkstreamTab(state, 'chat:gone', 'chat:a', 'before')).toBe(state);
+	});
+
 	it('forgets a chat only when it is closed, not while the chat list is still loading', () => {
 		expect(strip(syncWorkstreamChats(chatsAB, [], 'a'))).toEqual(['chat a', 'chat b']);
 		expect(strip(closeWorkstreamChat(chatsAB, 'a'))).toEqual(['chat b']);
+	});
+
+	it('reopens closed chats where they were, newest close first, and a new chat after the current tab', () => {
+		const state = open(syncWorkstreamChats(NO_WORKSTREAM_TABS, ['a', 'b', 'c'], 'c'), 'x.ts');
+		expect(strip(state)).toEqual(['chat a', 'chat b', 'chat c', '(x.ts)']);
+		const closed = closeWorkstreamChat(closeWorkstreamChat(state, 'a'), 'b');
+		expect(strip(closed)).toEqual(['chat c', '(x.ts)']);
+		const reopenedB = syncWorkstreamChats(closed, ['b', 'c'], 'c');
+		expect(strip(reopenedB)).toEqual(['chat b', 'chat c', '(x.ts)']);
+		expect(strip(syncWorkstreamChats(reopenedB, ['a', 'b', 'c'], 'c'))).toEqual([
+			'chat a',
+			'chat b',
+			'chat c',
+			'(x.ts)',
+		]);
+		expect(strip(syncWorkstreamChats(closed, ['a', 'b', 'c', 'd'], 'c'))).toEqual([
+			'chat a',
+			'chat b',
+			'chat c',
+			'(x.ts)',
+			'chat d',
+		]);
+		const saved = readWorkstreamTabs(JSON.parse(JSON.stringify(closed)));
+		expect(strip(syncWorkstreamChats(saved, ['a', 'c'], 'c'))).toEqual([
+			'chat a',
+			'chat c',
+			'(x.ts)',
+		]);
 	});
 
 	it('restores only well-formed saved tabs and an active file that still exists', () => {

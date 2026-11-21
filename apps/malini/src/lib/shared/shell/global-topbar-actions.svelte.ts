@@ -188,6 +188,23 @@ export function globalTopBarBandSlotHost(node: HTMLElement): { destroy(): void }
 	};
 }
 
+export function inGlobalTopBarBand(row: HTMLElement): (() => void) | undefined {
+	const host = globalTopBarBandSlot.host;
+	if (!host) return undefined;
+	const home = row.parentNode;
+	const anchor = row.nextSibling;
+	host.replaceChildren(row);
+	globalTopBarBandSlot.adopted = true;
+	return () => {
+		if (row.parentNode === host) globalTopBarBandSlot.adopted = false;
+		if (!home?.isConnected) {
+			row.remove();
+			return;
+		}
+		home.insertBefore(row, anchor?.parentNode === home ? anchor : null);
+	};
+}
+
 const GLOBAL_TOPBAR_ACTIONS = Symbol.for('malini.global-topbar-actions');
 
 export function provideGlobalTopBarActions(): GlobalTopBarActionRegistry {

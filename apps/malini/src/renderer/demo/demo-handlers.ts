@@ -5,6 +5,7 @@ import type {
 } from '$contract/agent';
 import type { ExtensionListing, InstalledExtension } from '$contract/marketplace';
 import type {
+	CheckoutHealth,
 	ConnectedRepositoryDto,
 	GithubRepositoryDto,
 	ImportSource,
@@ -39,6 +40,13 @@ import {
 } from './demo-live';
 
 const NOW = `${DEMO_DAY}T10:45:00.000Z`;
+const HEALTHY_CHECKOUT: CheckoutHealth = {
+	state: 'healthy',
+	finding: null,
+	repairable: false,
+	said: null,
+	restored: null,
+};
 
 const DEMO_EXTENSIONS: readonly ExtensionListing[] = [
 	{
@@ -354,6 +362,8 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.list-clones': () => [],
 	'repositories.owner-avatar': ({ owner }) => (owner === OWNER ? ownerAvatar() : null),
 	'repositories.workstream-files': ({ workstreamId }) => filesOf(workstreamOf(workstreamId)),
+	'repositories.checkout-health': () => HEALTHY_CHECKOUT,
+	'repositories.repair-checkout': () => HEALTHY_CHECKOUT,
 	'repositories.workstream-context-media': () => [],
 	'repositories.workstream-change-totals': ({ workstreamId }) => totals(workstreamId),
 	'repositories.workstream-snapshot': ({ workstreamId }) => ({
@@ -381,6 +391,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.workstream-diff': () => '',
 	'repositories.base-files': () => [],
 	'scratchpad.load': () => null,
+	'initiatives.list': () => [],
 	'chat.agent-capabilities': () => [CLAUDE],
 	'chat.session-changes': ({ workstreamId, sessionId: id }) => sessionChanges(workstreamId, id),
 	'chat.known-session-changes': ({ workstreamId, sessionId: id }) =>

@@ -7,7 +7,6 @@ import {
 	repositoryConnectFailure,
 	repositoryConnectionFor,
 	workstreamsForRepository,
-	type RepositoryPreparation,
 } from './repository-connection';
 import { UNOBSERVED_WORKSTREAM_CHECKOUT, type Workstream } from './workstream';
 
@@ -55,7 +54,7 @@ describe('connecting a repository', () => {
 		});
 	});
 
-	it('tells a GitHub repository on this Mac from one cloning, one that failed, and one still on GitHub', () => {
+	it('tells a GitHub repository on this Mac from one cloning and one still on GitHub', () => {
 		const hutch = {
 			fullName: 'Rabbits/Hutch',
 			description: null,
@@ -63,23 +62,14 @@ describe('connecting a repository', () => {
 			private: true,
 			pushedAt: null,
 		};
-		const failure = { detail: 'No disk', remedy: null, technical: null };
-		const ready = (): RepositoryPreparation => ({ kind: 'ready' });
-		expect(githubRepositoryState(hutch, null, [], ready)).toEqual({ kind: 'available' });
+		expect(githubRepositoryState(hutch, null, [])).toEqual({ kind: 'available' });
 		expect(
-			githubRepositoryState(hutch, 'clone:https://github.com/rabbits/hutch.git', [], ready),
-		).toEqual({ kind: 'cloning', repository: null });
-		expect(githubRepositoryState(hutch, null, [remote], ready)).toEqual({
+			githubRepositoryState(hutch, 'clone:https://github.com/rabbits/hutch.git', [remote]),
+		).toEqual({ kind: 'cloning' });
+		expect(githubRepositoryState(hutch, null, [remote])).toEqual({
 			kind: 'cloned',
 			repository: remote,
 		});
-		expect(githubRepositoryState(hutch, null, [remote], () => ({ kind: 'preparing' }))).toEqual({
-			kind: 'cloning',
-			repository: remote,
-		});
-		expect(
-			githubRepositoryState(hutch, null, [remote], () => ({ kind: 'failed', failure })),
-		).toEqual({ kind: 'failed', repository: remote });
 	});
 
 	it('explains a failure in the user’s words', () => {

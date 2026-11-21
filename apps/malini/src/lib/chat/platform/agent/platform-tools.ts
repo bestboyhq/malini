@@ -13,7 +13,12 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { isRecord, jsonEqual } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import {
+	describeError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import {
 	activeAutomationRunForSession,
 	finishAgentAction,
@@ -45,7 +50,7 @@ import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { chatTurnChainId, storedRunProfile } from '../runs.repository';
 import { latestSessionForWorkstream } from '../sessions.repository';
 import { parseRunProfile, type PromptsInFlight } from './commands';
-import { automationsNamed } from './malini-approvals.service';
+import { answeredApproval, automationsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, worktreePath, type PersistedBridgeSession } from './sessions';
 
@@ -72,6 +77,24 @@ export type PlatformRequestDeps = Pick<
 	}>;
 
 export const SENDS_PER_CHAIN = 6;
+
+const PLATFORM_TOOL_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	refused: 'expected',
+	'not-found': 'expected',
+	busy: 'expected',
+	unsupported: 'bug',
+	'session-not-found': 'bug',
+	'chat-start-failed': 'bug',
+} as const satisfies ErrorVerdicts;
+
+type PlatformToolErrorKind = keyof typeof PLATFORM_TOOL_ERROR_VERDICTS;
+
+class PlatformToolError extends MaliniError<PlatformToolErrorKind> {
+	constructor(kind: PlatformToolErrorKind, message: string, cause?: unknown) {
+		super('PlatformToolError', PLATFORM_TOOL_ERROR_VERDICTS, kind, message, { cause });
+	}
+}
 
 type Input = Readonly<Record<string, unknown>>;
 
@@ -117,13 +140,8 @@ function approvalOf(
 			(isRecord(requestPayload) && jsonEqual(requestPayload['input'], request.input)) ||
 			(isRecord(response) && jsonEqual(response['updatedInput'], request.input)),
 	);
-	const answer = exact.at(-1) ?? answers.at(-1);
-	if (!answer || (isRecord(answer.response) && answer.response['tree'] === true)) {
-		return 'not-needed';
-	}
-	return isRecord(answer.response) && answer.response['scope'] === 'once'
-		? 'allowed'
-		: 'always-allowed';
+	const response = (exact.at(-1) ?? answers.at(-1))?.response;
+	return isRecord(response) ? answeredApproval(response) : 'not-needed';
 }
 
 async function runPlatformTool(
@@ -155,7 +173,8 @@ async function runPlatformTool(
 			}
 			const context = text(input, 'context');
 			if (context !== undefined && automation.boundary.chats === 'none') {
-				throw new Error(
+				throw new PlatformToolError(
+					'refused',
 					`${automation.name} does not see your chats, so it takes no \`context\` from one. Run it without \`context\`, or ask the user to let it see the chat that started it on its page in Automations.`,
 				);
 			}
@@ -229,7 +248,8 @@ async function runPlatformTool(
 			const { workstreamId } = requestSession(db, request);
 			const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
 			if (workstream.id === workstreamId) {
-				throw new Error(
+				throw new PlatformToolError(
+					'refused',
 					'This chat runs in that workstream, so you cannot archive it. The user archives it from the sidebar.',
 				);
 			}
@@ -249,7 +269,8 @@ async function runPlatformTool(
 		}
 		case 'secrets_request': {
 			const { secrets } = deps;
-			if (!secrets) throw new Error('Malini cannot keep secrets in this build.');
+			if (!secrets)
+				throw new PlatformToolError('unsupported', 'Malini cannot keep secrets in this build.');
 			const { workstreamId } = requestSession(db, request);
 			return secrets.request({
 				sessionId: request.sessionId,
@@ -269,7 +290,8 @@ async function cloneRepository(
 		source: { kind: 'clone-url', url: cloneUrl(reference) },
 	});
 	const plan = await planRepositoryWorkstream(db, repository.id);
-	if (!plan) throw new Error(`${repository.fullName} is no longer in Malini.`);
+	if (!plan)
+		throw new PlatformToolError('not-found', `${repository.fullName} is no longer in Malini.`);
 	const cloned = await settledWithin(clonePlannedRepository(commands, plan), CLONE_WAIT_MS);
 	return {
 		id: repository.id,
@@ -295,13 +317,15 @@ async function createWorkstream(
 		requiredText(input, 'repository'),
 	);
 	const plan = await planRepositoryWorkstream(db, repository.id);
-	if (!plan) throw new Error(`${repository.fullName} is no longer in Malini.`);
+	if (!plan)
+		throw new PlatformToolError('not-found', `${repository.fullName} is no longer in Malini.`);
 	const projectRepoPath = await settledWithin(
 		clonePlannedRepository(commands, plan),
 		CLONE_WAIT_MS,
 	);
 	if (projectRepoPath === null) {
-		throw new Error(
+		throw new PlatformToolError(
+			'busy',
 			`Malini is still cloning ${repository.fullName}. Call repositories_clone to wait for it, then workstreams_create again.`,
 		);
 	}
@@ -326,8 +350,10 @@ async function createWorkstream(
 			...(source.model === null ? {} : { model: source.model }),
 		});
 	} catch (error) {
-		throw new Error(
+		throw new PlatformToolError(
+			'chat-start-failed',
 			`Malini started the workstream “${plan.name}” (\`${workstreamId}\`) but could not start its chat, so it did not send the prompt: ${describeError(error)}. Do not start it again.`,
+			error,
 		);
 	}
 	const sessionId = chat;
@@ -372,18 +398,24 @@ async function sendToWorkstream(
 	const source = requestSession(db, request);
 	const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
 	if (workstream.startedBy !== source.workstreamId) {
-		throw new Error(
+		throw new PlatformToolError(
+			'refused',
 			`This chat did not start “${workstream.name}”, so it sends no prompt there. Send prompts only to the workstreams this chat started, as workstreams_list shows in startedBy.`,
 		);
 	}
 	const chat = latestSessionForWorkstream(db, workstream.id);
-	if (!chat) throw new Error(`“${workstream.name}” has no chat to send the prompt to.`);
+	if (!chat)
+		throw new PlatformToolError(
+			'not-found',
+			`“${workstream.name}” has no chat to send the prompt to.`,
+		);
 	const chainId = chatTurnChainId(db, request.runId);
 	if (
 		chainId !== null &&
 		promptsSentInChain(db, request.sessionId, chat.id, chainId) >= SENDS_PER_CHAIN
 	) {
-		throw new Error(
+		throw new PlatformToolError(
+			'refused',
 			`You already sent “${workstream.name}” ${SENDS_PER_CHAIN} prompts since the user last wrote, so Malini did not send this one. Put it in your Needs line to ask the user whether to keep going.`,
 		);
 	}
@@ -430,7 +462,8 @@ function workstreamStanding(
 function cloneUrl(reference: string): string {
 	if (GITHUB_FULL_NAME.test(reference)) return `https://github.com/${reference}.git`;
 	if (CLONE_URL.test(reference)) return reference;
-	throw new Error(
+	throw new PlatformToolError(
+		'invalid-argument',
 		'`repository` must be owner/name, or a git URL that starts with https://, ssh://, file:// or git@.',
 	);
 }
@@ -484,13 +517,15 @@ function findRepository(
 			repository.id === reference || repository.fullName.toLocaleLowerCase() === wanted,
 	);
 	if (found) return found;
-	throw new Error(
+	throw new PlatformToolError(
+		'not-found',
 		`No repository in Malini is \`${reference}\`. Call repositories_list for them, or repositories_clone to add it.`,
 	);
 }
 
-function refusesInternet(reaches: string): Error {
-	return new Error(
+function refusesInternet(reaches: string): PlatformToolError {
+	return new PlatformToolError(
+		'refused',
 		`${reaches} the internet, and this automation runs with its internet off. Ask the user to turn it on for this automation on its page in Automations.`,
 	);
 }
@@ -502,7 +537,8 @@ export function findWorkstream(workstreams: readonly Workstream[], reference: st
 	const named = workstreams.filter((workstream) => workstream.name.toLocaleLowerCase() === wanted);
 	const [only] = named;
 	if (only && named.length === 1) return only;
-	throw new Error(
+	throw new PlatformToolError(
+		'not-found',
 		named.length > 1
 			? `Several workstreams are named “${reference}”. Pass the id from workstreams_list instead.`
 			: `No workstream is named or has the id “${reference}”. Call workstreams_list for them.`,
@@ -535,7 +571,11 @@ function requestSession(
 	request: BridgePlatformRequest,
 ): PersistedBridgeSession {
 	const session = persistedBridgeSession(db, request.sessionId);
-	if (!session) throw new Error(`Agent session \`${request.sessionId}\` is unknown.`);
+	if (!session)
+		throw new PlatformToolError(
+			'session-not-found',
+			`Agent session \`${request.sessionId}\` is unknown.`,
+		);
 	return session;
 }
 
@@ -595,12 +635,15 @@ function automationDefinition(
 	const then = nullableText(input, 'then');
 	const skills = input['skills'];
 	if (skills !== undefined && !isSkillNameList(skills)) {
-		throw new Error('`skills` must be a list of skill names.');
+		throw new PlatformToolError('invalid-argument', '`skills` must be a list of skill names.');
 	}
 	const existing =
 		id === undefined ? undefined : definitions.find((definition) => definition.id === id);
 	if (id !== undefined && !existing) {
-		throw new Error(`No automation has the id \`${id}\`. Call automations_list for the ids.`);
+		throw new PlatformToolError(
+			'not-found',
+			`No automation has the id \`${id}\`. Call automations_list for the ids.`,
+		);
 	}
 	const links = {
 		...(skills === undefined ? {} : { skills }),
@@ -611,7 +654,10 @@ function automationDefinition(
 	};
 	if (!existing) {
 		if (name === undefined || instructions === undefined) {
-			throw new Error('To create an automation, pass its name and instructions.');
+			throw new PlatformToolError(
+				'invalid-argument',
+				'To create an automation, pass its name and instructions.',
+			);
 		}
 		return {
 			name,
@@ -646,7 +692,8 @@ function findAutomation(
 	const named = automationsNamed(definitions, reference);
 	const [only] = named;
 	if (only && named.length === 1) return only;
-	throw new Error(
+	throw new PlatformToolError(
+		'not-found',
 		named.length > 1
 			? `Several automations are named “${reference}”. Pass the id from automations_list instead.`
 			: `No automation is named or has the id “${reference}”. Call automations_list for the automations.`,
@@ -656,7 +703,8 @@ function findAutomation(
 function text(input: Input, key: string): string | undefined {
 	const value = input[key];
 	if (value === undefined) return undefined;
-	if (typeof value !== 'string') throw new Error(`\`${key}\` must be a string.`);
+	if (typeof value !== 'string')
+		throw new PlatformToolError('invalid-argument', `\`${key}\` must be a string.`);
 	return value;
 }
 
@@ -666,13 +714,15 @@ function nullableText(input: Input, key: string): string | null | undefined {
 
 function requiredText(input: Input, key: string): string {
 	const value = text(input, key);
-	if (value === undefined) throw new Error(`\`${key}\` is required.`);
+	if (value === undefined)
+		throw new PlatformToolError('invalid-argument', `\`${key}\` is required.`);
 	return value;
 }
 
 function flag(input: Input, key: string): boolean {
 	const value = input[key] ?? false;
-	if (typeof value !== 'boolean') throw new Error(`\`${key}\` must be true or false.`);
+	if (typeof value !== 'boolean')
+		throw new PlatformToolError('invalid-argument', `\`${key}\` must be true or false.`);
 	return value;
 }
 
@@ -680,7 +730,7 @@ function lineNumber(input: Input, key: string): number | null {
 	const value = input[key];
 	if (value === undefined) return null;
 	if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
-		throw new Error(`\`${key}\` must be a line number from 1.`);
+		throw new PlatformToolError('invalid-argument', `\`${key}\` must be a line number from 1.`);
 	}
 	return value;
 }
@@ -689,6 +739,10 @@ function oneOf<T extends string>(input: Input, key: string, values: readonly T[]
 	const value = input[key];
 	if (value === undefined) return undefined;
 	const match = values.find((candidate) => candidate === value);
-	if (match === undefined) throw new Error(`\`${key}\` must be one of ${values.join(', ')}.`);
+	if (match === undefined)
+		throw new PlatformToolError(
+			'invalid-argument',
+			`\`${key}\` must be one of ${values.join(', ')}.`,
+		);
 	return match;
 }

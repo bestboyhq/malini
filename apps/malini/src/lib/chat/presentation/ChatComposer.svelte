@@ -11,6 +11,7 @@
 		type ModelSelection,
 	} from '$shared/providers/providers.api';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
+	import { checkoutWaitQuery } from '$shared/repositories/repositories.api';
 	import { resetFreshSubmissionIntentCommand } from '$lib/chat/application/commands/reset-fresh-submission-intent.command';
 	import { loadWorkstreamFilesCommand } from '$lib/chat/application/commands/load-workstream-files.command';
 	import { pickAttachmentsCommand } from '$lib/chat/application/commands/pick-attachments.command';
@@ -325,6 +326,7 @@
 	}
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
+	const checkoutWait = $derived(checkoutWaitQuery.data(workstreamId));
 	const contextListing = $derived(workstreamFileListingQuery.data(workstreamId));
 	const contextFiles = $derived(contextListing?.status === 'ready' ? contextListing.files : []);
 	const contextLoading = $derived(contextListing?.status === 'loading');
@@ -1235,6 +1237,16 @@
 			>
 				<Icon name="alert" class="mt-px shrink-0" size={13} />
 				<span class="min-w-0">{sanitizeFailureDetail(submissionError)}</span>
+			</p>
+		{/if}
+		{#if checkoutWait}
+			<p
+				class="text-2xs text-fg-tertiary flex items-start gap-1.5 px-3 pb-2 leading-4"
+				role="status"
+				data-testid="chat-checkout-wait"
+			>
+				<Icon name="clock" class="mt-px shrink-0" size={13} />
+				<span class="min-w-0">{checkoutWait}</span>
 			</p>
 		{/if}
 		{#snippet footer()}

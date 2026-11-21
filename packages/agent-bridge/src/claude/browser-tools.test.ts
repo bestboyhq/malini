@@ -10,6 +10,7 @@ import type {
 	PlatformToolCall,
 } from '../protocol.js';
 import { maliniTools } from './browser-tools.js';
+import type { AddedMcpServer } from './mcp-servers.js';
 
 type Transport = Parameters<McpSdkServerConfigWithInstance['instance']['connect']>[0];
 type JsonRpcMessage = Parameters<Transport['send']>[0];
@@ -26,10 +27,12 @@ async function connect(
 ): Promise<{
 	readonly requests: BrowserRequest[];
 	readonly platformCalls: PlatformToolCall[];
+	readonly addedMcpServers: [string, AddedMcpServer][];
 	readonly call: (method: string, params: Record<string, unknown>) => Promise<JsonRpcMessage>;
 }> {
 	const requests: BrowserRequest[] = [];
 	const platformCalls: PlatformToolCall[] = [];
+	const addedMcpServers: [string, AddedMcpServer][] = [];
 	const { mcpServers } = maliniTools(
 		async (request) => {
 			requests.push(request);
@@ -38,6 +41,10 @@ async function connect(
 		async (call) => {
 			platformCalls.push(call);
 			return answerPlatform(call);
+		},
+		async (name, config) => {
+			addedMcpServers.push([name, config]);
+			return `${name} is saved.`;
 		},
 	);
 	const server = mcpServers['malini'];
@@ -55,6 +62,7 @@ async function connect(
 	return {
 		requests,
 		platformCalls,
+		addedMcpServers,
 		call: (method, params) =>
 			new Promise((resolve) => {
 				nextId += 1;
@@ -204,6 +212,7 @@ describe('malini MCP server', () => {
 					{ name: 'workstreams_archive' },
 					{ name: 'files_open' },
 					{ name: 'secrets_request' },
+					{ name: 'mcp_servers_add' },
 				],
 			},
 		});
@@ -374,6 +383,7 @@ describe('malini MCP server', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
+			async () => 'Saved.',
 		);
 
 		expect(allowedTools.filter((name) => !name.startsWith('mcp__malini__browser_'))).toEqual([
@@ -385,6 +395,32 @@ describe('malini MCP server', () => {
 			'mcp__malini__workstreams_send',
 			'mcp__malini__files_open',
 			'mcp__malini__secrets_request',
+		]);
+	});
+
+	it('adds a stdio or a remote MCP server and refuses a mix of both', async () => {
+		const { call, addedMcpServers } = await connect(async () => ({ ok: true }));
+		const add = (args: Record<string, unknown>) =>
+			call('tools/call', { name: 'mcp_servers_add', arguments: { name: 'grip', ...args } });
+
+		const stdio = await add({ command: '/Applications/Grip.app/Contents/Resources/grip-mcp' });
+		await add({
+			url: 'https://mcp.linear.app/sse',
+			transport: 'sse',
+			headers: { 'X-Team': 'web' },
+		});
+		const mixed = await add({ command: 'npx', url: 'https://mcp.linear.app/mcp' });
+
+		expect(stdio).toMatchObject({
+			result: { content: [{ type: 'text', text: 'grip is saved.' }] },
+		});
+		expect(mixed).toMatchObject({ result: { isError: true } });
+		expect(addedMcpServers).toEqual([
+			[
+				'grip',
+				{ type: 'stdio', command: '/Applications/Grip.app/Contents/Resources/grip-mcp', args: [] },
+			],
+			['grip', { type: 'sse', url: 'https://mcp.linear.app/sse', headers: { 'X-Team': 'web' } }],
 		]);
 	});
 

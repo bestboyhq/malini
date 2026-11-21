@@ -1,4 +1,7 @@
-import { PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL } from '$contract/events';
+import {
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
+} from '$contract/events';
 import { extensionBindings } from '$shared/extensions/bindings';
 import { onPlatformEvent } from '$shared/port/events';
 import {
@@ -34,5 +37,14 @@ export function onPullRequestRead(
 	return onPlatformEvent(
 		PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 		({ workstreamId, state, headSha }) => listener(workstreamId, state, headSha),
+	);
+}
+
+export function onCheckoutHealed(listener: (workstreamId: string) => void): () => void {
+	return onPlatformEvent(
+		REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
+		({ workstreamId, state }) => {
+			if (state === 'healthy') listener(workstreamId);
+		},
 	);
 }

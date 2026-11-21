@@ -28,6 +28,7 @@ import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerAutomations } from '$lib/automations/platform/register';
 import { registerBrain } from '$lib/brain/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
+import { registerInitiatives } from '$lib/initiatives/platform/register';
 import { registerScratchpad } from '$lib/scratchpad/platform/register';
 import { registerSecrets } from '$lib/secrets/platform/register';
 import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
@@ -115,9 +116,11 @@ export async function registerModules(
 		deliver: async (wake) => {
 			await chat.deliver({ ...wake, kind: 'report' });
 		},
+		guardCheckout: (workstreamId, read) => repositories.checkoutHealth.read(workstreamId, read),
 	});
 
 	registerScratchpad(context);
+	registerInitiatives(context);
 
 	registerSounds(context, {
 		askForMicrophone,
@@ -217,6 +220,7 @@ export async function registerModules(
 	automations.start();
 	brain.start();
 	repositories.overlaps.start();
+	repositories.checkoutHealth.start();
 	app.announceUpdate();
 	app.announceStart();
 
@@ -236,6 +240,7 @@ export async function registerModules(
 			automations.dispose();
 			brain.dispose();
 			repositories.watchers.dispose();
+			repositories.checkoutHealth.dispose();
 			const overlapsSettled = repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();
 			await repositories.installs.abortAll();

@@ -291,6 +291,7 @@
 									label={image.name}
 									autoplay={start?.playing ?? !prefersReducedMotion.current}
 									{start}
+									audible
 									autohide
 									onclose={() => modal?.close()}
 									onerror={() => explainUnavailable(image)}

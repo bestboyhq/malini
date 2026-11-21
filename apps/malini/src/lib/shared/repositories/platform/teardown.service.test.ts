@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -892,5 +892,128 @@ describe('what a teardown marks a workstream as', () => {
 		expect(teardowns.tearingDown('ws-1')).toBe(false);
 		expect(teardowns.retired('ws-1')).toBe(true);
 		expect(teardowns.retired('ws-2')).toBe(false);
+	});
+});
+
+describe('what something writes into an archived checkout once it is gone', () => {
+	async function archivedWithIgnores(repo: Harness, workstreamId: string): Promise<string> {
+		const checkout = await createWorkstream(repo, workstreamId);
+		await writeFile(join(checkout, '.gitignore'), 'logs/\n.wrangler\n');
+		await archiveReceipt(repo, workstreamId);
+		await archivedLeftoversCleared();
+		return checkout;
+	}
+
+	async function writeFiles(root: string, files: Readonly<Record<string, string>>): Promise<void> {
+		for (const [path, text] of Object.entries(files)) {
+			await mkdir(dirname(join(root, path)), { recursive: true });
+			await writeFile(join(root, path), text);
+		}
+	}
+
+	async function filesIn(root: string): Promise<string[]> {
+		const entries = await readdir(root, { recursive: true, withFileTypes: true });
+		return entries
+			.filter((entry) => !entry.isDirectory())
+			.map((entry) => relative(root, join(entry.parentPath, entry.name)))
+			.sort();
+	}
+
+	it('is cleared on the next start down to the files no saved commit holds', async () => {
+		const repo = await harness();
+		const checkout = await archivedWithIgnores(repo, 'ws-back');
+		await writeFiles(checkout, {
+			'apps/backend/logs/clickhouse-server.log': 'a log line\n',
+			'.wrangler/cache/cf.json': '{}\n',
+			'.wrangler/clone/.git/HEAD': 'ref: refs/heads/main\n',
+			'node_modules/pkg/index.js': 'module.exports = 1;\n',
+			'uncommitted.txt': 'work in progress\n',
+			'seed.txt': 'changed after the archive\n',
+			'notes/unsaved.md': 'write this down\n',
+			'.context/after.txt': 'a note\n',
+		});
+		await mkdir(join(checkout, 'apps', 'backend', 'clickhouse-migrations'), { recursive: true });
+		const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+		cleanups.push(async () => warned.mockRestore());
+
+		await repo.restart();
+		await archivedLeftoversCleared();
+
+		expect(await filesIn(checkout)).toEqual([
+			'.wrangler/clone/.git/HEAD',
+			'notes/unsaved.md',
+			'seed.txt',
+		]);
+		expect(await readFile(join(checkout, 'notes', 'unsaved.md'), 'utf8')).toBe('write this down\n');
+		expect(
+			await readFile(join(checkout, '..', '.kept', 'ws-back', '.context', 'after.txt'), 'utf8'),
+		).toBe('a note\n');
+		expect(warned).toHaveBeenCalledWith(expect.stringContaining('kept 3 paths'));
+		expect(getWorkstream(repo.db, 'ws-back')?.status).toBe('archived');
+	});
+
+	it('removes the folder when everything in it is saved or ignored', async () => {
+		const repo = await harness();
+		const checkout = await archivedWithIgnores(repo, 'ws-gone');
+		await writeFiles(checkout, {
+			'apps/backend/logs/clickhouse-server.log': 'a log line\n',
+			'uncommitted.txt': 'work in progress\n',
+		});
+
+		await repo.restart();
+		await archivedLeftoversCleared();
+
+		expect(existsSync(checkout)).toBe(false);
+	});
+
+	it('is cleared when it comes back while the archive clears the checkout', async () => {
+		const repo = await harness();
+		const checkout = await createWorkstream(repo, 'ws-late');
+		await writeFile(join(checkout, '.gitignore'), '.wrangler\n');
+		const prune = holdGit('prune');
+
+		await archiveReceipt(repo, 'ws-late');
+		await prune.reached;
+		await writeFiles(checkout, { '.wrangler/cache/cf.json': '{}\n' });
+		prune.release();
+		await archivedLeftoversCleared();
+
+		expect(existsSync(checkout)).toBe(false);
+	});
+
+	it('is cleared when it comes back while a delete clears the checkout, unsaved files kept', async () => {
+		const repo = await harness();
+		const checkout = await createWorkstream(repo, 'ws-deleted');
+		await writeFile(join(checkout, '.gitignore'), '.wrangler\n');
+		const prune = holdGit('prune');
+
+		await repo.invoke('repositories.delete-workstream', { workstreamId: 'ws-deleted' });
+		await prune.reached;
+		await writeFiles(checkout, {
+			'.wrangler/cache/cf.json': '{}\n',
+			'seed.txt': 'seed\n',
+			'notes/unsaved.md': 'write this down\n',
+			'.context/after.txt': 'a note\n',
+		});
+		prune.release();
+		await archivedLeftoversCleared();
+
+		expect(await filesIn(checkout)).toEqual(['notes/unsaved.md']);
+		expect(existsSync(join(checkout, '..', '.kept', 'ws-deleted'))).toBe(false);
+		expect(getWorkstream(repo.db, 'ws-deleted')).toBeNull();
+	});
+
+	it('leaves a folder that holds a git repository alone', async () => {
+		const repo = await harness();
+		const checkout = await archivedWithIgnores(repo, 'ws-cloned');
+		await mkdir(checkout, { recursive: true });
+		await realGit(checkout, ['init', '-q']);
+		await writeFiles(checkout, { 'logs/run.log': 'a log line\n' });
+
+		await repo.restart();
+		await archivedLeftoversCleared();
+
+		expect(await readFile(join(checkout, 'logs', 'run.log'), 'utf8')).toBe('a log line\n');
+		expect(existsSync(join(checkout, '.git', 'HEAD'))).toBe(true);
 	});
 });

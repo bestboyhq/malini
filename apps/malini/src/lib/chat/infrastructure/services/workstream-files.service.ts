@@ -1,4 +1,7 @@
-import type { WorkstreamFilesChangedPayload } from '$contract/events';
+import {
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
+	type WorkstreamFilesChangedPayload,
+} from '$contract/events';
 import type { WorkstreamImageRead } from '$contract/repositories';
 import type { WorkstreamFile } from '$lib/chat/domain/workstream-file';
 import { onPlatformEvent } from '$shared/port/events';
@@ -24,6 +27,12 @@ class WorkstreamFilesService {
 				listener(Array.isArray(payload.paths) ? payload.paths.filter(isString) : null);
 			},
 		);
+	}
+
+	onCheckoutHealed(workstreamId: string, listener: () => void): () => void {
+		return onPlatformEvent(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, (payload) => {
+			if (payload.workstreamId === workstreamId && payload.state === 'healthy') listener();
+		});
 	}
 }
 

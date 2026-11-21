@@ -12,6 +12,7 @@ import type { MaliniDatabase } from '../db/driver';
 import { markContainerReleased } from './records';
 import { get, nowIso8601, run } from '../db/rows';
 import { dockerBinary } from './cli';
+import { DockerError } from './errors';
 import type { DockerOwnership, OwnedContainer } from './ownership';
 
 export const STARTUP_RECLAIM_BUDGET_MS = 60_000;
@@ -99,11 +100,11 @@ export class DockerCliReaper implements ContainerReaper {
 		}
 		const removed = await this.docker(['rm', '--force', '--volumes', id], deadline);
 		if (!boundedRunSucceeded(removed) && !mentionsNoSuchContainer(removed)) {
-			throw new Error(boundedRunFailureReason(removed, 'docker rm'));
+			throw new DockerError('failed', boundedRunFailureReason(removed, 'docker rm'));
 		}
 		const inspect = await this.docker(['inspect', '--format', '{{.Id}}', id], deadline);
 		if (boundedRunSucceeded(inspect)) {
-			throw new Error(`\`docker inspect\` still resolves container ${id}`);
+			throw new DockerError('failed', `\`docker inspect\` still resolves container ${id}`);
 		}
 	}
 
@@ -120,7 +121,7 @@ export class DockerCliReaper implements ContainerReaper {
 			deadline,
 		);
 		if (!boundedRunSucceeded(listed)) {
-			throw new Error(boundedRunFailureReason(listed, 'docker network ls'));
+			throw new DockerError('failed', boundedRunFailureReason(listed, 'docker network ls'));
 		}
 		const sweep: NetworkSweep = { removed: [], left: [] };
 		for (const network of boundedRunLines(listed)) {

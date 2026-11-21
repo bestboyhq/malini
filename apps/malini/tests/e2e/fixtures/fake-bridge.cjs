@@ -781,6 +781,17 @@ const heldReportRun = (sessionId, runId) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, STREAM_LINE_MS);
 };
+const CHECKOUT_FIX_RELEASE = 'release-checkout-fix';
+const checkoutFixRun = (sessionId, runId) => {
+	pendingRuns.set(runId, sessionId);
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!released(CHECKOUT_FIX_RELEASE)) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		completeRun(sessionId, runId, 'Put the lost HEAD commit back');
+	}, STREAM_LINE_MS);
+};
 const goesOnAfterBackgroundCommand = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
@@ -1184,6 +1195,9 @@ const respond = async (sessionId, runId, prompt) => {
 			fs.writeFileSync(nodePath.join(directory, 'file-' + index + '.txt'), 'a\nb\nc\n');
 		}
 	}
+	if (prompt.includes("Git cannot read this workstream's checkout")) {
+		return checkoutFixRun(sessionId, runId);
+	}
 	if (prompt.includes('HANG')) {
 		pendingRuns.set(runId, sessionId);
 		repliedRuns.add(runId);
@@ -1301,7 +1315,7 @@ const respond = async (sessionId, runId, prompt) => {
 			type: 'approval.requested',
 			sessionId,
 			runId,
-			approvalId: 'approval-' + runId,
+			approvalId: 'approval-malini-call-' + runId,
 			reason: 'Claude wants to use a Malini tool',
 			toolName: 'mcp__malini__' + call.tool,
 			input: call.input,
@@ -2045,6 +2059,19 @@ const handle = (command) => {
 						error: 'The user denied this action.',
 					});
 					return completeRun(command.sessionId, command.runId, 'malini:denied');
+				}
+				if (malini.tool === 'mcp_servers_add') {
+					maliniCalls.delete(command.runId);
+					pendingRuns.delete(command.runId);
+					const text = malini.input.name + " is saved in Claude Code's user config.";
+					event({
+						type: 'tool.completed',
+						runId: command.runId,
+						name: 'mcp__malini__mcp_servers_add',
+						output: text,
+						toolCallId: malini.toolCallId,
+					});
+					return completeRun(command.sessionId, command.runId, 'malini:' + text);
 				}
 				write({
 					type: 'bridge.platform_request',

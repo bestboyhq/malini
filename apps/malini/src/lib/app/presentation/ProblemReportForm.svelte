@@ -7,7 +7,11 @@
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
 	import { githubAuthQuery } from '$shared/repositories/repositories.api';
-	import { DISCORD_URL, PROBLEM_TEXT_LIMIT } from '$lib/app/domain/problem-report';
+	import {
+		DISCORD_URL,
+		PROBLEM_TEXT_LIMIT,
+		type ProblemFact,
+	} from '$lib/app/domain/problem-report';
 	import { fileProblemCommand } from '$lib/app/application/commands/file-problem.command';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { problemReportQuery } from '$lib/app/application/queries/problem-report.query.svelte';
@@ -16,25 +20,24 @@
 		ondismiss: () => void;
 	}
 
-	type Fact = Readonly<{ label: string; value: string }>;
-
 	let { ondismiss }: Props = $props();
 
 	const uid = $props.id();
 	const problem = $derived(problemReportQuery.data);
 	const login = $derived(githubAuthQuery.data?.login ?? null);
 	const report = $derived(problem.report);
-	const facts: readonly Fact[] = $derived(
-		report
+	const facts: readonly ProblemFact[] = $derived([
+		...problem.draft.facts,
+		...(report
 			? [
 					{ label: 'Versions', value: report.system },
 					{ label: 'So far', value: report.journey },
 					{ label: 'Last error', value: report.lastError },
-				].filter((fact): fact is Fact => fact.value !== null)
-			: [],
-	);
+				].filter((fact): fact is ProblemFact => fact.value !== null)
+			: []),
+	]);
 
-	let text: string = $state('');
+	let text: string = $state(problemReportQuery.data.draft.text);
 	let dropped: readonly string[] = $state([]);
 
 	const kept = $derived(

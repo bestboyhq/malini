@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import { errorCode } from '$main/errors';
+import { ProcessError } from './errors';
 
 const WINDOWS = process.platform === 'win32';
 
@@ -19,7 +20,7 @@ export function killProcessGroup(
 		process.kill(-pid, signal);
 	} catch (error) {
 		if (errorCode(error) === 'ESRCH') return;
-		if (describeFailure) throw new Error(describeFailure(error));
+		if (describeFailure) throw new ProcessError('signal-failed', describeFailure(error), error);
 		throw error;
 	}
 }

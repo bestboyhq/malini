@@ -20,7 +20,7 @@ catalog:
   # accept TypeScript 7 yet.
   typescript: 6.0.3
   # Matches the Node that Electron 44 bundles. Follows Electron, not npm.
-  '@types/node': ^24.13.5
+  '@types/node': ^24.19.2
   tailwindcss: ^4.3.3
   '@tailwindcss/vite': ^4.3.3
   daisyui: ^5.5.0

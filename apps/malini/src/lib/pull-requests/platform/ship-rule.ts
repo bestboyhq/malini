@@ -255,7 +255,9 @@ async function decide(deps: ShipDeps, workstreamId: string): Promise<ShippingDec
 	try {
 		return await decideFromState(deps, workstreamId);
 	} catch (error) {
-		return decision(deps, workstreamId, 'failed', () => shipFailed(deps, workstreamId, error));
+		return decision(deps, workstreamId, 'failed', () =>
+			shipFailed(deps, workstreamId, error, 'read'),
+		);
 	}
 }
 

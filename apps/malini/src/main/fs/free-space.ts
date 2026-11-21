@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { statfs } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { promisify } from 'node:util';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,9 +31,15 @@ export function installFreeSpaceForTests(bytes: (volume: string) => number): () 
 	};
 }
 
-export class FreeSpaceError extends Error {
-	override readonly name = 'FreeSpaceError';
-	readonly code = 'ENOSPC';
+const FREE_SPACE_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'disk-full': 'expected',
+} as const satisfies ErrorVerdicts;
+
+export class FreeSpaceError extends MaliniError<keyof typeof FREE_SPACE_ERROR_VERDICTS> {
+	constructor(message: string) {
+		super('FreeSpaceError', FREE_SPACE_ERROR_VERDICTS, 'disk-full', message, { code: 'ENOSPC' });
+	}
 }
 
 export async function requireFreeSpace(path: string, needed: number, task: string): Promise<void> {

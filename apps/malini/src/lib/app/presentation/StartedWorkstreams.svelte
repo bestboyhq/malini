@@ -2,26 +2,18 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
-	import { startedProgressQuery } from '$lib/app/application/queries/started-progress.query.svelte';
-	import { standingLabel, type ProgressDot } from '$lib/app/domain/started-progress';
 	import {
-		pullRequestBadgesQuery,
-		type PullRequestPhase,
-	} from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
-	import {
-		pullRequestLinkQuery,
-		type PullRequestLink,
-	} from '$lib/pull-requests/application/queries/pull-request-link.query.svelte';
+		workstreamStandingQuery,
+		type StandingLine,
+	} from '$lib/app/application/queries/workstream-standing.query.svelte';
+	import type { ProgressDot } from '$lib/app/domain/started-progress';
+	import type { PullRequestLink } from '$lib/pull-requests/application/queries/pull-request-link.query.svelte';
 	import { formatCompactChangeTotal } from '$lib/pull-requests/pull-requests.api';
 	import { formatTimeAgo } from '$lib/stats/stats.api';
 	import {
 		RepositoryAvatar,
-		archivedWorkstreamsQuery,
 		changeTotalsQuery,
-		repositoryContextQuery,
 		repositoryName,
-		workstreamByIdQuery,
-		workstreamNameQuery,
 	} from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 
@@ -73,59 +65,44 @@
 	});
 
 	function lineOf(id: string): Line[] {
-		const name = workstreamNameQuery.data(id) ?? '';
-		const active = workstreamByIdQuery.data(id);
-		if (active) {
-			const dot = startedProgressQuery.dot(active);
-			const pullRequest = pullRequestBadgesQuery.data(id).phase;
-			const totals = changeTotalsQuery.data[id];
-			return [
-				{
-					id,
-					fullName: repositoryContextQuery.data(id)?.repo.fullName ?? null,
-					name,
-					dot,
-					glyph: glyphOf(dot, pullRequest),
-					label: standingLabel(dot, pullRequest),
-					trail:
-						totals && (totals.additions > 0 || totals.deletions > 0)
-							? { kind: 'changes', additions: totals.additions, deletions: totals.deletions }
-							: null,
-					pullRequest: pullRequestLinkQuery.data(id),
-					open: true,
-				},
-			];
-		}
-		const archived = archivedWorkstreamsQuery.data.find((entry) => entry.id === id);
-		if (!archived) return [];
-		const pullRequest = archived.mergedPullRequest;
-		const archivedAt = Date.parse(archived.archivedAt);
+		const standing = workstreamStandingQuery.line(id);
+		if (!standing) return [];
+		const { dot, label, name, repositoryFullName, pullRequest, open } = standing;
 		return [
 			{
 				id,
-				fullName: archived.repositoryFullName,
+				fullName: repositoryFullName,
 				name,
-				dot: pullRequest ? 'merged' : 'archived',
-				glyph: pullRequest ? 'pr-merged' : archived.savedForLater ? 'clock' : 'archive',
-				label: pullRequest
-					? `Merged #${pullRequest.number}`
-					: archived.savedForLater
-						? 'Saved for later'
-						: 'Archived',
-				trail: Number.isNaN(archivedAt) ? null : { kind: 'archived', archivedAt },
+				dot,
+				glyph: glyphOf(standing),
+				label,
+				trail: trailOf(id, standing),
 				pullRequest: pullRequest?.url ? { number: pullRequest.number, url: pullRequest.url } : null,
-				open: false,
+				open,
 			},
 		];
 	}
 
-	function glyphOf(dot: ProgressDot, pullRequest: PullRequestPhase): IconName {
+	function trailOf(id: string, standing: StandingLine): Trail {
+		if (!standing.open) {
+			return standing.archivedAt === null
+				? null
+				: { kind: 'archived', archivedAt: standing.archivedAt };
+		}
+		const totals = changeTotalsQuery.data[id];
+		return totals && (totals.additions > 0 || totals.deletions > 0)
+			? { kind: 'changes', additions: totals.additions, deletions: totals.deletions }
+			: null;
+	}
+
+	function glyphOf({ dot, phase, savedForLater }: StandingLine): IconName {
 		if (dot === 'merged') return 'pr-merged';
+		if (dot === 'archived') return savedForLater ? 'clock' : 'archive';
 		if (dot === 'blocked') return 'alert';
 		if (dot === 'needs') return 'dot';
 		if (dot === 'failed') return 'pr-failed';
-		if (pullRequest === 'open') return 'pr-open';
-		return pullRequest === 'draft' ? 'pr-draft' : 'branch';
+		if (phase === 'open') return 'pr-open';
+		return phase === 'draft' ? 'pr-draft' : 'branch';
 	}
 
 	function ageOf(archivedAt: number): string {

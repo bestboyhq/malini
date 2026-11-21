@@ -126,8 +126,7 @@
 	});
 
 	$effect(() => {
-		if (folderRequested)
-			answerRepositoryFolderRequestCommand({ open: picking ? 'workstream' : 'repository' });
+		if (folderRequested) answerRepositoryFolderRequestCommand();
 	});
 
 	$effect.pre(() => {

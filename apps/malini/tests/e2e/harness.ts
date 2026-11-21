@@ -188,6 +188,24 @@ export function waitWhile(condition: string, seconds = 0.1): string {
 	return `while ${condition}; do ${parentGone}sleep ${seconds}; done`;
 }
 
+export function holdCheckouts(app: LaunchedApp): string {
+	const held = join(app.root, 'checkouts-held');
+	const stub = join(app.bin, 'git');
+	writeExecutable(
+		stub,
+		[
+			'#!/bin/sh',
+			'case "$*" in *"worktree add "*)',
+			`\t${waitWhile(`[ -e '${held}' ]`, 0.05)} ;;`,
+			'esac',
+			`exec '${REAL_GIT}' "$@"`,
+			'',
+		].join('\n'),
+	);
+	writeFileSync(held, '');
+	return held;
+}
+
 const GH_STUB = `#!/bin/sh
 printf '%s\\n' "$*" >> "$HOME/${GH_CALLS_FIXTURE}"
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
@@ -643,12 +661,21 @@ export function stopProcess(pid: number): void {
 	}
 }
 
+function sandboxForbidsSignals(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return false;
+	} catch (error) {
+		return error instanceof Error && 'code' in error && error.code === 'EPERM';
+	}
+}
+
 const OUTLIVE_BUDGET_MS = 5_000;
 
 async function outlived(started: readonly ProcessEntry[]): Promise<ProcessEntry[]> {
 	const deadline = Date.now() + OUTLIVE_BUDGET_MS;
 	for (;;) {
-		const left = await stillRunning(started);
+		const left = (await stillRunning(started)).filter((entry) => !sandboxForbidsSignals(entry.pid));
 		if (left.length === 0) return [];
 		if (Date.now() > deadline) {
 			for (const entry of left) stopProcess(entry.pid);

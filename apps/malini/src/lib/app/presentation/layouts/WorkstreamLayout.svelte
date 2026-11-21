@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
+	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { ChatSurface } from '$lib/chat/chat.api';
@@ -22,6 +23,7 @@
 	import {
 		WorkstreamTitle,
 		archiveWorkstreamCommand,
+		checkoutHealthQuery,
 		leaveMissingWorkstreamCommand,
 		repositoryContextQuery,
 		workstreamByIdQuery,
@@ -87,6 +89,8 @@
 			{pullRequestShipped}
 			{automationRuns}
 			oncloseworkstream={closeWorkstream}
+			onreportcheckout={() =>
+				reportCheckoutProblemCommand(workstreamId, checkoutHealthQuery.data(workstreamId).said)}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}

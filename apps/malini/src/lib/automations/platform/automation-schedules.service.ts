@@ -27,6 +27,7 @@ import {
 	type ScheduledAutomation,
 } from '../domain/schedule';
 import { listDueAlarms, takeAlarm } from './alarms.repository';
+import { AutomationError } from './commands';
 import { loggedSince, triggeredBefore } from './event-log.repository';
 import { findString, type DispatchedEvent } from './event-log.service';
 import {
@@ -271,7 +272,8 @@ async function placeTarget(
 	const previous = listWorkstreams(db).find((workstream) => workstream.id === previousId);
 	if (place.kind === 'none') return {};
 	const repository = await catalogRepository(db, place.repository);
-	if (!repository) throw new Error(`${place.repository} is no longer in Malini.`);
+	if (!repository)
+		throw new AutomationError('not-found', `${place.repository} is no longer in Malini.`);
 	return previous && repository.projectIds.includes(previous.projectId)
 		? { workstreamId: previous.id }
 		: { repositoryId: repository.id };

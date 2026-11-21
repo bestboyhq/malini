@@ -1,1 +1,1 @@
-export { osFor, osPlatform, osText, type Os, type OsPlatform } from './domain/os';
+export { osFor, osPlatform, osText, type Os, type OsPlatform } from './domain/os.ts';

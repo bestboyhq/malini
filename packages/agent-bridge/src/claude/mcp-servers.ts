@@ -1,8 +1,14 @@
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { promisify } from 'node:util';
 import {
 	query as sdkQuery,
+	type McpHttpServerConfig,
+	type McpSSEServerConfig,
 	type McpServerStatus,
+	type McpStdioServerConfig,
 	type Options,
 	type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -12,6 +18,10 @@ import { idle } from './capabilities.js';
 import { configChanged, mcpConfigSnapshot } from './config-snapshot.js';
 import { findClaudeExecutable } from './installation.js';
 import { claudeEnvironment, type ClaudeQuery } from './session.js';
+import { claudeStateFile } from './user-settings.js';
+import { isRecord } from '../type-guards.js';
+
+const execFileAsync = promisify(execFile);
 
 const LISTED_WITHIN_MS = 15_000;
 const AUTHORIZATION_WINDOW_MS = 5 * 60_000;
@@ -24,6 +34,7 @@ const WATCH_CONFIG_CHECK_MS = 3_000;
 const WATCH_RETRY_MS = 5_000;
 const SWITCH_WINDOW_MS = 5_000;
 const SWITCH_RETRY_MS = 250;
+const SAVE_TIMEOUT_MS = 30_000;
 
 export type McpProbeQuery = Pick<
 	ClaudeQuery,
@@ -83,6 +94,10 @@ export type McpServerEntry = Pick<
 	readonly status: string;
 };
 
+export type AddedMcpServer = McpStdioServerConfig | McpHttpServerConfig | McpSSEServerConfig;
+
+export type McpServerAdder = (name: string, config: AddedMcpServer) => Promise<string>;
+
 export const claudeMcpServers: McpServerProbes = {
 	watch: (cwd, onListing, plugins) => watchMcpServers(claudeProbe(cwd, plugins), onListing),
 	authorize: async (cwd, serverName, plugins) =>
@@ -121,27 +136,38 @@ export async function startMcpAuthorization(
 		if (!(await settle(probe.query, serverName, () => true, LISTED_WITHIN_MS))) {
 			throw new Error(`Claude Code has no MCP server named ${serverName}`);
 		}
-		const authenticate = probe.query.mcpAuthenticate;
-		if (!authenticate) {
-			throw new Error('This Claude Code cannot authorize MCP servers. Update Claude Code first.');
-		}
-		const { authUrl, callbackExpected } = authentication(
-			await authenticate.call(probe.query, serverName),
-		);
 		const cancelled = new AbortController();
-		const settled = settle(
-			probe.query,
-			serverName,
-			(server) => server.status === 'connected',
-			authUrl ? AUTHORIZATION_WINDOW_MS : SETTLE_WINDOW_MS,
-			authUrl !== null && !callbackExpected,
-			cancelled.signal,
-		).finally(probe.close);
-		return { authUrl, settled, cancel: () => cancelled.abort() };
+		const { authUrl, settled } = await signInMcpServer(probe.query, serverName, cancelled.signal);
+		return { authUrl, settled: settled.finally(probe.close), cancel: () => cancelled.abort() };
 	} catch (error) {
 		probe.close();
 		throw error;
 	}
+}
+
+export async function signInMcpServer(
+	query: McpProbeQuery,
+	serverName: string,
+	cancelled: AbortSignal,
+): Promise<Omit<McpAuthorization, 'cancel'>> {
+	const authenticate = query.mcpAuthenticate;
+	if (!authenticate) {
+		throw new Error('This Claude Code cannot authorize MCP servers. Update Claude Code first.');
+	}
+	const { authUrl, callbackExpected } = authentication(await authenticate.call(query, serverName));
+	const settled = settle(
+		query,
+		serverName,
+		(server) => server.status === 'connected',
+		authUrl ? AUTHORIZATION_WINDOW_MS : SETTLE_WINDOW_MS,
+		authUrl !== null && !callbackExpected,
+		cancelled,
+	);
+	return { authUrl, settled };
+}
+
+export async function openInBrowser(url: string): Promise<void> {
+	await execFileAsync('/usr/bin/open', [url], { timeout: SAVE_TIMEOUT_MS });
 }
 
 export async function probeMcpServer(
@@ -268,6 +294,41 @@ export async function turnOnMcpServer(
 		return await switchMcpServerLive(probe.query, serverName, true);
 	} finally {
 		probe.close();
+	}
+}
+
+export async function saveUserMcpServer(
+	executable: string,
+	env: Record<string, string>,
+	name: string,
+	config: AddedMcpServer,
+): Promise<void> {
+	const mcp = async (...args: string[]) => {
+		try {
+			await execFileAsync(executable, ['mcp', ...args], { env, timeout: SAVE_TIMEOUT_MS });
+		} catch (error) {
+			const detail = isRecord(error) ? error['stderr'] || error['code'] || error['signal'] : error;
+			throw new Error(`Claude Code did not save ${name}: ${String(detail).trim()}`);
+		}
+	};
+	const add = (saved: unknown) => mcp('add-json', '--scope', 'user', name, JSON.stringify(saved));
+	const replaced = await userMcpServer(env, name);
+	if (replaced !== undefined) await mcp('remove', '--scope', 'user', name);
+	try {
+		await add(config);
+	} catch (error) {
+		if (replaced !== undefined) await add(replaced).catch(() => undefined);
+		throw error;
+	}
+}
+
+async function userMcpServer(env: Record<string, string>, name: string): Promise<unknown> {
+	try {
+		const state: unknown = JSON.parse(await readFile(claudeStateFile(env), 'utf8'));
+		const servers = isRecord(state) ? state['mcpServers'] : undefined;
+		return isRecord(servers) && Object.hasOwn(servers, name) ? servers[name] : undefined;
+	} catch {
+		return undefined;
 	}
 }
 

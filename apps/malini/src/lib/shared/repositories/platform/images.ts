@@ -302,11 +302,12 @@ function fileStream(file: FileHandle, start: number, end: number): ReadableStrea
 
 export function parseWorkstreamId(workstreamId: unknown): string {
 	if (typeof workstreamId !== 'string' || workstreamId.length === 0) {
-		throw new Error('unsafe path: empty workstream id');
+		throw new WorkstreamError('invalid-argument', 'unsafe path: empty workstream id');
 	}
 	for (const character of workstreamId) {
 		if (!/^[A-Za-z0-9_-]$/.test(character)) {
-			throw new Error(
+			throw new WorkstreamError(
+				'invalid-argument',
 				`unsafe path: workstream id contains unsafe char \`${character}\`: \`${workstreamId}\``,
 			);
 		}

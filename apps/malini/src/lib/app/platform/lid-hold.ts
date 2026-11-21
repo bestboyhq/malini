@@ -25,6 +25,7 @@ import {
 } from '$main/process/runner';
 import { osPlatform } from '$shared/os/os.platform';
 import { holdsLid, LID_HOLD_SETTING } from '../domain/lid-hold';
+import { AppError } from './app-error';
 import { openAgentRunCount } from './graceful-shutdown';
 import { getSetting, setSetting } from './settings.repository';
 
@@ -257,9 +258,10 @@ export async function readLidAction(
 	scheme?: string,
 ): Promise<LidAction> {
 	const plan = scheme ?? activeScheme((await powercfg(['/getactivescheme'])).stdout);
-	if (plan === null) throw new Error('powercfg names no active power plan');
+	if (plan === null) throw new AppError('tool-failed', 'powercfg names no active power plan');
 	const values = lidActionValues((await powercfg(['/q', plan, 'SUB_BUTTONS', 'LIDACTION'])).stdout);
-	if (values === null) throw new Error(`power plan ${plan} has no lid close action`);
+	if (values === null)
+		throw new AppError('no-lid-action', `power plan ${plan} has no lid close action`);
 	return { scheme: plan, ...values };
 }
 
@@ -269,13 +271,17 @@ export async function writeLidAction(
 ): Promise<void> {
 	const succeed = async (args: readonly string[]): Promise<void> => {
 		const run = await powercfg(args);
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'powercfg'));
+		if (!boundedRunSucceeded(run))
+			throw new AppError('tool-failed', boundedRunFailureReason(run, 'powercfg'));
 	};
 	await succeed(['/setacvalueindex', action.scheme, 'SUB_BUTTONS', 'LIDACTION', String(action.ac)]);
 	await succeed(['/setdcvalueindex', action.scheme, 'SUB_BUTTONS', 'LIDACTION', String(action.dc)]);
 	const written = await readLidAction(powercfg, action.scheme);
 	if (written.ac !== action.ac || written.dc !== action.dc) {
-		throw new Error(`Windows kept lid close action ${written.ac}/${written.dc}`);
+		throw new AppError(
+			'sleep-refused',
+			`Windows kept lid close action ${written.ac}/${written.dc}`,
+		);
 	}
 	if (activeScheme((await powercfg(['/getactivescheme'])).stdout) === action.scheme) {
 		await succeed(['/setactive', action.scheme]);
@@ -322,7 +328,7 @@ export function holdInhibitor(file: string, what: string): Promise<HeldInhibitor
 		});
 		child.once('exit', () => {
 			clearTimeout(deadline);
-			reject(new Error(stderr.trim() || `${file} exited before it held ${what}`));
+			reject(new AppError('tool-failed', stderr.trim() || `${file} exited before it held ${what}`));
 		});
 	});
 }
@@ -374,7 +380,8 @@ function macLid({ tool, tools, marker, appDataRoot }: DriverContext): LidDriver 
 		writeFileSync(agentFile, agentPlist);
 		await tool(tools.launchctl, ['bootout', `${domain}/${label}`]);
 		const run = await tool(tools.launchctl, ['bootstrap', domain, agentFile]);
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'launchctl'));
+		if (!boundedRunSucceeded(run))
+			throw new AppError('tool-failed', boundedRunFailureReason(run, 'launchctl'));
 	};
 	const granted = async (): Promise<boolean> => setSleepDisabled(await readSleepDisabled());
 	const grant = async (): Promise<boolean> => {
@@ -384,8 +391,10 @@ function macLid({ tool, tools, marker, appDataRoot }: DriverContext): LidDriver 
 			PROMPT_TIMEOUT_MS,
 		);
 		if (run.exitCode === null || /User cancel+ed|\(-128\)/u.test(run.stderr)) return false;
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'osascript'));
-		if (!(await granted())) throw new Error('this Mac account is not an administrator');
+		if (!boundedRunSucceeded(run))
+			throw new AppError('tool-failed', boundedRunFailureReason(run, 'osascript'));
+		if (!(await granted()))
+			throw new AppError('not-administrator', 'this Mac account is not an administrator');
 		return true;
 	};
 
@@ -408,17 +417,19 @@ function macLid({ tool, tools, marker, appDataRoot }: DriverContext): LidDriver 
 				`pid=$0; ${PROCESS_STARTED}`,
 				String(process.pid),
 			]);
-			if (!boundedRunSucceeded(started)) throw new Error(boundedRunFailureReason(started, 'ps'));
+			if (!boundedRunSucceeded(started))
+				throw new AppError('tool-failed', boundedRunFailureReason(started, 'ps'));
 			writeFileSync(`${marker}.tmp`, `${process.pid}\n${started.stdout}`);
 			renameSync(`${marker}.tmp`, marker);
 			if (!(await setSleepDisabled(true))) {
 				rmSync(marker, { force: true });
-				throw new Error('sudo refused to turn sleep off');
+				throw new AppError('sleep-refused', 'sudo refused to turn sleep off');
 			}
 			return true;
 		},
 		release: async () => {
-			if (!(await setSleepDisabled(false))) throw new Error('sudo refused to turn sleep back on');
+			if (!(await setSleepDisabled(false)))
+				throw new AppError('sleep-refused', 'sudo refused to turn sleep back on');
 			rmSync(marker, { force: true });
 		},
 		leftover: () => existsSync(marker),
@@ -442,7 +453,7 @@ function linuxLid({ tool, tools, lost }: DriverContext): LidDriver {
 	return {
 		available,
 		switchOn: async () => {
-			if (!(await available())) throw new Error('systemd-logind is not running');
+			if (!(await available())) throw new AppError('no-logind', 'systemd-logind is not running');
 			await (await holdInhibitor(tools.inhibit, LID_INHIBITOR)).release();
 			return true;
 		},
@@ -499,7 +510,8 @@ function windowsLid({ tool, tools, marker }: DriverContext): LidDriver {
 	return {
 		available,
 		switchOn: async () => {
-			if (!(await available())) throw new Error('this power plan has no lid close action');
+			if (!(await available()))
+				throw new AppError('no-lid-action', 'this power plan has no lid close action');
 			await writeLidAction(powercfg, await readLidAction(powercfg));
 			return true;
 		},

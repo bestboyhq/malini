@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, rename, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
+import { errorCode, MaliniError, type ErrorVerdicts } from '../errors.ts';
 import { saveDownload, type Fetch, type SaveDownloadOptions } from '../fs/download.ts';
 
 export const GIT_VERSION = '2.56.1';
@@ -28,13 +29,18 @@ export type GitInstallStage = 'download' | 'checksum' | 'unpack';
 
 export type GitInstallOptions = Partial<SaveDownloadOptions> & Readonly<{ build?: GitBuild }>;
 
-export class GitInstallError extends Error {
-	readonly kind: GitInstallStage;
+const GIT_INSTALL_ERROR_VERDICTS: ErrorVerdicts<GitInstallStage> = {
+	download: 'expected',
+	checksum: 'bug',
+	unpack: 'bug',
+};
 
-	constructor(kind: GitInstallStage, message: string, options?: ErrorOptions) {
-		super(message, options);
-		this.name = 'GitInstallError';
-		this.kind = kind;
+export class GitInstallError extends MaliniError<GitInstallStage> {
+	constructor(kind: GitInstallStage, message: string, cause?: unknown) {
+		super('GitInstallError', GIT_INSTALL_ERROR_VERDICTS, kind, message, {
+			code: errorCode(cause),
+			cause,
+		});
 	}
 }
 
@@ -113,9 +119,11 @@ async function downloaded(
 	try {
 		return await saveDownload(fetch, url, archive, options);
 	} catch (error) {
-		throw new GitInstallError('download', `Could not download Git for Windows: ${reason(error)}`, {
-			cause: error,
-		});
+		throw new GitInstallError(
+			'download',
+			`Could not download Git for Windows: ${reason(error)}`,
+			error,
+		);
 	}
 }
 
@@ -126,15 +134,17 @@ async function unpack(archive: string, staged: string, home: string): Promise<vo
 			timeout: UNPACK_TIMEOUT_MS,
 		});
 		const missing = INSTALLED.find((parts) => !existsSync(join(staged, ...parts)));
-		if (missing) throw new Error(`${join(...missing)} is missing`);
+		if (missing) throw new GitInstallError('unpack', `${join(...missing)} is missing`);
 		if (LEFT_BY_POST_INSTALL.some((parts) => existsSync(join(staged, ...parts)))) {
-			throw new Error('its post-install step did not finish');
+			throw new GitInstallError('unpack', 'its post-install step did not finish');
 		}
 		await renameWhenFree(staged, home);
 	} catch (error) {
-		throw new GitInstallError('unpack', `Could not unpack Git for Windows: ${unpacked(error)}`, {
-			cause: error,
-		});
+		throw new GitInstallError(
+			'unpack',
+			`Could not unpack Git for Windows: ${unpacked(error)}`,
+			error,
+		);
 	}
 }
 

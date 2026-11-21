@@ -8,6 +8,7 @@ import {
 import { z } from 'zod';
 import type { BrowserRequest } from '../protocol.js';
 import type { BrowserRequester } from '../providers/types.js';
+import type { McpServerAdder } from './mcp-servers.js';
 import {
 	PRE_APPROVED_PLATFORM_TOOLS,
 	platformTools,
@@ -28,6 +29,7 @@ type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 export function maliniTools(
 	requestBrowser: BrowserRequester,
 	requestPlatform: PlatformToolRequester,
+	addMcpServer: McpServerAdder,
 ): Required<Pick<Options, 'mcpServers' | 'allowedTools'>> {
 	const run = (request: BrowserRequest): Promise<ToolResult> =>
 		browserToolResult(requestBrowser, request);
@@ -230,7 +232,7 @@ export function maliniTools(
 			[MALINI_MCP_SERVER]: createSdkMcpServer({
 				name: MALINI_MCP_SERVER,
 				alwaysLoad: true,
-				tools: [...browserTools, ...platformTools(requestPlatform)],
+				tools: [...browserTools, ...platformTools(requestPlatform, addMcpServer)],
 			}),
 		},
 		allowedTools: preApproved.map((name) => `mcp__${MALINI_MCP_SERVER}__${name}`),

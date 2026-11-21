@@ -10,6 +10,7 @@ import type {
 } from '$contract/browser';
 import {
 	BrowserDialogOpen,
+	BrowserError,
 	type BrowserConsole,
 	type BrowserConsoleLine,
 	type BrowserDialog,
@@ -165,7 +166,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return this.agentTurn(tab, async () => {
 			const contents = this.page(tab);
 			if (!contents.navigationHistory.canGoBack()) {
-				throw new Error('There is no page to go back to.');
+				throw new BrowserError('no-history', 'There is no page to go back to.');
 			}
 			contents.navigationHistory.goBack();
 			return settledPage(contents);
@@ -176,7 +177,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return this.agentTurn(tab, async () => {
 			const contents = this.page(tab);
 			if (!contents.navigationHistory.canGoForward()) {
-				throw new Error('There is no page to go forward to.');
+				throw new BrowserError('no-history', 'There is no page to go forward to.');
 			}
 			contents.navigationHistory.goForward();
 			return settledPage(contents);
@@ -235,7 +236,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const contents = this.openContents(tab);
 		const entry = this.entries.get(tabKey(tab));
 		if (!entry || (!contents && !entry.view.contents.isLoading())) {
-			throw new Error(PICK_WITHOUT_PAGE);
+			throw new BrowserError('nothing-open', PICK_WITHOUT_PAGE);
 		}
 		const previous = entry.pick;
 		const controller = new AbortController();
@@ -382,7 +383,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return this.inTurn(tab, async () => {
 			const entry = this.entries.get(tabKey(tab));
 			const dialog = entry?.alive ? entry.dialog : null;
-			if (!entry || !dialog) throw new Error(NO_DIALOG);
+			if (!entry || !dialog) throw new BrowserError('no-dialog', NO_DIALOG);
 			const { interrupted } = entry;
 			entry.dialog = null;
 			entry.interrupted = null;
@@ -421,7 +422,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 				try {
 					const size = await untilSized(contents, asked);
 					if (size.width === asked.width && size.height === asked.height) return size;
-					throw new Error(
+					throw new BrowserError(
+						'resize-failed',
 						`The page stayed ${size.width} by ${size.height}px instead of ${asked.width} by ${asked.height}px. Call browser_resize again.`,
 					);
 				} finally {
@@ -429,7 +431,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 				}
 			}
 			if (!this.deps.onScreen(window)) {
-				throw new Error(
+				throw new BrowserError(
+					'window-hidden',
 					`Malini's window is minimized or hidden while the user has the browser tab open, so its size did not change: the page is ${entry.bounds.width}px wide.`,
 				);
 			}
@@ -442,7 +445,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			this.deps.resizeRequested({ ...tab, requestId, width: width / zoom });
 			try {
 				if (!(await within(answered, RESIZE_ANSWER_MS))) {
-					throw new Error(
+					throw new BrowserError(
+						'resize-failed',
 						`Malini did not resize the browser tab within ${RESIZE_ANSWER_MS / 1_000}s. Call browser_resize again.`,
 					);
 				}
@@ -474,7 +478,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		await untilAborted(pageLoaded(entry.view.contents), signal);
 		if (signal.aborted || entry.failure !== null) return null;
 		const contents = this.openContents(entry.tab);
-		if (!contents) throw new Error(PICK_WITHOUT_PAGE);
+		if (!contents) throw new BrowserError('nothing-open', PICK_WITHOUT_PAGE);
 		if (entry.window?.isFocused()) contents.focus();
 		return pickElement(
 			pickerPage(contents),
@@ -576,9 +580,10 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	private loaded(tab: BrowserTabArgs): { contents: PageContents; entry: Entry<W> } {
 		const contents = this.openContents(tab);
 		const entry = this.entries.get(tabKey(tab));
-		if (!contents || !entry) throw new Error(NOTHING_OPEN);
+		if (!contents || !entry) throw new BrowserError('nothing-open', NOTHING_OPEN);
 		if (entry.failure !== null) {
-			throw new Error(
+			throw new BrowserError(
+				'load-failed',
 				`${contents.getURL()} did not load (${entry.failure}). Fix it, then call browser_reload or browser_open.`,
 			);
 		}
@@ -587,7 +592,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	private page(tab: BrowserTabArgs): PageContents {
 		const contents = this.openContents(tab);
-		if (!contents) throw new Error(NOTHING_OPEN);
+		if (!contents) throw new BrowserError('nothing-open', NOTHING_OPEN);
 		return contents;
 	}
 

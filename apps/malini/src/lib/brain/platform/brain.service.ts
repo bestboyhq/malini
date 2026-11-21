@@ -21,7 +21,7 @@ import {
 	type RepositoriesPlatform,
 } from '$shared/repositories/repositories.platform';
 import { captureTypedChats } from './brain-capture.service';
-import { listBrainEntries, readBrainDocument } from './brain-documents';
+import { BrainError, listBrainEntries, readBrainDocument } from './brain-documents';
 import {
 	commitsAhead,
 	mergeLogsByUnion,
@@ -160,8 +160,8 @@ export class Brain {
 		return this.#serial(async () => {
 			const { db } = this.#context;
 			const fullName = await this.#githubName();
-			if (fullName === undefined) throw new Error(SET_UP_FIRST);
-			if (sync && fullName === null) throw new Error(LOCAL_ONLY_BRAIN);
+			if (fullName === undefined) throw new BrainError('not-set-up', SET_UP_FIRST);
+			if (sync && fullName === null) throw new BrainError('mac-only', LOCAL_ONLY_BRAIN);
 			saveBrainSetting(db, 'sync', sync ? 'on' : 'off');
 			if (!sync) saveBrainSetting(db, 'problem', null);
 			await this.#push();
@@ -178,7 +178,7 @@ export class Brain {
 	async read(path: string): Promise<BrainDocument> {
 		const workstreamId = this.#liveWorkstream();
 		const checkout = workstreamId === null ? null : await this.#checkout(workstreamId);
-		if (checkout === null) throw new Error(SET_UP_FIRST);
+		if (checkout === null) throw new BrainError('not-set-up', SET_UP_FIRST);
 		return readBrainDocument(checkout, path);
 	}
 
@@ -186,7 +186,7 @@ export class Brain {
 		return this.#serial(async () => {
 			const { db } = this.#context;
 			const workstreamId = await this.workstream();
-			if (workstreamId === null) throw new Error(SET_UP_FIRST);
+			if (workstreamId === null) throw new BrainError('not-set-up', SET_UP_FIRST);
 			const checkout = await this.#deps.checkouts.resolveCheckout(workstreamId);
 			const captured = await captureTypedChats(db, {
 				checkout,
@@ -230,7 +230,7 @@ export class Brain {
 	async #startWorkstream(repositoryId: string): Promise<string> {
 		const { db, commands } = this.#context;
 		const plan = await planRepositoryWorkstream(db, repositoryId);
-		if (plan === null) throw new Error(SET_UP_FIRST);
+		if (plan === null) throw new BrainError('not-set-up', SET_UP_FIRST);
 		const named = { ...plan, name: BRAIN_WORKSTREAM_NAME };
 		await createPlannedWorkstream(commands, named, await clonePlannedRepository(commands, named));
 		return plan.workstreamId;
@@ -247,8 +247,8 @@ export class Brain {
 		const { commands } = this.#context;
 		const fullName = `${login}/${BRAIN_REPOSITORY_NAME}`;
 		const visibility = await this.#visibility(fullName);
-		if (visibility === 'public') throw new Error(publicBrain(fullName));
-		if (visibility === 'unknown') throw new Error(uncheckedBrain(fullName));
+		if (visibility === 'public') throw new BrainError('public-repository', publicBrain(fullName));
+		if (visibility === 'unknown') throw new BrainError('unreachable', uncheckedBrain(fullName));
 		const url =
 			visibility === 'missing'
 				? (

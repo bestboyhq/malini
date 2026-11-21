@@ -386,14 +386,14 @@ export async function removeCheckoutDirResilient(
 	path: string,
 	remove: RemoveDirectory = removeDirectoryReal,
 ): Promise<string | null> {
-	let lastError: Error | null = null;
+	let lastError: string | null = null;
 	for (let attempt = 1; attempt <= CHECKOUT_REMOVAL_ATTEMPTS; attempt += 1) {
 		try {
 			await remove(path);
 			return null;
 		} catch (error) {
 			if (isErrnoException(error) && error.code === 'ENOENT') return null;
-			lastError = error instanceof Error ? error : new Error(String(error));
+			lastError = describeError(error);
 			if (attempt < CHECKOUT_REMOVAL_ATTEMPTS) {
 				await sleep(CHECKOUT_REMOVAL_RETRY_BACKOFF_MS * attempt);
 			}
@@ -403,9 +403,9 @@ export async function removeCheckoutDirResilient(
 	return describeUnremovableCheckout(path, lastError);
 }
 
-function describeUnremovableCheckout(path: string, error: Error | null): string {
+function describeUnremovableCheckout(path: string, error: string | null): string {
 	let message = `could not empty \`${path}\` after ${CHECKOUT_REMOVAL_ATTEMPTS} attempts`;
-	if (error) message += ` (${error.message})`;
+	if (error !== null) message += ` (${error})`;
 	const { sample, hidden } = remainingEntrySample(path);
 	if (sample.length > 0) {
 		message += `; still present: ${sample.join(', ')}`;
@@ -448,4 +448,11 @@ export async function pruneWorktreeAdministration(repository: string): Promise<v
 			runGit(['-C', repository, 'worktree', 'prune']),
 		);
 	} catch {}
+}
+
+export function repairWorktreeLinks(
+	repository: string,
+	checkouts: readonly string[] = [],
+): Promise<string> {
+	return runGit(['-C', repository, 'worktree', 'repair', ...checkouts]);
 }

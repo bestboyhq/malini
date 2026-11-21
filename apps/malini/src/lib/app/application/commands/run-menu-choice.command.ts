@@ -1,4 +1,5 @@
 import type { MenuCommand } from '$contract/events';
+import { reopenChatCommand } from '$lib/chat/application/commands/reopen-chat.command';
 import { startFreshChatCommand } from '$lib/chat/application/commands/start-fresh-chat.command';
 import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 import {
@@ -15,6 +16,7 @@ export { runMenuChoiceCommand };
 const MENU_CHOICES: Readonly<Record<MenuCommand, () => void>> = {
 	'new-workstream': createWorkstreamHereCommand,
 	'new-chat': startChatHere,
+	'reopen-chat': reopenChatHere,
 	'open-folder': requestRepositoryFolderCommand,
 	'find-repository': () => openCommandCenterCommand('find'),
 	accounts: () => void goto(PROVIDER_SETTINGS_HREF),
@@ -38,4 +40,10 @@ function startChatHere(): void {
 	if (!workstreamId) return;
 	workstreamTabs.startFreshChat(workstreamId);
 	void startFreshChatCommand();
+}
+
+function reopenChatHere(): void {
+	const workstreamId = page.params.workstreamId;
+	if (!workstreamId) return;
+	reopenChatCommand(workstreamId);
 }

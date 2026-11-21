@@ -9,6 +9,7 @@ import { extensionBindings } from '$shared/extensions/bindings';
 
 import {
 	extensionRuntimeFailureDiagnostic,
+	failedOnBrokenCheckout,
 	failedOnRetiredWorkstream,
 	unseenWarmFailures,
 	type WorkstreamActivationFailures,
@@ -131,7 +132,7 @@ export class ExtensionRuntimeCoordinator {
 					}),
 			)
 			.catch((error) => {
-				if (failedOnRetiredWorkstream(error)) throw error;
+				if (failedOnRetiredWorkstream(error) || failedOnBrokenCheckout(error)) throw error;
 				console.error(
 					'[malini extensions] runtime activation failed',
 					extensionRuntimeFailureDiagnostic({

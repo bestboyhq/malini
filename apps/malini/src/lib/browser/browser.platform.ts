@@ -1,4 +1,5 @@
 import type { BrowserTabArgs } from '$contract/browser';
+import { errorCode, MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 
 export interface BrowserPageInfo {
 	readonly url: string;
@@ -59,12 +60,44 @@ export interface BrowserDialogAnswer {
 	readonly page: BrowserPageInfo;
 }
 
-export class BrowserDialogOpen extends Error {
+const BROWSER_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'bad-url': 'expected',
+	'outside-worktree': 'expected',
+	'nothing-open': 'expected',
+	'load-failed': 'expected',
+	'no-history': 'expected',
+	'no-dialog': 'expected',
+	'dialog-open': 'expected',
+	'locate-failed': 'expected',
+	'action-refused': 'expected',
+	'unknown-key': 'expected',
+	'wait-timeout': 'expected',
+	'script-threw': 'expected',
+	'page-unresponsive': 'expected',
+	'window-hidden': 'expected',
+	'resize-failed': 'bug',
+	'empty-capture': 'bug',
+	'bad-answer': 'bug',
+} as const satisfies ErrorVerdicts;
+
+export type BrowserErrorKind = keyof typeof BROWSER_ERROR_VERDICTS;
+
+export class BrowserError extends MaliniError<BrowserErrorKind> {
+	constructor(kind: BrowserErrorKind, message: string, cause?: unknown) {
+		super('BrowserError', BROWSER_ERROR_VERDICTS, kind, message, {
+			code: errorCode(cause),
+			cause,
+		});
+	}
+}
+
+export class BrowserDialogOpen extends BrowserError {
 	constructor(
 		readonly dialog: BrowserDialog,
 		readonly openedByAction: boolean,
 	) {
-		super(waitingDialog(dialog));
+		super('dialog-open', waitingDialog(dialog));
 	}
 }
 

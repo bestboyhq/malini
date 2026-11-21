@@ -6,6 +6,7 @@ import { dirname, extname, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { InstallProgressPayload } from '$contract/events';
 import { isRecord } from '$main/db/rows';
+import { errorCode, MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { saveDownload, type Fetch } from '$main/fs/download';
 
 export const CLAUDE_RELEASES_URL = 'https://downloads.claude.ai/claude-code-releases';
@@ -15,15 +16,21 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const SETUP_TIMEOUT_MS = 300_000;
 const VERSION = /^\d+\.\d+\.\d+(?:-[\w.+-]+)?$/u;
 
-export type ClaudeInstallStage = 'download' | 'checksum' | 'setup';
+const CLAUDE_INSTALL_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	download: 'expected',
+	checksum: 'bug',
+	setup: 'bug',
+} as const satisfies ErrorVerdicts;
 
-export class ClaudeInstallError extends Error {
-	readonly kind: ClaudeInstallStage;
+export type ClaudeInstallStage = keyof typeof CLAUDE_INSTALL_ERROR_VERDICTS;
 
+export class ClaudeInstallError extends MaliniError<ClaudeInstallStage> {
 	constructor(kind: ClaudeInstallStage, message: string, options?: ErrorOptions) {
-		super(message, options);
-		this.name = 'ClaudeInstallError';
-		this.kind = kind;
+		super('ClaudeInstallError', CLAUDE_INSTALL_ERROR_VERDICTS, kind, message, {
+			code: errorCode(options?.cause),
+			cause: options?.cause,
+		});
 	}
 }
 
@@ -77,7 +84,10 @@ function latestRelease(fetch: Fetch, releases: string): Promise<Release> {
 	return downloaded(async () => {
 		const version = (await text(fetch, `${releases}/latest`)).trim();
 		if (!VERSION.test(version)) {
-			throw new Error(`downloads.claude.ai sent no version: ${version.slice(0, 60)}`);
+			throw new ClaudeInstallError(
+				'download',
+				`downloads.claude.ai sent no version: ${version.slice(0, 60)}`,
+			);
 		}
 		const manifest: unknown = JSON.parse(await text(fetch, `${releases}/${version}/manifest.json`));
 		const build =
@@ -92,7 +102,7 @@ function latestRelease(fetch: Fetch, releases: string): Promise<Release> {
 			typeof name !== 'string' ||
 			!BINARY.test(name)
 		) {
-			throw new Error(`Claude Code ${version} has no ${PLATFORM} build`);
+			throw new ClaudeInstallError('download', `Claude Code ${version} has no ${PLATFORM} build`);
 		}
 		const size = isRecord(build) && typeof build['size'] === 'number' ? build['size'] : null;
 		return { version, checksum, size, name };
@@ -101,7 +111,7 @@ function latestRelease(fetch: Fetch, releases: string): Promise<Release> {
 
 async function text(fetch: Fetch, url: string): Promise<string> {
 	const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-	if (!response.ok) throw new Error(`HTTP ${response.status}`);
+	if (!response.ok) throw new ClaudeInstallError('download', `HTTP ${response.status}`);
 	return response.text();
 }
 

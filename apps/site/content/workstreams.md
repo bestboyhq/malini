@@ -52,6 +52,47 @@ Malini used to keep checkouts there too.
 The first launch after the update moves them to `~/malini`, archived workstreams included, and leaves a link at each old folder, so an old path still opens.
 It repairs each checkout's git links, moves its Claude Code chat records along, and reinstalls each moved workstream's dependencies once in the background, carrying on at the next launch if you quit first.
 
+## A broken checkout
+
+When git can no longer read a workstream's checkout, Malini checks once what broke and fixes it.
+Most fixes need nothing from you: Malini runs them as it finds the break.
+The rest need one press of a button: the failed step in the setup steps of a new workstream has it, and so does the top bar status of every workstream, which says **Needs you** and what broke.
+It stops reading that checkout until it works again, so a broken checkout does not fill your log or keep git busy.
+A prompt you send meanwhile waits in the queue, the composer says what it waits for, such as "Sends once you sign in to GitHub", and it runs once the checkout works.
+Malini looks again after 5 seconds, then less often up to every 5 minutes, and each time you come back to its window.
+
+Malini fixes these on its own:
+
+- **Its copy of the repository is gone.** Each workstream keeps its git data in Malini's clone of the repository, `~/malini/repositories/<owner>__<name>/base`.
+  When that folder is gone, Malini clones the repository again from GitHub and links every workstream of it back, with the clone's progress in the step.
+  Your files stay as they are.
+  A branch that is on GitHub comes back from there; a branch that was only on this computer starts again from where it began, and its commits show as edits; the step says **Nothing lost** when there were none.
+  When the clone has no room, the step says the disk is full, and Malini clones again once 1 GB more is free.
+- **A missing folder, `.git` link or git record of the checkout.** A missing folder comes back from its branch with the newest checkpoint of its uncommitted work.
+- **A lock a stopped git command left behind.** It goes only when it is more than 2 minutes old and no git command holds it.
+- **A damaged index and a `HEAD` that names no commit.**
+
+Each repair moves each git file it replaces to `malini-repairs` in the repository's git folder first, and it never changes your files.
+When a repair fails, the step and the top bar show **Try again**.
+
+The rest takes one button, and Malini goes on by itself once the cause is gone:
+
+| What broke                                             | The button                | What Malini does                                                          |
+| ------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------- |
+| GitHub is signed out, so the clone cannot start        | **Sign in to GitHub**     | Shows a code to sign in with in the step, then clones                     |
+| GitHub has no such repository, or not for you          | **Use another account**   | Signs you in again; **Show in Finder** opens the folder, whose files stay |
+| The folder that holds every workstream is gone         | **Make it again**         | Makes it, clones each repository, and brings back each branch             |
+| Git does not trust the folder, as another user owns it | **Trust this folder**     | Adds the folder to `safe.directory` in your git config                    |
+| Git or Apple's Command Line Tools are not installed    | **Install**               | Opens Apple's installer and goes on once git works                        |
+| Git waits for the Xcode license                        | **Accept license**        | Accepts it, after macOS asks for your password                            |
+| macOS blocks the folder                                | **Open Privacy settings** | Opens Full Disk Access and goes on once Malini can read the folder        |
+| The disk is full                                       | **Open Storage settings** | Opens Storage and goes on once there is room                              |
+| Anything else                                          | **Ask an agent**          | Starts a chat whose agent fixes the checkout and keeps every file         |
+
+When git says something Malini does not know, the step shows git's own line, such as `fatal: bad object HEAD`, and **Report** opens a problem report with that line filled in.
+Malini never makes the folder that holds every workstream again on its own, since you may have moved it: move it back, and each workstream works again.
+Once a button's fix is done, Malini repairs on its own whatever else it finds broken.
+
 ## Disk space
 
 Workstreams share disk space, so you can keep as many as you like.
@@ -142,14 +183,16 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Archiving stops everything still running from its folder: the commands its agents left in the background, what those commands started and let go, its Docker Compose containers, and every container that mounts a folder inside it.
   A command you run in your own terminal keeps running, and so does a service you start from the repository's base checkout, which every workstream shares.
   When Malini starts, it stops whatever is still running from the folder of a workstream that is no longer live.
+  It also clears a folder that comes back where an archived workstream was, and keeps every file that git does not ignore and no saved commit holds.
 - Chats at Home and in an organization no longer exist.
   Malini archives the ones you had on its next launch, and they neither show in **Recently archived** nor come back.
 - The clock beside a workstream's archive button saves it for later.
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
-  It waits in its repository's scratchpad instead of **Recently archived**.
+  It waits on its repository's page instead of **Recently archived**.
 - Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar, which sits in the taskbar corner on Windows and the tray on Linux.
-  **Open folder…** connects a folder on your computer, and **Find repository…** finds any repository you work on, on GitHub or already here, and opens it.
+  **Open folder…** connects a folder on your computer, and **Find repository…** finds any repository you work on, on GitHub or already here.
   Or press **⌘K** and type its name.
+  Each one starts a workstream in that repository and opens it.
 - **File → New Workstream** (**⌘N**) starts a workstream in the repository you're in, and **File → New Chat** (**⌘T**) opens a chat in the workstream you're in.
 - Open a workstream in your editor or reveal it in your file manager.
 - Open a repository on GitHub from its right-click menu, the repository list, or its page.
@@ -161,7 +204,10 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   A shimmer writes each name in as it arrives: on the chat tab, on the sidebar row, and on the commands an agent leaves running.
   **⌘W** closes one, and the ones that don't fit wait behind the **…** at the end of the tabs.
   A closed tab folds away, and the tabs after it slide into its place.
+  The clock at the start of the tabs lists the last ten chats you closed, and **⌘⇧T** reopens the latest one where it left off.
+  A chat you closed before writing in it is not kept.
 - Files open as tabs beside the chats, from the **Files** tree or a file the chat names, and you edit them right there.
+  Drag a chat or file tab, or press **⌥←** and **⌥→** on it, to put them in any order, and the order stays.
   Malini saves as you type, so there is nothing to press, and only a save that fails says so, under the file.
   The first edit keeps a preview tab, and the tab marks what your branch added and removed.
   A change the agent makes to an open file shows in its tab, unless you have typed something it has not saved yet.
@@ -169,15 +215,19 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
   Switching keeps your place, the tab remembers which one you picked, and a file opened at a line opens **Raw**.
   Its links open their files in tabs, and its images show from the worktree.
 
-A repository opens on its **scratchpad**, where you keep ideas.
+A repository's name in the sidebar opens its page, on its plan: the [initiatives](/malini/docs/initiatives.md) you want from it, by day.
+The bar at the top of its page names it as owner / name, and the name opens the repository on GitHub.
+Its scratchpad sits on the right of the plan, where you keep ideas, and the handle between them drags to resize both.
 Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
-Workstreams you saved for later wait above the ideas, newest first.
+The same scratchpad opens beside any chat of that repository, as **Notes** in the [inspector](/malini/docs/extensions.md).
+**Saved for later**, in the bar, counts the workstreams you saved for later, and hovering it lists them, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 
 ## Your open pull requests
 
-A repository's page lists the pull requests you have open in it, in a gutter on its right, each with its number, whether it is a draft, and when it last changed.
-Malini reads them from GitHub each time you open the page, and leaves out pull requests from forks.
+Hover **Pull requests**, in the bar of a repository's page, to list the pull requests you have open in it, each with its number, whether it is a draft, and when it last changed.
+It shows once the repository has a GitHub owner and its clone is ready.
+Malini reads them from GitHub each time the list opens, and leaves out pull requests from forks.
 Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another computer.
 Claude names it from its title.
 One you already work on here says **Open**, catches up with what you pushed elsewhere, and takes you to it, and one you archived comes back from **Recently archived**.
@@ -251,5 +301,3 @@ Like every workstream, each one stays on its own commits while main moves elsewh
 - **A limit doesn't stop it.** A fix automation whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
-
-Your open `malini/*` pull requests open as workstreams on every computer you use Malini on.

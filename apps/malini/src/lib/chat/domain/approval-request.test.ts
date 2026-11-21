@@ -199,6 +199,30 @@ describe('malini tool approval', () => {
 			details: [{ label: 'Keeps', value: 'Its clone and workstreams, under Hidden' }],
 		});
 		expect(
+			maliniToolApproval('mcp__malini__mcp_servers_add', {
+				name: 'grip',
+				command: '/Applications/Grip.app/Contents/Resources/grip-mcp',
+				args: ['--stdio'],
+				env: { GRIP_TOKEN: 'abc', DEBUG: '1' },
+			}),
+		).toEqual({
+			headline: 'Add MCP server ‘grip’',
+			details: [
+				{ label: 'Runs', value: '/Applications/Grip.app/Contents/Resources/grip-mcp --stdio' },
+				{ label: 'Env', value: 'GRIP_TOKEN, DEBUG' },
+				{ label: 'For', value: 'Every chat and claude in your terminal' },
+			],
+		});
+		expect(
+			maliniToolApproval('mcp__malini__mcp_servers_add', {
+				name: 'linear',
+				url: 'https://mcp.linear.app/mcp',
+			})?.details,
+		).toEqual([
+			{ label: 'Reaches', value: 'https://mcp.linear.app/mcp' },
+			{ label: 'For', value: 'Every chat and claude in your terminal' },
+		]);
+		expect(
 			maliniToolApproval('mcp__malini__workstreams_create', {
 				repository: 'acme/site',
 				prompt: 'Fix the footer links',

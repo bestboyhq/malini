@@ -17,35 +17,57 @@ import {
 	stagedAttachmentExpiryFrom,
 } from '../attachments.repository';
 import { openTurnReply } from '../runs.repository';
-import { invariant, WORKSTREAM_FOLDER_MISSING } from '$main/errors';
+import {
+	invariant,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	WORKSTREAM_FOLDER_MISSING,
+	type ErrorVerdicts,
+} from '$main/errors';
 import { all, column, nowIso8601, run, scalar } from '$main/db/rows';
 import { moveSessionStatus, repairSessionStatusesWithoutOpenRuns } from '../sessions.repository';
 
-export type LifecycleErrorKind =
-	| 'workstream_missing'
-	| 'not_a_repository'
-	| 'already_running'
-	| 'checkout_busy'
-	| 'workstream_teardown_pending'
-	| 'workstream_teardown_blocked'
-	| 'bridge_unavailable'
-	| 'invalid_agent_model'
-	| 'invalid_prompt_context'
-	| 'start_snapshot_failed'
-	| 'db'
-	| 'cancel_race'
-	| 'run_ended'
-	| 'cancel_persistence_timeout'
-	| 'nothing_to_continue';
+const LIFECYCLE_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	workstream_missing: 'bug',
+	not_a_repository: 'bug',
+	already_running: 'expected',
+	checkout_busy: 'expected',
+	workstream_teardown_pending: 'expected',
+	workstream_teardown_blocked: 'expected',
+	bridge_unavailable: 'bug',
+	invalid_agent_model: 'bug',
+	invalid_prompt_context: 'bug',
+	start_snapshot_failed: 'bug',
+	db: 'bug',
+	cancel_race: 'expected',
+	run_ended: 'expected',
+	cancel_persistence_timeout: 'bug',
+	nothing_to_continue: 'bug',
+	'session-not-found': 'bug',
+	'interaction-not-found': 'bug',
+	'interaction-conflict': 'bug',
+	'not-sent': 'bug',
+} as const satisfies ErrorVerdicts;
 
-export class LifecycleError extends Error {
-	override readonly name = 'LifecycleError';
-	readonly kind: LifecycleErrorKind;
+export type LifecycleErrorKind = keyof typeof LIFECYCLE_ERROR_VERDICTS;
+
+export class LifecycleError extends MaliniError<LifecycleErrorKind> {
 	readonly detail: string;
 
-	constructor(kind: LifecycleErrorKind, detail = '', runIds: readonly string[] = []) {
-		super(LifecycleError.describe(kind, detail, runIds));
-		this.kind = kind;
+	constructor(
+		kind: LifecycleErrorKind,
+		detail = '',
+		runIds: readonly string[] = [],
+		cause?: unknown,
+	) {
+		super(
+			'LifecycleError',
+			LIFECYCLE_ERROR_VERDICTS,
+			kind,
+			LifecycleError.describe(kind, detail, runIds),
+			{ cause },
+		);
 		this.detail = detail;
 	}
 
@@ -81,13 +103,15 @@ export class LifecycleError extends Error {
 				return `cancel persistence timeout: ${detail}`;
 			case 'nothing_to_continue':
 				return 'This chat has no stopped turn to continue.';
+			case 'invalid-argument':
+			case 'invariant':
+			case 'session-not-found':
+			case 'interaction-not-found':
+			case 'interaction-conflict':
+			case 'not-sent':
+				return detail;
 		}
 	}
-}
-
-export function asLifecycleDbError(error: unknown): LifecycleError {
-	if (error instanceof LifecycleError) return error;
-	return new LifecycleError('db', error instanceof Error ? error.message : String(error));
 }
 
 export interface SyntheticEventEnvelope {

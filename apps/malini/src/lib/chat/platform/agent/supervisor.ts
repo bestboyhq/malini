@@ -26,6 +26,7 @@ import { SECRETS_FOLDER_PREFIX } from '@malini/agent-bridge/sandbox';
 import type { OneShotAutomation } from '$lib/automations/automations.platform';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import { killProcessGroup, processGroupIsAlive } from '$main/process/process-group';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { IdSequence } from '../id-sequence';
 import type { BridgeProcess, BridgeProcessFactory, BridgeSpawnSpec } from './process';
 
@@ -34,26 +35,32 @@ const BRIDGE_FORCE_KILL_SETTLE_MS = 500;
 const READY_POLL_MS = 10;
 const TERMINATION_POLL_MS = 20;
 
-export type SupervisorErrorKind =
-	| 'spawn_failed'
-	| 'already_running'
-	| 'not_running'
-	| 'io'
-	| 'serde'
-	| 'db'
-	| 'pid_missing'
-	| 'channel_closed'
-	| 'protocol'
-	| 'stopped';
+const SUPERVISOR_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	spawn_failed: 'bug',
+	already_running: 'bug',
+	not_running: 'bug',
+	io: 'bug',
+	serde: 'bug',
+	db: 'bug',
+	pid_missing: 'bug',
+	channel_closed: 'bug',
+	protocol: 'bug',
+	stopped: 'expected',
+} as const satisfies ErrorVerdicts;
 
-export class SupervisorError extends Error {
-	override readonly name = 'SupervisorError';
-	readonly kind: SupervisorErrorKind;
+export type SupervisorErrorKind = keyof typeof SUPERVISOR_ERROR_VERDICTS;
+
+export class SupervisorError extends MaliniError<SupervisorErrorKind> {
 	readonly detail: string;
 
 	constructor(kind: SupervisorErrorKind, detail = '') {
-		super(SupervisorError.describe(kind, detail));
-		this.kind = kind;
+		super(
+			'SupervisorError',
+			SUPERVISOR_ERROR_VERDICTS,
+			kind,
+			SupervisorError.describe(kind, detail),
+		);
 		this.detail = detail;
 	}
 
@@ -79,6 +86,9 @@ export class SupervisorError extends Error {
 				return `bridge protocol error: ${detail}`;
 			case 'stopped':
 				return `bridge stopped ${detail}`;
+			case 'invalid-argument':
+			case 'invariant':
+				return detail;
 		}
 	}
 }

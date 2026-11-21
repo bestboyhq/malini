@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { APP_DATA_ROOT, RTK_BINARY } from '@malini/agent-bridge/sandbox';
 import {
+	CHAT_AGENT_EVENT_CHANNEL,
 	CHAT_SESSION_RENAMED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
@@ -43,7 +44,7 @@ import {
 } from './commands';
 import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
-import { recordDeniedMaliniCall } from './malini-approvals.service';
+import { recordBridgeAnsweredCall, recordDeniedMaliniCall } from './malini-approvals.service';
 import { ChatDeliveries } from '../deliveries.service';
 import { ChatNamer } from './naming';
 import { answerPlatformRequest } from './platform-tools';
@@ -489,6 +490,9 @@ export async function startAgentService(
 		},
 		log,
 	);
+	const stopRecordingBridgeCalls = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) =>
+		recordBridgeAnsweredCall(context, envelope),
+	);
 	const stopNamingTurns = context.events.subscribe(CHAT_TURN_FINISHED_CHANNEL, (turn) => {
 		namer.turnFinished(turn);
 	});
@@ -658,6 +662,7 @@ export async function startAgentService(
 		async stop() {
 			stopRecordingDenials();
 			stopNamingTurns();
+			stopRecordingBridgeCalls();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);
 			await runtime.stop();
 			await closeOpenRunsForExit();

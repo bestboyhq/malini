@@ -428,9 +428,12 @@ export function needsReviewFeedback(pullRequest: PullRequestStatusDto): boolean 
 	);
 }
 
-export function shipBackoffMs(failures: number, delays: ShipDelays): number {
+const BACKOFF_JITTER = 0.25;
+
+export function shipBackoffMs(failures: number, delays: ShipDelays, random: number): number {
 	const doublings = Math.max(0, Math.min(failures - 1, 30));
-	return Math.min(delays.backoffBaseMs * 2 ** doublings, delays.backoffCapMs);
+	const longest = Math.min(delays.backoffBaseMs * 2 ** doublings, delays.backoffCapMs);
+	return Math.round(longest * (1 - BACKOFF_JITTER * random));
 }
 
 export function clampedFixAttempts(value: string | undefined): number {

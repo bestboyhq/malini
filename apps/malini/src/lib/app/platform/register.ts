@@ -34,6 +34,7 @@ import {
 	type ShutdownChildren,
 	type ShutdownImpactSources,
 } from './graceful-shutdown';
+import { AppError } from './app-error';
 import { announceUpdate } from './contract-updates';
 import { RendererErrorLog } from './renderer-errors';
 import { bundleIdentifierFor, createRuntimeIdentityProvider } from './runtime-identity';
@@ -69,6 +70,7 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	const host = deps.host ?? createElectronShellHost();
 	const window = defineShellCommands(context, deps, host);
 	const usageData = startUsageData(context, {
+		mainWindow: deps.getMainWindow,
 		...(deps.usageAccount ? { account: deps.usageAccount } : {}),
 		...(deps.profilePublished ? { published: deps.profilePublished } : {}),
 		...(deps.freshInstall === undefined ? {} : { freshInstall: deps.freshInstall }),
@@ -78,7 +80,8 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		usageData.share(requireBoolean(args, 'shared')),
 	);
 	context.commands.define('app.count-usage-step', (args: unknown): void => {
-		if (!isUsageStep(args)) throw new Error('invalid args: not a usage step');
+		if (!isUsageStep(args))
+			throw new AppError('invalid-argument', 'invalid args: not a usage step');
 		usageData.step(args);
 	});
 	context.commands.define('app.problem-report', () => readProblemReport(context, new Date()));
@@ -124,15 +127,16 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 
 	commands.define('app.open-external-url', async (args: OpenExternalUrlArgs) => {
 		const url = args?.url;
-		if (typeof url !== 'string' || url.length === 0) throw new Error('url must be a string');
+		if (typeof url !== 'string' || url.length === 0)
+			throw new AppError('invalid-argument', 'url must be a string');
 		let parsed: URL;
 		try {
 			parsed = new URL(url);
 		} catch {
-			throw new Error(`not a URL: ${url}`);
+			throw new AppError('invalid-argument', `not a URL: ${url}`);
 		}
 		if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
-			throw new Error(`refusing to open a ${parsed.protocol} URL`);
+			throw new AppError('invalid-argument', `refusing to open a ${parsed.protocol} URL`);
 		}
 		await host.openExternal(url);
 	});
@@ -142,20 +146,21 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		host.followThemeMode(mode);
 	});
 	commands.define('app.copy-text', async (args: SetClipboardTextArgs) => {
-		if (typeof args?.text !== 'string') throw new Error('text must be a string');
+		if (typeof args?.text !== 'string')
+			throw new AppError('invalid-argument', 'text must be a string');
 		if (args.html !== undefined && typeof args.html !== 'string') {
-			throw new Error('html must be a string');
+			throw new AppError('invalid-argument', 'html must be a string');
 		}
 		await host.clipboardWriteText(args.text, args.html);
 	});
 	commands.define('app.copy-image', async (args: SetClipboardImageArgs) => {
 		const pngDataUrl = args?.pngDataUrl;
 		if (typeof pngDataUrl !== 'string' || !pngDataUrl.startsWith(PNG_DATA_URL)) {
-			throw new Error('pngDataUrl must be a PNG data URL');
+			throw new AppError('invalid-argument', 'pngDataUrl must be a PNG data URL');
 		}
 		const png = Buffer.from(pngDataUrl.slice(PNG_DATA_URL.length), 'base64');
 		if (!png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
-			throw new Error('pngDataUrl must be a PNG data URL');
+			throw new AppError('invalid-argument', 'pngDataUrl must be a PNG data URL');
 		}
 		await host.clipboardWriteImage(png);
 	});
@@ -324,27 +329,32 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 
 function recentDiagnosticsLimit(requested: unknown): number {
 	if (typeof requested !== 'number' || !Number.isInteger(requested) || requested < 1) {
-		throw new Error('invalid args: `limit` must be a positive integer');
+		throw new AppError('invalid-argument', 'invalid args: `limit` must be a positive integer');
 	}
 	return Math.min(requested, MAX_RECENT_DIAGNOSTICS);
 }
 
 function unreadCount(count: unknown): number {
 	if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
-		throw new Error('invalid args: `count` must be a whole number, 0 or more');
+		throw new AppError(
+			'invalid-argument',
+			'invalid args: `count` must be a whole number, 0 or more',
+		);
 	}
 	return count;
 }
 
 function requireString(args: unknown, key: string): string {
 	const value = typeof args === 'object' && args !== null ? Reflect.get(args, key) : undefined;
-	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
+	if (typeof value !== 'string')
+		throw new AppError('invalid-argument', `invalid args: \`${key}\` must be a string`);
 	return value;
 }
 
 function requireBoolean(args: unknown, key: string): boolean {
 	const value = typeof args === 'object' && args !== null ? Reflect.get(args, key) : undefined;
-	if (typeof value !== 'boolean') throw new Error(`invalid args: \`${key}\` must be a boolean`);
+	if (typeof value !== 'boolean')
+		throw new AppError('invalid-argument', `invalid args: \`${key}\` must be a boolean`);
 	return value;
 }
 
@@ -359,6 +369,6 @@ export function followSavedThemeMode(db: MaliniDatabase, host: ShellHost): void 
 
 function themeMode(mode: unknown): ThemeMode {
 	const known = THEME_MODES.find((candidate) => candidate === mode);
-	if (!known) throw new Error('theme mode must be system, light or dark');
+	if (!known) throw new AppError('invalid-argument', 'theme mode must be system, light or dark');
 	return known;
 }

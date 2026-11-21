@@ -8,6 +8,10 @@
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
+	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
+	import { startWorkstreamFromNoteCommand } from '$lib/app/application/commands/start-workstream-from-note.command';
+	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
+	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { keepContextMediaFreshHook } from '$lib/chat/application/hooks/keep-context-media-fresh.hook';
@@ -20,14 +24,21 @@
 	import { inspectorPanelsQuery } from '$lib/extensions/application/queries/inspector-panels.query.svelte';
 	import { WorkstreamInspector } from '$lib/extensions/extensions.api';
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
+	import { scratchpadPanel } from '$lib/scratchpad/scratchpad.api';
 	import {
 		archiveWorkstreamCommand,
 		changeTotalsQuery,
+		checkoutHealthQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
 		provisioningRecordQuery,
 		provisioningRetryingQuery,
+		dismissDependencyInstallCommand,
 		provisioningTopBarStatus,
+		runCheckoutActionCommand,
+		seedWorkstreamDependenciesCommand,
+		setupStepTopBarStatus,
+		workstreamSetupStepsQuery,
 		refreshRepositoriesCommand,
 		refreshWorkstreamsCommand,
 		repositoryContextQuery,
@@ -45,7 +56,14 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
-	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery));
+	const notesPanel = scratchpadPanel((id, start) => {
+		const repository = repositoryContextQuery.data(id)?.repo;
+		if (repository) startWorkstreamFromNoteCommand(repository, start);
+	});
+	const builtInPanels = $derived([
+		notesPanel,
+		...browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery),
+	]);
 	let mediaOpen = $state(false);
 	const panelActions = $derived([
 		{
@@ -76,7 +94,8 @@
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
-	const checkoutReady = $derived(repositoryScopeReady && !worktreePending);
+	const checkoutHealthy = $derived(checkoutHealthQuery.data(workstreamId).state === 'healthy');
+	const checkoutReady = $derived(repositoryScopeReady && !worktreePending && checkoutHealthy);
 	const mediaReady = $derived(checkoutReady && workstream !== null);
 	const changeTotals = $derived(changeTotalsQuery.data[workstreamId] ?? null);
 	const provisioning = $derived(provisioningRecordQuery.data(workstreamId));
@@ -96,6 +115,26 @@
 		provisioningTopBarStatus(provisioning, provisioningRetrying, () =>
 			retryProvisioningCommand(workstreamId),
 		),
+	);
+	const setupStatus = $derived(
+		provisioningStatus ??
+			setupStepTopBarStatus(
+				workstreamSetupStepsQuery.data(workstreamId, checkoutFixTurnQuery.data(workstreamId)),
+				workstream?.branch ?? null,
+				{
+					onCheckoutAction: (kind) =>
+						runCheckoutActionCommand(workstreamId, kind, {
+							onAskAgent: () => askAgentToFixCheckoutCommand(workstreamId),
+							onReport: () =>
+								reportCheckoutProblemCommand(
+									workstreamId,
+									checkoutHealthQuery.data(workstreamId).said,
+								),
+						}),
+					onRetryInstall: () => seedWorkstreamDependenciesCommand(workstreamId),
+					onDismissInstall: () => dismissDependencyInstallCommand(workstreamId),
+				},
+			),
 	);
 	const inspectedWorkstream = $derived<ExtensionWorkstream | null>(
 		workstream
@@ -137,7 +176,7 @@
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
 			agentStatus={chat.agentStatus}
-			overrideStatus={provisioningStatus}
+			overrideStatus={setupStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
 		/>
@@ -167,7 +206,6 @@
 	<MediaGallery
 		{workstreamId}
 		onclose={() => (mediaOpen = false)}
-		onopendocument={(path) =>
-			openBrowserUrlCommand(workstreamId, worktreePageUrl(workstreamId, path))}
+		onopenfile={(path) => openBrowserUrlCommand(workstreamId, worktreePageUrl(workstreamId, path))}
 	/>
 {/if}

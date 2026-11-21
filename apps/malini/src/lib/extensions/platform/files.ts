@@ -1,11 +1,13 @@
+import type { Stats } from 'node:fs';
 import { lstat, mkdir, readFile as readFileBytes, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { describeError, errorCode } from '$main/errors';
 import { atomicReplaceFile } from '$main/fs/atomic';
 import { isAtOrInsideDirectory, SKIPPED_DIRECTORIES } from '$main/fs/paths';
-import { listWorkstreamFiles, type WorkstreamFileEntry } from '$main/git/diff';
+import { listWorkstreamFiles } from '$main/git/diff';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import type { ExtensionFileKind, ExtensionFileStat } from '$contract/system';
+import { ExtensionError } from './extension-error';
 
 export type { ExtensionFileKind, ExtensionFileStat };
 
@@ -13,10 +15,16 @@ const WINDOWS = process.platform === 'win32';
 
 export function validateOwner(extensionId: string, workstreamId: string): void {
 	if (typeof extensionId !== 'string' || extensionId.trim() === '') {
-		throw new Error('Extension filesystem access requires an extension id');
+		throw new ExtensionError(
+			'invalid-argument',
+			'Extension filesystem access requires an extension id',
+		);
 	}
 	if (typeof workstreamId !== 'string' || workstreamId.trim() === '') {
-		throw new Error('Extension filesystem access requires a workstream id');
+		throw new ExtensionError(
+			'invalid-argument',
+			'Extension filesystem access requires a workstream id',
+		);
 	}
 }
 
@@ -25,33 +33,51 @@ async function canonicalWorkstreamRoot(root: string): Promise<string> {
 	try {
 		canonical = await realpath(root);
 	} catch (error) {
-		throw new Error(`Could not resolve extension workstream: ${describeError(error)}`);
+		throw new ExtensionError(
+			'io',
+			`Could not resolve extension workstream: ${describeError(error)}`,
+			error,
+		);
 	}
-	if (!(await stat(canonical)).isDirectory()) {
-		throw new Error('Extension workstream root is not a directory');
+	if (!(await statPath(canonical, 'extension workstream')).isDirectory()) {
+		throw new ExtensionError('invariant', 'Extension workstream root is not a directory');
 	}
 	return canonical;
 }
 
 export function normalizedRelativePath(path: string, allowEmpty: boolean): string[] {
 	if (path.includes('\0')) {
-		throw new Error('Extension workstream path contains a null byte');
+		throw new ExtensionError('invalid-argument', 'Extension workstream path contains a null byte');
 	}
 	if (isAbsolute(path) || (WINDOWS && path.includes(':'))) {
-		throw new Error(`Extension workstream path must stay relative to its workstream: ${path}`);
+		throw new ExtensionError(
+			'invalid-argument',
+			`Extension workstream path must stay relative to its workstream: ${path}`,
+		);
 	}
 	const segments: string[] = [];
 	for (const segment of path.split(WINDOWS ? /[\\/]/u : '/')) {
 		if (segment === '' || segment === '.') continue;
 		if (segment === '..') {
-			throw new Error(`Extension workstream path must stay relative to its workstream: ${path}`);
+			throw new ExtensionError(
+				'invalid-argument',
+				`Extension workstream path must stay relative to its workstream: ${path}`,
+			);
 		}
 		segments.push(segment);
 	}
 	if (!allowEmpty && segments.length === 0) {
-		throw new Error('Extension workstream path cannot be empty');
+		throw new ExtensionError('invalid-argument', 'Extension workstream path cannot be empty');
 	}
 	return segments;
+}
+
+async function statPath(path: string, what: string): Promise<Stats> {
+	try {
+		return await stat(path);
+	} catch (error) {
+		throw new ExtensionError('io', `Could not stat ${what}: ${describeError(error)}`, error);
+	}
 }
 
 function isNotFound(error: unknown): boolean {
@@ -65,10 +91,17 @@ async function containedCanonicalTarget(root: string, segments: string[]): Promi
 		canonical = await realpath(target);
 	} catch (error) {
 		if (isNotFound(error)) return null;
-		throw new Error(`Could not resolve extension workstream path: ${describeError(error)}`);
+		throw new ExtensionError(
+			'io',
+			`Could not resolve extension workstream path: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!isAtOrInsideDirectory(root, canonical)) {
-		throw new Error('Extension workstream path resolves outside its workstream');
+		throw new ExtensionError(
+			'path-refused',
+			'Extension workstream path resolves outside its workstream',
+		);
 	}
 	return canonical;
 }
@@ -78,16 +111,20 @@ export async function readFile(root: string, path: string): Promise<string> {
 	const relative = normalizedRelativePath(path, false);
 	const target = await containedCanonicalTarget(canonicalRoot, relative);
 	if (target === null) {
-		throw new Error(`Extension workstream file does not exist: ${path}`);
+		throw new ExtensionError('not-found', `Extension workstream file does not exist: ${path}`);
 	}
-	if (!(await stat(target)).isFile()) {
-		throw new Error(`Extension workstream path is not a file: ${path}`);
+	if (!(await statPath(target, `extension workstream path ${path}`)).isFile()) {
+		throw new ExtensionError('not-a-file', `Extension workstream path is not a file: ${path}`);
 	}
 	try {
 		const bytes = await readFileBytes(target);
 		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 	} catch (error) {
-		throw new Error(`Could not read extension workstream file ${path}: ${describeError(error)}`);
+		throw new ExtensionError(
+			'io',
+			`Could not read extension workstream file ${path}: ${describeError(error)}`,
+			error,
+		);
 	}
 }
 
@@ -105,12 +142,7 @@ export async function statFile(root: string, path: string): Promise<ExtensionFil
 	const relative = normalizedRelativePath(path, true);
 	const target = await containedCanonicalTarget(canonicalRoot, relative);
 	if (target === null) return null;
-	let metadata;
-	try {
-		metadata = await stat(target);
-	} catch (error) {
-		throw new Error(`Could not stat extension workstream path ${path}: ${describeError(error)}`);
-	}
+	const metadata = await statPath(target, `extension workstream path ${path}`);
 	if (metadata.isDirectory()) return { kind: 'directory', size: metadata.size };
 	if (metadata.isFile()) return { kind: 'file', size: metadata.size };
 	return null;
@@ -123,7 +155,11 @@ export async function writeFile(root: string, path: string, contents: string): P
 	try {
 		await atomicReplaceFile(target, contents);
 	} catch (error) {
-		throw new Error(`Could not write extension workstream file ${path}: ${describeError(error)}`);
+		throw new ExtensionError(
+			'io',
+			`Could not write extension workstream file ${path}: ${describeError(error)}`,
+			error,
+		);
 	}
 }
 
@@ -131,7 +167,7 @@ async function prepareWriteTarget(root: string, segments: string[]): Promise<str
 	let directory = root;
 	const fileName = segments[segments.length - 1];
 	if (fileName === undefined) {
-		throw new Error('Extension workstream write path is not normalized');
+		throw new ExtensionError('invariant', 'Extension workstream write path is not normalized');
 	}
 	for (const segment of segments.slice(0, -1)) {
 		const candidate = join(directory, segment);
@@ -140,31 +176,48 @@ async function prepareWriteTarget(root: string, segments: string[]): Promise<str
 			metadata = await lstat(candidate);
 		} catch (error) {
 			if (!isNotFound(error)) {
-				throw new Error(
+				throw new ExtensionError(
+					'io',
 					`Could not inspect extension workstream directory: ${describeError(error)}`,
+					error,
 				);
 			}
 			try {
 				await mkdir(candidate);
 			} catch (mkdirError) {
-				throw new Error(
+				throw new ExtensionError(
+					'io',
 					`Could not create extension workstream directory: ${describeError(mkdirError)}`,
+					mkdirError,
 				);
 			}
 		}
 		if (metadata?.isSymbolicLink()) {
-			throw new Error('Extension workstream writes cannot traverse symbolic links');
+			throw new ExtensionError(
+				'path-refused',
+				'Extension workstream writes cannot traverse symbolic links',
+			);
 		}
 		if (metadata && !metadata.isDirectory()) {
-			throw new Error('Extension workstream write parent is not a directory');
+			throw new ExtensionError(
+				'not-a-file',
+				'Extension workstream write parent is not a directory',
+			);
 		}
 		try {
 			directory = await realpath(candidate);
 		} catch (error) {
-			throw new Error(`Could not resolve extension workstream directory: ${describeError(error)}`);
+			throw new ExtensionError(
+				'io',
+				`Could not resolve extension workstream directory: ${describeError(error)}`,
+				error,
+			);
 		}
 		if (!isAtOrInsideDirectory(root, directory)) {
-			throw new Error('Extension workstream write resolves outside its workstream');
+			throw new ExtensionError(
+				'path-refused',
+				'Extension workstream write resolves outside its workstream',
+			);
 		}
 	}
 
@@ -174,29 +227,34 @@ async function prepareWriteTarget(root: string, segments: string[]): Promise<str
 		metadata = await lstat(target);
 	} catch (error) {
 		if (isNotFound(error)) return target;
-		throw new Error(`Could not inspect extension workstream write target: ${describeError(error)}`);
+		throw new ExtensionError(
+			'io',
+			`Could not inspect extension workstream write target: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (metadata.isSymbolicLink()) {
-		throw new Error('Extension workstream writes cannot target symbolic links');
+		throw new ExtensionError(
+			'path-refused',
+			'Extension workstream writes cannot target symbolic links',
+		);
 	}
 	if (metadata.isDirectory()) {
-		throw new Error('Extension workstream write target is a directory');
+		throw new ExtensionError('not-a-file', 'Extension workstream write target is a directory');
 	}
 	const canonical = await realpath(target);
 	if (!isAtOrInsideDirectory(root, canonical)) {
-		throw new Error('Extension workstream write resolves outside its workstream');
+		throw new ExtensionError(
+			'path-refused',
+			'Extension workstream write resolves outside its workstream',
+		);
 	}
 	return target;
 }
 
 export async function listFiles(root: string, glob?: string | null): Promise<string[]> {
 	const canonicalRoot = await canonicalWorkstreamRoot(root);
-	let listed: readonly WorkstreamFileEntry[];
-	try {
-		listed = await listWorkstreamFiles(canonicalRoot);
-	} catch (error) {
-		throw new Error(`Could not list extension workstream files: ${describeError(error)}`);
-	}
+	const listed = await listWorkstreamFiles(canonicalRoot);
 	const candidates = listed
 		.map(({ path }) => path)
 		.filter((path) => !path.split('/').some((segment) => SKIPPED_DIRECTORIES.has(segment)))
@@ -212,7 +270,11 @@ async function isListableFile(root: string, path: string): Promise<boolean> {
 		metadata = await lstat(absolute);
 	} catch (error) {
 		if (isNotFound(error)) return false;
-		throw new Error(`Could not inspect extension workstream path: ${describeError(error)}`);
+		throw new ExtensionError(
+			'io',
+			`Could not inspect extension workstream path: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!metadata.isSymbolicLink()) return metadata.isFile();
 	try {

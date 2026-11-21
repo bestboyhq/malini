@@ -55,6 +55,7 @@ import { Reconciler } from '$lib/automations/platform/reconciler.service';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
+import { shipFailure } from '../domain/ship-failure';
 import { getShip, insertShip, updateShip } from './ship.repository';
 import type { ShipWake } from './ship-store';
 
@@ -1547,6 +1548,24 @@ describe("a draft's checks", () => {
 		expect(getShip(db, 'ws-1')?.checksWatchedSince).toBeNull();
 		expect(fixRuns()).toHaveLength(0);
 		expect(readiedOrMerged()).toEqual([]);
+	});
+
+	it('reports no failed work when GitHub goes down after a push landed, and watches the checks once it answers', async () => {
+		await openDraft();
+		github.ciOutcomes = ['PENDING'];
+		github.outage = Number.POSITIVE_INFINITY;
+		finishUserRun('ws-1', 'Commit: Add fuzzy matching to search', ['src/fuzzy.ts']);
+
+		await until(() => expect(getShip(db, 'ws-1')?.failures).toBeGreaterThanOrEqual(2));
+		expect(pushes).toHaveLength(2);
+		expect(shipEvents.filter((event) => shipFailure(event.state))).toEqual([]);
+
+		github.outage = 0;
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({ step: 'waiting-for-checks', failures: 0 }),
+		);
+		github.only().checks = [PASSED];
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
 	});
 
 	it('fixes failing checks on a draft when Fix checks runs on its own, pushes the fix and watches it pass, never marking it ready', async () => {

@@ -202,8 +202,16 @@ export async function runGitWithInput(
 export async function runGitAllowingExit(
 	args: readonly string[],
 	allowedExitCode: number,
+	input?: string,
 ): Promise<Readonly<{ allowed: boolean; stdout: string }>> {
-	const result = await spawnGit(args, {}, { maxStdoutBytes: MAX_GIT_STDOUT_BYTES });
+	const result = await spawnGit(
+		args,
+		{},
+		{
+			maxStdoutBytes: MAX_GIT_STDOUT_BYTES,
+			...(input === undefined ? {} : { input }),
+		},
+	);
 	if (result.stdoutExceeded) {
 		throw GitError.outputTooLarge(`git ${globalOptions(args).subcommand}`, MAX_GIT_STDOUT_BYTES);
 	}

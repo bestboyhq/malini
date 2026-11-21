@@ -13,14 +13,11 @@ import {
 	OPENCODE_PROVIDER_ID,
 	isValidProviderId,
 } from '$shared/providers/domain/provider';
-import {
-	missingKey,
-	ProviderNotConnectedError,
-	providerEnvironment,
-} from '$shared/providers/domain/provider-env';
+import { missingKey, ProviderNotConnectedError, providerEnvironment } from './provider-env';
 import type { SecretCipher } from './claude-accounts.service';
 import type { KeyUpstream } from './key-proxy';
 import type { ProxyAddress } from './local-endpoint';
+import { ProviderError } from './provider-error';
 import {
 	clearProviderKey,
 	getStoredProvider,
@@ -49,11 +46,14 @@ type SessionOpening = 'new' | 'reopened';
 
 const SIGNED_OUT: SignedInProvider = {
 	account: () => null,
-	endpoint: () => Promise.reject(new Error('Sign in to ChatGPT in Settings, then try again.')),
+	endpoint: () =>
+		Promise.reject(
+			new ProviderError('signed-out', 'Sign in to ChatGPT in Settings, then try again.'),
+		),
 };
 
 const NO_KEY_PROXY = (): Promise<ProxyAddress> =>
-	Promise.reject(new Error('Malini has no proxy for API keys.'));
+	Promise.reject(new ProviderError('invariant', 'Malini has no proxy for API keys.'));
 
 export class ProviderKeys {
 	readonly #db: MaliniDatabase;
@@ -102,32 +102,33 @@ export class ProviderKeys {
 		const provider = this.#customProvider(providerId);
 		const key = apiKey.trim();
 		if (key.length === 0 || key.length > MAX_API_KEY_LENGTH || /[\u0000-\u001f\u007f]/u.test(key)) {
-			throw new Error('The API key is not valid.');
+			throw new ProviderError('key-invalid', 'The API key is not valid.');
 		}
 		const cipher = await this.#cipher();
 		if (!cipher.isEncryptionAvailable()) {
 			const os = osFor(process.platform);
-			throw new Error(
+			throw new ProviderError(
+				'keychain-locked',
 				`Malini cannot reach ${os.secretStore} to seal the API key. ${os.unlockSecretStore}, then save again.`,
 			);
 		}
 		const plan = provider.id === OPENCODE_PROVIDER_ID ? await this.#askPlan(key) : null;
 		if (!setProviderKey(this.#db, provider.id, cipher.encryptString(key), plan)) {
-			throw new Error(`Unknown provider \`${provider.id}\``);
+			throw new ProviderError('not-found', `Unknown provider \`${provider.id}\``);
 		}
 	}
 
 	delete(providerId: string): void {
 		const provider = this.#customProvider(providerId);
 		if (!clearProviderKey(this.#db, provider.id)) {
-			throw new Error(`Unknown provider \`${provider.id}\``);
+			throw new ProviderError('not-found', `Unknown provider \`${provider.id}\``);
 		}
 	}
 
 	async checkPlan(providerId: string): Promise<void> {
 		const provider = this.#customProvider(providerId);
 		if (provider.id !== OPENCODE_PROVIDER_ID) {
-			throw new Error(`${provider.name} has no plan to check.`);
+			throw new ProviderError('invalid-argument', `${provider.name} has no plan to check.`);
 		}
 		await this.#adoptPlan(provider);
 	}
@@ -162,7 +163,10 @@ export class ProviderKeys {
 		const provider = this.#customProvider(providerId);
 		const served = this.#servedBy(provider);
 		if (session === 'new' && !served.models.some((candidate) => candidate.id === model)) {
-			throw new ProviderNotConnectedError(`${provider.name} does not offer model \`${model}\``);
+			throw new ProviderNotConnectedError(
+				'unsupported',
+				`${provider.name} does not offer model \`${model}\``,
+			);
 		}
 		const endpoint =
 			provider.kind === 'chatgpt'
@@ -182,9 +186,10 @@ export class ProviderKeys {
 
 	async upstream(providerId: string): Promise<KeyUpstream> {
 		const provider = this.#customProvider(providerId);
-		if (provider.kind !== 'anthropic') throw new Error(`Unknown provider \`${providerId}\``);
+		if (provider.kind !== 'anthropic')
+			throw new ProviderError('not-found', `Unknown provider \`${providerId}\``);
 		const { baseUrl } = this.#servedBy(provider);
-		if (baseUrl === null) throw new Error(`${provider.name} has no base URL`);
+		if (baseUrl === null) throw new ProviderError('invariant', `${provider.name} has no base URL`);
 		const apiKey = await this.#decryptedKey(provider);
 		if (apiKey === null) throw missingKey(provider.name);
 		return { baseUrl, apiKey };
@@ -198,7 +203,7 @@ export class ProviderKeys {
 	async #adoptPlan(provider: StoredProvider): Promise<void> {
 		const key = await this.#decryptedKey(provider);
 		if (key === null || provider.sealedKey === null) {
-			throw new Error('Save an OpenCode API key first.');
+			throw new ProviderError('key-missing', 'Save an OpenCode API key first.');
 		}
 		const plan = await this.#askPlan(key);
 		if (plan !== null) setProviderPlan(this.#db, provider.id, provider.sealedKey, plan);
@@ -222,14 +227,18 @@ export class ProviderKeys {
 		if (provider.sealedKey === null) return null;
 		const cipher = await this.#cipher();
 		if (!cipher.isEncryptionAvailable()) {
-			throw new Error(
+			throw new ProviderError(
+				'keychain-locked',
 				`The ${provider.name} API key cannot be read because ${osFor(process.platform).secretStore} is locked.`,
 			);
 		}
 		try {
 			return cipher.decryptString(Buffer.from(provider.sealedKey));
 		} catch {
-			throw new Error(`The ${provider.name} API key cannot be read. Save it again in Settings.`);
+			throw new ProviderError(
+				'key-unreadable',
+				`The ${provider.name} API key cannot be read. Save it again in Settings.`,
+			);
 		}
 	}
 
@@ -239,10 +248,10 @@ export class ProviderKeys {
 			providerId === CLAUDE_PROVIDER_ID ||
 			providerId === OPENCODE_GO_PROVIDER_ID
 		) {
-			throw new Error(`Unknown provider \`${providerId}\``);
+			throw new ProviderError('not-found', `Unknown provider \`${providerId}\``);
 		}
 		const provider = getStoredProvider(this.#db, providerId);
-		if (!provider) throw new Error(`Unknown provider \`${providerId}\``);
+		if (!provider) throw new ProviderError('not-found', `Unknown provider \`${providerId}\``);
 		return provider;
 	}
 }

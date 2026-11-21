@@ -8,6 +8,7 @@ import { get, run } from '$main/db/rows';
 import { describeError, errorCode } from '$main/errors';
 import { atomicReplaceFile } from '$main/fs/atomic';
 import { isInsideDirectory } from '$main/fs/paths';
+import { ExtensionError } from './extension-error';
 
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
@@ -33,7 +34,8 @@ export async function openFileForUser(
 	refuseGitInternals(root, requested);
 	const created = await createMissingFile(requested, !isInsideDirectory(root, requested));
 	const target = await realpath(requested);
-	if (!(await stat(target)).isFile()) throw new Error(`${input.path} is not a file.`);
+	if (!(await stat(target)).isFile())
+		throw new ExtensionError('not-a-file', `${input.path} is not a file.`);
 	refuseGitInternals(root, target);
 	const path = workstreamPath(root, target);
 	if (isAbsolute(path)) {
@@ -63,7 +65,7 @@ export async function readOpenedFile(
 	try {
 		return new TextDecoder('utf-8', { fatal: true }).decode(await readFileBytes(target));
 	} catch (error) {
-		throw new Error(`Could not read ${path}: ${describeError(error)}`);
+		throw new ExtensionError('io', `Could not read ${path}: ${describeError(error)}`, error);
 	}
 }
 
@@ -77,7 +79,7 @@ export async function writeOpenedFile(
 	try {
 		await atomicReplaceFile(target, contents, { defaultMode: PRIVATE_FILE_MODE });
 	} catch (error) {
-		throw new Error(`Could not save ${path}: ${describeError(error)}`);
+		throw new ExtensionError('io', `Could not save ${path}: ${describeError(error)}`, error);
 	}
 }
 
@@ -94,7 +96,7 @@ export async function statOpenedFile(
 		return null;
 	} catch (error) {
 		if (errorCode(error) === 'ENOENT') return null;
-		throw new Error(`Could not stat ${path}: ${describeError(error)}`);
+		throw new ExtensionError('io', `Could not stat ${path}: ${describeError(error)}`, error);
 	}
 }
 
@@ -105,7 +107,11 @@ function openedFile(db: MaliniDatabase, workstreamId: string, path: string): str
 		workstreamId,
 		normalize(path),
 	);
-	if (!granted) throw new Error(`${path} is outside this workstream and was not opened in it.`);
+	if (!granted)
+		throw new ExtensionError(
+			'path-refused',
+			`${path} is outside this workstream and was not opened in it.`,
+		);
 	return granted.path;
 }
 
@@ -116,16 +122,21 @@ function workstreamPath(root: string, path: string): string {
 function refuseGitInternals(root: string, path: string): void {
 	const inWorkstream = workstreamPath(root, path);
 	if (!isAbsolute(inWorkstream) && inWorkstream.split('/').includes('.git')) {
-		throw new Error('Malini does not open files inside .git.');
+		throw new ExtensionError('path-refused', 'Malini does not open files inside .git.');
 	}
 }
 
 function requestedPath(path: string, root: string): string {
-	if (path.trim() === '') throw new Error('Name the file to open.');
-	if (path.includes('\0')) throw new Error('The path contains a null byte.');
+	if (path.trim() === '') throw new ExtensionError('invalid-argument', 'Name the file to open.');
+	if (path.includes('\0'))
+		throw new ExtensionError('invalid-argument', 'The path contains a null byte.');
 	if (path === '~') return homedir();
 	if (path.startsWith('~/')) return join(homedir(), path.slice(2));
-	if (path.startsWith('~')) throw new Error(`Write ${path} as an absolute path or one under ~/.`);
+	if (path.startsWith('~'))
+		throw new ExtensionError(
+			'invalid-argument',
+			`Write ${path} as an absolute path or one under ~/.`,
+		);
 	return resolve(root, path);
 }
 
@@ -152,6 +163,6 @@ async function createMissingFile(path: string, outsideWorktree: boolean): Promis
 		return true;
 	} catch (error) {
 		if (errorCode(error) === 'EEXIST') return false;
-		throw new Error(`Could not create ${path}: ${describeError(error)}`);
+		throw new ExtensionError('io', `Could not create ${path}: ${describeError(error)}`, error);
 	}
 }

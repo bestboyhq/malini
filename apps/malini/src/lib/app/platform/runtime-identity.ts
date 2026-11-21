@@ -3,12 +3,10 @@ import { createReadStream } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import type { DesktopRuntimeIdentity } from '$contract/system';
+import { AppError } from './app-error';
+import { BUNDLE_IDENTIFIER, DEVELOPMENT_BUNDLE_IDENTIFIER } from './bundle-identifier';
 
 export type { DesktopRuntimeIdentity };
-
-export const BUNDLE_IDENTIFIER = 'app.malini.desktop';
-
-export const DEVELOPMENT_BUNDLE_IDENTIFIER = `${BUNDLE_IDENTIFIER}.dev`;
 
 export interface RuntimeIdentityInputs {
 	productName: string;
@@ -28,8 +26,10 @@ export async function sha256FileFingerprint(path: string): Promise<string> {
 	try {
 		await pipeline(createReadStream(path), hash);
 	} catch (error) {
-		throw new Error(
+		throw new AppError(
+			'io',
 			`could not fingerprint executable: ${error instanceof Error ? error.message : String(error)}`,
+			error,
 		);
 	}
 	return hash.digest('hex');
@@ -43,8 +43,10 @@ export function createRuntimeIdentityProvider(
 		try {
 			executablePath = await realpath(inputs.executablePath);
 		} catch (error) {
-			throw new Error(
+			throw new AppError(
+				'io',
 				`could not canonicalize current executable: ${error instanceof Error ? error.message : String(error)}`,
+				error,
 			);
 		}
 		return {

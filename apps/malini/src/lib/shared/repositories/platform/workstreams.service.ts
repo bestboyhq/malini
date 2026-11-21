@@ -18,7 +18,7 @@ import type {
 import { unpackRestoredChats } from '$lib/chat/chat.platform';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import { describeError, isMaliniError } from '$main/errors';
 import type { EventBus } from '$main/events';
 import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
 import { releaseRestoredWork, restoreArchivedWork } from '$main/git/archived-work';
@@ -71,6 +71,7 @@ import {
 	archivedLeftoversCleared,
 	slimKeptContext,
 	teardownWorkstreamCheckout,
+	WorkstreamRemovalError,
 	type TeardownGuard,
 	type WorkstreamRetirement,
 } from './teardown.service';
@@ -163,7 +164,9 @@ export async function createRepository(
 		});
 	} catch (error) {
 		await cleanupCreatedBaseClone(outcome);
-		throw new Error(describeError(error));
+		throw isMaliniError(error)
+			? error
+			: new WorkstreamError('record-failed', describeError(error), error);
 	}
 	return outcome.path;
 }
@@ -184,9 +187,11 @@ export async function readBaseBranch(
 		if (known) return known;
 		throw error;
 	}
-	if (head.branch === null && head.empty) throw new Error(EMPTY_REPOSITORY);
+	if (head.branch === null && head.empty) {
+		throw new WorkstreamError('empty-repository', EMPTY_REPOSITORY);
+	}
 	const branch = head.branch ?? known;
-	if (!branch) throw new Error(NO_DEFAULT_BRANCH);
+	if (!branch) throw new WorkstreamError('no-default-branch', NO_DEFAULT_BRANCH);
 	if (recordDefaultBranch(db, input.projectId, branch)) {
 		deps.events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
 	}
@@ -277,9 +282,14 @@ export async function createWorkstream(
 	} catch (error) {
 		const message = describeError(error);
 		const cleanup = await cleanupFailedWorkstream(projectRepoPath, worktreePath, branch);
-		throw new Error(
-			cleanup === null ? message : `${message}; the checkout could not be rolled back: ${cleanup}`,
-		);
+		if (cleanup !== null) {
+			throw new WorkstreamError(
+				'rollback-failed',
+				`${message}; the checkout could not be rolled back: ${cleanup}`,
+				error,
+			);
+		}
+		throw isMaliniError(error) ? error : new WorkstreamError('record-failed', message, error);
 	}
 
 	if (start.fetched || input.startRef !== undefined) baseSync.keepCreationStart(workstreamId);
@@ -454,14 +464,15 @@ export async function removeRepository(deps: WorkstreamsDeps, repositoryId: stri
 		localRepositoriesFromProjects(projects),
 	);
 	const repository = repositories.find((candidate) => candidate.id === repositoryId);
-	if (!repository) throw new Error(`Unknown repository: ${repositoryId}`);
+	if (!repository) throw new WorkstreamError('unknown', `Unknown repository: ${repositoryId}`);
 	for (const workstream of repositoryWorkstreams(db, repositories, repository)) {
 		try {
 			await retireWorkstream(deps, workstream.id, 'deleted');
 		} catch (error) {
-			throw new Error(
+			throw new WorkstreamRemovalError(
+				error instanceof WorkstreamRemovalError ? error.kind : 'failed',
 				`${displayWorkstreamName(workstream, repository.fullName)}: ${describeError(error)}`,
-				{ cause: error },
+				error,
 			);
 		}
 	}

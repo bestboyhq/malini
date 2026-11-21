@@ -26,7 +26,7 @@ import {
 	REPOSITORIES_DIR_NAME,
 	WORKSTREAMS_DIR_NAME,
 } from '$main/git/paths';
-import { runGit } from '$main/git/run';
+import { repairWorktreeLinks } from '$main/git/worktrees';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { INSTALL_COMPLETION_PATH } from './provisioning.service';
 
@@ -69,6 +69,34 @@ export function checkoutsHome(
 	home: string = homedir(),
 ): string {
 	return ownProfile ? join(appDataRoot, CHECKOUTS_DIR_NAME) : join(home, 'malini');
+}
+
+export interface PathAliases {
+	readonly path: string;
+	readonly aliases: readonly string[];
+}
+
+export async function workstreamsRootAliases(
+	appDataRoot: string,
+	checkoutsRoot: string,
+): Promise<PathAliases> {
+	const path = join(checkoutsRoot, WORKSTREAMS_DIR_NAME);
+	const real = await realpath(path).catch(() => path);
+	// ponytail: knows the links a move from the app data folder or ~/malini leaves; record each move's old folder if a move between two chosen folders needs it
+	const candidates = [
+		real,
+		...[appDataRoot, checkoutsHome(appDataRoot, false)].map((home) =>
+			join(home, WORKSTREAMS_DIR_NAME),
+		),
+	];
+	const aliases = await Promise.all(
+		candidates.map(async (candidate) =>
+			candidate !== path && (await realpath(candidate).catch(() => null)) === real
+				? [candidate]
+				: [],
+		),
+	);
+	return { path, aliases: [...new Set(aliases.flat())] };
 }
 
 export async function moveCheckoutsHome({
@@ -401,9 +429,7 @@ async function repairWorktrees(from: string, to: string): Promise<void> {
 		stale.set(base, [...(stale.get(base) ?? []), checkout]);
 	}
 	for (const [base, linked] of stale) {
-		await settle(`repair the worktrees of ${base}`, () =>
-			runGit(['-C', base, 'worktree', 'repair', ...linked]),
-		);
+		await settle(`repair the worktrees of ${base}`, () => repairWorktreeLinks(base, linked));
 	}
 }
 

@@ -45,4 +45,7 @@ Read through a query.
 Change through a command.
 Another domain's components come from its api file.
 
+Never add a full-width status or error row above the chat (ADR 0273).
+A workstream's failure is a setup step in `workstream-setup-steps.ts`, and the top bar status carries it.
+
 Naming: `MyComponent.svelte`.

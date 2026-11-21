@@ -62,7 +62,7 @@ import {
 	watchDraftChecks,
 	type ShipDeps,
 } from './ship-store';
-import type { ShipTarget } from './ship-target';
+import { ShipError, type ShipTarget } from './ship-target';
 
 export type Idleness = Readonly<{ idle: boolean; settlesInMs: number | null }>;
 
@@ -139,6 +139,7 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 			});
 			return;
 		case 'wait':
+			if (state.snapshot.read) shipRecovered(deps, workstreamId);
 			saveShip(deps, workstreamId, { step: move.step });
 			if (move.until !== undefined) setShipAlarm(deps, workstreamId, 'checks', move.until);
 			if (move.step === 'waiting-for-agent') settleAlarm(deps, state);
@@ -394,7 +395,10 @@ async function openPullRequest(deps: ShipDeps, state: ShipState): Promise<void> 
 		draft: row.phase !== 'queued',
 	});
 	if (created.number === null) {
-		throw new Error('GitHub created the pull request but did not return its number');
+		throw new ShipError(
+			'pull-request-missing',
+			'GitHub created the pull request but did not return its number',
+		);
 	}
 	saveShip(deps, workstreamId, {
 		pullRequestNumber: created.number,
@@ -460,7 +464,8 @@ async function startAutomation(
 	const definition = automationDefinitions(db).find(
 		(candidate) => candidate.builtin === move.builtin,
 	);
-	if (!definition) throw new Error(`The built-in ${move.builtin} automation is missing`);
+	if (!definition)
+		throw new ShipError('invariant', `The built-in ${move.builtin} automation is missing`);
 	const automationContext = await shippingAutomationContext(deps, state, move.builtin);
 	const causeEventId = pullRequestRead(
 		deps,
@@ -620,7 +625,12 @@ async function land(deps: ShipDeps, state: ShipState): Promise<void> {
 	dropShip(deps, workstreamId);
 }
 
-export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown): void {
+export function shipFailed(
+	deps: ShipDeps,
+	workstreamId: string,
+	error: unknown,
+	failed: 'work' | 'read' = 'work',
+): void {
 	if (!deps.running()) return;
 	deps.reader.forget(workstreamId);
 	const row = getShip(deps.context.db, workstreamId);
@@ -628,9 +638,14 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 	const detail = describeError(error);
 	const failures = row.failures + 1;
 	const now = deps.now();
-	const due = now + shipBackoffMs(failures, deps.delays);
+	const due = now + shipBackoffMs(failures, deps.delays, Math.random());
 	if (row.phase === 'needs-you') {
 		saveShip(deps, workstreamId, { failures });
+		setShipAlarm(deps, workstreamId, 'retry', due);
+		return;
+	}
+	if (failed === 'read' && openDraft(row) && githubIsOut(error)) {
+		saveShip(deps, workstreamId, { step: 'waiting-for-github', failures });
 		setShipAlarm(deps, workstreamId, 'retry', due);
 		return;
 	}
@@ -741,6 +756,16 @@ function commitMessage(
 	if (settled?.builtin === 'fix-checks') return 'Fix failing checks';
 	if (settled?.builtin === 'address-review') return 'Address review feedback';
 	return metadata.commitMessage;
+}
+
+function openDraft(row: ShipRow): boolean {
+	return row.phase === 'draft' && row.pullRequestNumber !== null;
+}
+
+function githubIsOut(error: unknown): boolean {
+	return (
+		isGhError(error, 'unreachable') || isGhError(error, 'down') || isGhError(error, 'rate-limited')
+	);
 }
 
 function githubAuthRejected(error: unknown): boolean {

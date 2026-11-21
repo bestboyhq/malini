@@ -6,7 +6,7 @@
 ## What ships
 
 `electron-vite` bundles the main process, the preload and the renderer into `out/`, every dependency inlined but the two in the `dependencies` block of `apps/malini/package.json`.
-Those two, `node-pty` and `@xterm/headless`, run **Run**'s terminal (ADR 0257): electron-vite keeps them external, and electron-builder packs them from `node_modules`, with node-pty unpacked from the asar.
+Those two, `node-pty` and `@xterm/headless`, run **Run**'s terminal (ADR 0279): electron-vite keeps them external, and electron-builder packs them from `node_modules`, with node-pty unpacked from the asar.
 node-pty ships prebuilt N-API builds for every OS and chip, so `npmRebuild: false` keeps them, and `files` drops its sources, its Windows debug symbols and the builds for other OSes.
 A universal Mac app keeps node-pty's arm64 and x64 builds side by side, which `x64ArchFiles` allows.
 Any other dependency belongs in `devDependencies`, inlined by the bundle.
@@ -33,7 +33,7 @@ To move to a newer `gh`, change `GH_VERSION` and all six hashes in `GH_SHA256` t
 ## Git for Windows
 
 Git for Windows is not bundled.
-Malini downloads the pinned PortableGit at runtime, only on a Windows PC without git or Git Bash (ADR 0262).
+Malini downloads the pinned PortableGit at runtime, only on a Windows PC without git or Git Bash (ADR 0284).
 To bump it, change `GIT_VERSION` and both `GIT_SHA256` entries in `apps/malini/src/main/process/git-install.ts`, with the SHA-256 lines from the release notes on `github.com/git-for-windows/git/releases`.
 
 ## The commands sandbox on Windows
@@ -45,7 +45,7 @@ srt-win.exe is unsigned, as the rest of the Windows build is.
 Its Apache-2.0 `LICENSE` ships beside it in `agent-bridge/node_modules`.
 The uninstaller runs `srt-win acl forget --all`, from `build/installer.nsh`, which removes the write grants the sandbox kept on checkouts, and an update skips it.
 It leaves the shared srt-win install in place: the `srt-sandbox` account, its network filters and the profile read grant.
-Another app can use that install, so only Settings, Agent access removes it (ADR 0260).
+Another app can use that install, so only Settings, Agent access removes it (ADR 0282).
 
 ## RTK
 
@@ -87,7 +87,7 @@ Windows gets `malini-setup.exe`, one installer for x64 and arm64, with `latest.y
 Linux gets `malini-<arch>.AppImage`, `.deb` and `.rpm` for x64 and arm64, with electron-builder's arch names (`x86_64`, `amd64`, `aarch64`, `arm64`), and `latest-linux.yml` and `latest-linux-arm64.yml`.
 `pnpm --filter malini release` builds the host OS's artifacts locally; on macOS they are signed with the keychain's Developer ID, and notarized only when `APPLE_KEYCHAIN_PROFILE` is set.
 
-Every pull request runs the `package` job on macOS, Linux and Windows (ADR 0256).
+Every pull request runs the `package` job on macOS, Linux and Windows (ADR 0278).
 It builds the app with `pnpm dist` on macOS, where signing needs the release secrets, and the installers with `pnpm release` on Linux and Windows, then opens each build with `scripts/packaged-smoke.mjs`.
 The Linux and Windows installers stay on the run as a seven-day artifact, to try on a real machine.
 

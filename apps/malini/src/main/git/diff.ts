@@ -181,7 +181,9 @@ function diffAgainstIndex(worktreePath: string): Promise<string> {
 		}
 		const realIndex = isAbsolute(reported) ? reported : join(worktreePath, reported);
 		if (await isFile(realIndex)) {
-			await copyFile(realIndex, index.path);
+			await copyFile(realIndex, index.path).catch((error: unknown) => {
+				throw GitError.fromNodeError(error);
+			});
 		} else {
 			await runGit(['-C', worktreePath, 'read-tree', '--empty'], env);
 		}

@@ -429,6 +429,40 @@ describe('prompt round trips', () => {
 		expect(await invoke('chat.list-sessions', { workstreamId: 'ws-1' })).toEqual([]);
 	});
 
+	const PACKS_OF_SESSION = 'SELECT COUNT(*) FROM agent_event_packs WHERE session_id = ?';
+
+	it('lists a closed chat a person wrote in as recently closed, and reopens it with every event it had', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const empty = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'Fix the login' });
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		const before = await invokeRecords('chat.list-events', { sessionId, afterSeq: 0 });
+
+		await invoke('chat.archive-session', { sessionId });
+		await invoke('chat.archive-session', { sessionId: empty });
+		expect(await invokeRecords('chat.list-closed-sessions', { workstreamId: 'ws-1' })).toEqual([
+			{
+				id: sessionId,
+				displayName: getSession(test.db, sessionId)?.displayName,
+				model: getSession(test.db, sessionId)?.model,
+				closedAt: getSession(test.db, sessionId)?.archivedAt,
+			},
+		]);
+		expect(scalar(test.db, PACKS_OF_SESSION, sessionId)).toBe(1);
+
+		await invoke('chat.reopen-session', { sessionId });
+		await invoke('chat.reopen-session', { sessionId });
+
+		expect(await invoke('chat.list-closed-sessions', { workstreamId: 'ws-1' })).toEqual([]);
+		expect(await invokeRecords('chat.list-sessions', { workstreamId: 'ws-1' })).toMatchObject([
+			{ id: sessionId },
+		]);
+		expect(scalar(test.db, PACKS_OF_SESSION, sessionId)).toBe(0);
+		expect(await invokeRecords('chat.list-events', { sessionId, afterSeq: 0 })).toEqual(before);
+	});
+
 	it('runs a second chat of the workstream beside one that is still running', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

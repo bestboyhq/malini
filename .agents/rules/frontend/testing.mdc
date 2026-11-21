@@ -13,7 +13,7 @@ Unit tests exist only where e2e cannot enumerate the cases.
 
 - `tests/e2e/*.spec.ts`: every behavior a user or agent can observe, including wiring (which command a control runs, what a confirmation guards) and anything with effects, timers, layout or IPC.
   Extend `tests/e2e/fixtures/fake-bridge.cjs` with a directive when a scenario needs agent output; never change what an existing directive does.
-  A stub that waits in a loop waits through `waitWhile` from `tests/e2e/harness.ts`, so it exits once its parent is gone, and every process an app starts must end with its `quit()` (ADR 0268).
+  A stub that waits in a loop waits through `waitWhile` from `tests/e2e/harness.ts`, so it exits once its parent is gone, and every process an app starts must end with its `quit()` (ADR 0259).
 - `*.test.ts`, vitest, for two kinds only:
   - Pure functions: input in, output out, no mounted component, no `$effect`, no platform.
     Projectors, tokenizers, parsers, reducers, formatting, version math.
@@ -39,6 +39,6 @@ Unit tests exist only where e2e cannot enumerate the cases.
 - Builds share `apps/malini/out`: run one build and one Playwright process at a time.
 - Specs run in parallel, beside other apps: a timeout covers the product's slowest refresh under load, not the typical case.
 - Never assert on elapsed time: the machines that run e2e have no consistent resources (0046).
-- CI retries a failing test once and a local run never does; a pass on retry is flaky, and a flake is a bug to fix at its root, never to retry away (0271).
+- CI retries a failing test once and a local run never does; a pass on retry is flaky, and a flake is a bug to fix at its root, never to retry away (0262).
 - Wait for the transcript to settle with `untilStill(page)`, never a fixed `waitForTimeout`; a sleep stays only to prove something does not happen for a while.
 - The harness runs the merge queue's delays ten times faster with `MALINI_SHIP_DELAY_SCALE=0.1`; a spec that needs the real delays passes its own through `launchMalini({ env })`.

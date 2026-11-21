@@ -46,10 +46,6 @@
 >
 	{#if state.kind === 'cloning'}
 		<BusyIcon size={13} />
-	{:else if state.kind === 'failed'}
-		<span class="text-error-content flex items-center gap-1.5">
-			<Icon name="alert" size={14} />Did not clone. Retry
-		</span>
 	{:else if !Number.isNaN(pushedAt)}
 		{formatTimeAgo(Math.max(0, nowMs - pushedAt))}
 	{/if}

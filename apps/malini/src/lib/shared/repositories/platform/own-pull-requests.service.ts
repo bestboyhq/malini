@@ -14,7 +14,7 @@ import {
 	repositoryProjectIds,
 } from '$shared/repositories/domain/repository-context';
 import type { CheckoutMoveGuard } from './base-sync.service';
-import type { CheckoutResolver } from './checkout-resolver';
+import { WorkstreamError, type CheckoutResolver } from './checkout-resolver';
 import { listConnectedRepositories } from './connected-repositories.repository';
 import type { GhRunner } from './github.service';
 import { listProjects } from './projects.repository';
@@ -80,13 +80,15 @@ export async function continueOwnPullRequest(
 ): Promise<string> {
 	const project = await repositoryProject(deps.workstreams.db, repoId);
 	if (project === null)
-		throw new Error(
+		throw new WorkstreamError(
+			'no-checkout',
 			`This repository has no checkout on this ${osFor(process.platform).machine} yet.`,
 		);
 	const pullRequest = (await openPullRequests(deps.gh, project.repoPath)).find(
 		(open) => open.head === head,
 	);
-	if (pullRequest === undefined) throw new Error(`You have no open pull request from ${head}.`);
+	if (pullRequest === undefined)
+		throw new GhError('no-pull-request', `You have no open pull request from ${head}.`);
 	const workstreamId = pullRequestWorkstreamId(project.id, head);
 	const workstream = getWorkstream(deps.workstreams.db, workstreamId);
 	if (workstream === null) {
@@ -185,7 +187,7 @@ async function openPullRequests(gh: GhRunner, repoPath: string): Promise<OwnPull
 		],
 		{ cwd: repoPath },
 	);
-	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, ['pr']);
 	return ownPullRequests(parseGhJson<unknown>(result, 'gh pr list'));
 }
 
@@ -197,7 +199,10 @@ async function adopt(
 ): Promise<void> {
 	const { db, credentials } = deps.workstreams;
 	if ((await branchList(project.repoPath)).includes(pullRequest.head)) {
-		throw new Error(`The branch ${pullRequest.head} is already checked out in this repository.`);
+		throw new WorkstreamError(
+			'branch-exists',
+			`The branch ${pullRequest.head} is already checked out in this repository.`,
+		);
 	}
 	const startRef = await syncRemoteBase(project.repoPath, pullRequest.head, null, credentials);
 	const name = await workstreamName(deps, pullRequest.title);

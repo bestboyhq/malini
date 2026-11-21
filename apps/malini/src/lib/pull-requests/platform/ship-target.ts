@@ -1,5 +1,6 @@
 import type { Workstream } from '$contract/repositories';
 import type { MaliniDatabase } from '$main/db/driver';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import {
 	getWorkstream,
 	githubFullNameFromRemote,
@@ -7,15 +8,24 @@ import {
 	type ConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 
-export type ShipErrorKind = 'nothing-to-ship' | 'not-github' | 'unknown-workstream' | 'not-queued';
+const SHIP_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'nothing-to-ship': 'expected',
+	'not-github': 'expected',
+	'unknown-workstream': 'bug',
+	'not-queued': 'expected',
+	'unknown-repository': 'bug',
+	'no-checkout': 'expected',
+	'pull-request-missing': 'bug',
+	'head-moved': 'expected',
+	'empty-title': 'expected',
+} as const satisfies ErrorVerdicts;
 
-export class ShipError extends Error {
-	readonly kind: ShipErrorKind;
+export type ShipErrorKind = keyof typeof SHIP_ERROR_VERDICTS;
 
+export class ShipError extends MaliniError<ShipErrorKind> {
 	constructor(kind: ShipErrorKind, message: string) {
-		super(message);
-		this.name = 'ShipError';
-		this.kind = kind;
+		super('ShipError', SHIP_ERROR_VERDICTS, kind, message);
 	}
 }
 

@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, normalize, resolve, sep } from 'node:path';
 import { isInsideDirectory } from '$main/fs/paths';
 import type { ExtensionDevelopmentLog, ExtensionSourceSnapshot } from '$contract/system';
+import { ExtensionError } from './extension-error';
 
 export type { ExtensionDevelopmentLog, ExtensionSourceSnapshot };
 
@@ -47,7 +48,7 @@ export class ExtensionPackages {
 			return value.trim() === 'enabled';
 		} catch (error) {
 			if (isNotFound(error)) return false;
-			throw new Error(describeError(error));
+			throw new ExtensionError('io', describeError(error), error);
 		}
 	}
 
@@ -77,7 +78,11 @@ async function listLocalSources(root: string): Promise<ExtensionSourceSnapshot[]
 	try {
 		installs = parseLocalRegistry(JSON.parse(contents));
 	} catch (error) {
-		throw new Error(`invalid local extension registry: ${describeError(error)}`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`invalid local extension registry: ${describeError(error)}`,
+			error,
+		);
 	}
 	const reloads = await readReloadSequences(join(root, 'reload.json'));
 	const sources: ExtensionSourceSnapshot[] = [];
@@ -111,15 +116,25 @@ async function localSnapshot(
 	try {
 		sourceRoot = await realpath(install.path);
 	} catch (error) {
-		throw new Error(`cannot open local extension ${install.path}: ${describeError(error)}`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`cannot open local extension ${install.path}: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!(await stat(sourceRoot)).isDirectory()) {
-		throw new Error(`local extension path is not a directory: ${install.path}`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`local extension path is not a directory: ${install.path}`,
+		);
 	}
 	const manifestJson = await readLimited(join(sourceRoot, 'manifest.json'), MAX_MANIFEST_BYTES);
 	const manifest = parseManifest(manifestJson);
 	if (manifest.id !== install.id) {
-		throw new Error(`local registry id ${install.id} does not match manifest id ${manifest.id}`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`local registry id ${install.id} does not match manifest id ${manifest.id}`,
+		);
 	}
 	const entrypointSource = await readEntrypoint(sourceRoot, manifest.entrypoint);
 	return {
@@ -137,7 +152,8 @@ async function localSnapshot(
 }
 
 function parseLocalRegistry(value: unknown): LocalExtensionInstall[] {
-	if (!Array.isArray(value)) throw new Error('expected an array of installs');
+	if (!Array.isArray(value))
+		throw new ExtensionError('local-extension-invalid', 'expected an array of installs');
 	return value.map((entry, index) => {
 		if (
 			!isRecord(entry) ||
@@ -146,7 +162,10 @@ function parseLocalRegistry(value: unknown): LocalExtensionInstall[] {
 			typeof entry.enabled !== 'boolean' ||
 			typeof entry.watch !== 'boolean'
 		) {
-			throw new Error(`install ${index} is missing id, path, enabled, or watch`);
+			throw new ExtensionError(
+				'local-extension-invalid',
+				`install ${index} is missing id, path, enabled, or watch`,
+			);
 		}
 		return { id: entry.id, path: entry.path, enabled: entry.enabled, watch: entry.watch };
 	});
@@ -158,15 +177,19 @@ async function readReloadSequences(path: string): Promise<Record<string, number>
 		contents = await readFile(path, 'utf8');
 	} catch (error) {
 		if (isNotFound(error)) return {};
-		throw new Error(describeError(error));
+		throw new ExtensionError('io', describeError(error), error);
 	}
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(contents);
 	} catch (error) {
-		throw new Error(describeError(error));
+		throw new ExtensionError('local-extension-invalid', describeError(error), error);
 	}
-	if (!isRecord(parsed)) throw new Error('reload.json must be an object of id to sequence');
+	if (!isRecord(parsed))
+		throw new ExtensionError(
+			'local-extension-invalid',
+			'reload.json must be an object of id to sequence',
+		);
 	const reloads: Record<string, number> = {};
 	for (const [id, sequence] of Object.entries(parsed)) {
 		if (typeof sequence === 'number') reloads[id] = sequence;
@@ -185,12 +208,18 @@ function parseManifest(manifestJson: string): ManifestIdentity {
 	try {
 		manifest = JSON.parse(manifestJson);
 	} catch (error) {
-		throw new Error(`invalid manifest.json: ${describeError(error)}`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`invalid manifest.json: ${describeError(error)}`,
+			error,
+		);
 	}
-	if (!isRecord(manifest)) throw new Error('invalid manifest.json: not an object');
-	if (typeof manifest.id !== 'string') throw new Error('manifest.json is missing id');
+	if (!isRecord(manifest))
+		throw new ExtensionError('local-extension-invalid', 'invalid manifest.json: not an object');
+	if (typeof manifest.id !== 'string')
+		throw new ExtensionError('local-extension-invalid', 'manifest.json is missing id');
 	if (typeof manifest.entrypoint !== 'string')
-		throw new Error('manifest.json is missing entrypoint');
+		throw new ExtensionError('local-extension-invalid', 'manifest.json is missing entrypoint');
 	return {
 		id: manifest.id,
 		version: typeof manifest.version === 'string' ? manifest.version : '0.0.0',
@@ -204,21 +233,34 @@ async function readEntrypoint(sourceRoot: string, entrypoint: string): Promise<s
 	try {
 		entrypointPath = await realpath(join(sourceRoot, relativePath));
 	} catch (error) {
-		throw new Error(`cannot open extension entrypoint ${entrypoint}: ${describeError(error)}`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`cannot open extension entrypoint ${entrypoint}: ${describeError(error)}`,
+			error,
+		);
 	}
 	if (!isInsideDirectory(sourceRoot, entrypointPath)) {
-		throw new Error('extension entrypoint escapes its local folder');
+		throw new ExtensionError(
+			'local-extension-invalid',
+			'extension entrypoint escapes its local folder',
+		);
 	}
 	return readLimited(entrypointPath, MAX_ENTRYPOINT_BYTES);
 }
 
 function safeLocalRelativePath(value: string): string {
 	if (value === '' || isAbsolute(value)) {
-		throw new Error('extension entrypoint must stay inside its local folder');
+		throw new ExtensionError(
+			'local-extension-invalid',
+			'extension entrypoint must stay inside its local folder',
+		);
 	}
 	const normalized = normalize(value);
 	if (normalized === '..' || normalized.startsWith(`..${sep}`)) {
-		throw new Error('extension entrypoint must stay inside its local folder');
+		throw new ExtensionError(
+			'local-extension-invalid',
+			'extension entrypoint must stay inside its local folder',
+		);
 	}
 	return normalized;
 }
@@ -226,7 +268,10 @@ function safeLocalRelativePath(value: string): string {
 async function readLimited(path: string, maximum: number): Promise<string> {
 	const info = await stat(path);
 	if (info.size > maximum) {
-		throw new Error(`${path} exceeds the ${maximum} byte limit`);
+		throw new ExtensionError(
+			'local-extension-invalid',
+			`${path} exceeds the ${maximum} byte limit`,
+		);
 	}
 	return readFile(path, 'utf8');
 }

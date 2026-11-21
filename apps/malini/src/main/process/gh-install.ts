@@ -13,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { errorCode, MaliniError, type ErrorVerdicts } from '../errors.ts';
 import { saveDownload, type Fetch, type SaveDownloadOptions } from '../fs/download.ts';
 
 export const GH_VERSION = '2.102.0';
@@ -38,13 +39,18 @@ export type GhInstallStage = 'download' | 'checksum' | 'unpack';
 export type GhInstallOptions = Partial<SaveDownloadOptions> &
 	Readonly<{ sha256?: string; build?: GhBuild }>;
 
-export class GhInstallError extends Error {
-	readonly kind: GhInstallStage;
+const GH_INSTALL_ERROR_VERDICTS: ErrorVerdicts<GhInstallStage> = {
+	download: 'expected',
+	checksum: 'bug',
+	unpack: 'bug',
+};
 
-	constructor(kind: GhInstallStage, message: string, options?: ErrorOptions) {
-		super(message, options);
-		this.name = 'GhInstallError';
-		this.kind = kind;
+export class GhInstallError extends MaliniError<GhInstallStage> {
+	constructor(kind: GhInstallStage, message: string, cause?: unknown) {
+		super('GhInstallError', GH_INSTALL_ERROR_VERDICTS, kind, message, {
+			code: errorCode(cause),
+			cause,
+		});
 	}
 }
 
@@ -116,9 +122,11 @@ async function downloaded(
 	try {
 		return await saveDownload(fetch, url, archive, options);
 	} catch (error) {
-		throw new GhInstallError('download', `Could not download the GitHub CLI: ${reason(error)}`, {
-			cause: error,
-		});
+		throw new GhInstallError(
+			'download',
+			`Could not download the GitHub CLI: ${reason(error)}`,
+			error,
+		);
 	}
 }
 
@@ -140,9 +148,7 @@ async function unpack(
 		await copyFile(join(root, 'LICENSE'), join(staged, 'LICENSE'));
 		await writeFile(join(staged, 'VERSION'), `${GH_VERSION}\n`);
 	} catch (error) {
-		throw new GhInstallError('unpack', `Could not unpack the GitHub CLI: ${reason(error)}`, {
-			cause: error,
-		});
+		throw new GhInstallError('unpack', `Could not unpack the GitHub CLI: ${reason(error)}`, error);
 	}
 }
 

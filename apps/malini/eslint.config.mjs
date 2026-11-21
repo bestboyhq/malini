@@ -147,6 +147,13 @@ export default [
 		},
 	},
 	{
+		files: ['src/main/**/*.ts', 'src/lib/**/platform/**/*.ts', 'src/lib/**/*.platform.ts'],
+		ignores: ['src/**/*.test.ts', 'src/**/test-support.ts', 'src/**/*.test-support.ts'],
+		rules: {
+			'@malini/desktop/no-untyped-throw': 'error',
+		},
+	},
+	{
 		files: ['scripts/**'],
 		rules: {
 			'@malini/desktop/domain-boundaries': 'off',

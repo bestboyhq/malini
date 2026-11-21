@@ -258,6 +258,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type GithubFailure = 'unreachable' | 'down' | 'rate-limited';\n\ntype GithubReach = 'ok' | GithubFailure;\n\ntype GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;",
 		},
 		{
+			channel: 'repositories:workstream-checkout-health',
+			description:
+				"Fires when a workstream's checkout breaks, while Malini repairs it, and when it reads again, with `state` and the `finding` Malini made about what broke.",
+			facts: ['workstreamId', 'state', 'finding', 'repairable'],
+			payloadType: 'WorkstreamCheckoutHealthPayload',
+			payload:
+				"const CHECKOUT_HEALTH_STATES = ['healthy', 'broken', 'repairing'] as const;\n\ntype CheckoutHealthState = (typeof CHECKOUT_HEALTH_STATES)[number];\n\nconst CHECKOUT_FINDINGS = [\n\t'folder-missing',\n\t'git-link-missing',\n\t'admin-missing',\n\t'base-repository-missing',\n\t'github-signed-out',\n\t'remote-missing',\n\t'checkouts-folder-missing',\n\t'stale-lock',\n\t'index-corrupt',\n\t'head-invalid',\n\t'dubious-ownership',\n\t'git-unavailable',\n\t'developer-tools-missing',\n\t'xcode-license',\n\t'permission-denied',\n\t'disk-full',\n\t'unknown',\n] as const;\n\ntype CheckoutFinding = (typeof CHECKOUT_FINDINGS)[number];\n\nconst CHECKOUT_RESTORES = [\n\t'branch-from-github',\n\t'commits-as-edits',\n\t'nothing-lost',\n] as const;\n\ntype CheckoutRestore = (typeof CHECKOUT_RESTORES)[number];\n\ntype CheckoutHealth = Readonly<{\n\tstate: CheckoutHealthState;\n\tfinding: CheckoutFinding | null;\n\trepairable: boolean;\n\tsaid: string | null;\n\trestored: CheckoutRestore | null;\n}>;\n\ntype WorkstreamCheckoutHealthPayload = CheckoutHealth & Readonly<{ workstreamId: string }>;",
+		},
+		{
 			channel: 'providers:claude-code-install-progress',
 			description:
 				'Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.',
@@ -607,11 +616,11 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'app:menu-command-chosen',
 			description:
-				"Fires when you pick New Workstream, New Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's {menu} or its {tray} icon, with which one you picked.",
+				"Fires when you pick New Workstream, New Chat, Reopen Closed Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's {menu} or its {tray} icon, with which one you picked.",
 			facts: ['command'],
 			payloadType: 'MenuCommandChosen',
 			payload:
-				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'find-repository' | 'accounts' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
+				"type MenuCommand =\n\t| 'new-workstream'\n\t| 'new-chat'\n\t| 'reopen-chat'\n\t| 'open-folder'\n\t| 'find-repository'\n\t| 'accounts'\n\t| 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
 		},
 		{
 			channel: 'app:streaming-changed',

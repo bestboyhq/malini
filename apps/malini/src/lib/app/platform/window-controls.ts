@@ -1,6 +1,7 @@
 import { Menu, type BrowserWindow } from 'electron';
 import type { PopUpMenuArgs } from '$contract/commands';
 import type { CommandRegistry } from '$main/ipc/registry';
+import { AppError } from './app-error';
 
 export function defineWindowControlsCommands(
 	commands: CommandRegistry,
@@ -21,7 +22,10 @@ export function defineWindowControlsCommands(
 
 function coordinate(value: unknown, name: string): number {
 	if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-		throw new Error(`${name} must be a number of pixels from the window's top left`);
+		throw new AppError(
+			'invalid-argument',
+			`${name} must be a number of pixels from the window's top left`,
+		);
 	}
 	return value;
 }

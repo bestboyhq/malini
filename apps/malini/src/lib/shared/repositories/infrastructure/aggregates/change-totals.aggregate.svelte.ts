@@ -3,6 +3,7 @@ import type {
 	WorkstreamChangeTotals,
 	WorkstreamSnapshotReader,
 } from '$shared/repositories/domain/workstream-snapshot';
+import { checkoutHealthAggregate } from '$shared/repositories/infrastructure/aggregates/checkout-health.aggregate.svelte';
 import { workstreamSnapshotsService } from '$shared/repositories/infrastructure/services/workstream-snapshots.service';
 
 export const WORKSTREAM_CHANGE_TOTALS_POLL_INTERVAL_MS = 5 * 60_000;
@@ -106,7 +107,7 @@ export class WorkstreamChangeTotalsAggregate {
 
 	async #refreshOnce(workstreamId: string): Promise<void> {
 		const target = this.#targets.get(workstreamId);
-		if (!target) return;
+		if (!target || !checkoutHealthAggregate.readable(workstreamId)) return;
 		const revision = this.#invalidate(workstreamId);
 		const source = this.#source;
 		if (typeof source !== 'function') {

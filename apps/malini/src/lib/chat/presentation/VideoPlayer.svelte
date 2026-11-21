@@ -3,6 +3,9 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Playhead } from '$hyper-ui/components/playhead';
 	import { Icon } from '$hyper-ui/icons';
+	import { chooseVideoPreferencesCommand } from '$lib/chat/application/commands/choose-video-preferences.command';
+	import { videoPreferencesQuery } from '$lib/chat/application/queries/video-preferences.query.svelte';
+	import { nextVideoSpeed } from '$lib/chat/domain/video-preferences';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
 	import type { Playback, VideoHandoff } from './transcript-gallery';
 	import VideoVolume from './VideoVolume.svelte';
@@ -12,8 +15,8 @@
 		label: string;
 		autoplay: boolean;
 		start?: Playback | undefined;
+		audible?: boolean;
 		autohide?: boolean;
-		openLabel?: string;
 		caption?: Snippet | undefined;
 		onopen?: ((handoff: VideoHandoff) => void) | undefined;
 		onclose?: (() => void) | undefined;
@@ -25,8 +28,8 @@
 		label,
 		autoplay,
 		start,
+		audible = false,
 		autohide = false,
-		openLabel,
 		caption,
 		onopen,
 		onclose,
@@ -34,28 +37,33 @@
 	}: Props = $props();
 
 	const FPS = 60;
-	const SPEEDS: readonly number[] = [1, 0.5, 0.25];
 	const REST_MS = 2000;
 
 	let video = $state<HTMLVideoElement>();
 	let paused = $state(true);
 	let time = $state(0);
 	let duration = $state(0);
-	let muted = $state(untrack(() => start?.muted ?? true));
-	let volume = $state(untrack(() => start?.volume ?? 1));
-	let speed = $state(untrack(() => start?.speed ?? 1));
+	let heard = $state(untrack(() => audible));
 	let videoWidth = $state(0);
 	let videoHeight = $state(0);
 	let resting = $state(false);
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
 	let pendingSeek: number | null = null;
 	let loadedSrc: string | undefined;
-	let pending = $state<{ at: number; playing: boolean; speed: number } | null>(
-		untrack(() => (start ? { at: start.at, playing: start.playing, speed: start.speed } : null)),
-	);
+	let pending = $state<Playback | null>(untrack(() => start ?? null));
+	const preferences = $derived(videoPreferencesQuery.data);
+	const muted = $derived(preferences.muted || !heard);
 	const stopped = $derived(pending ? !pending.playing : paused);
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
+
+	$effect(() => {
+		if (!video) return;
+		video.muted = muted;
+		video.volume = preferences.volume;
+		video.defaultPlaybackRate = preferences.speed;
+		video.playbackRate = preferences.speed;
+	});
 
 	$effect(() => {
 		if (!video) return;
@@ -67,7 +75,7 @@
 
 	$effect.pre(() => {
 		if (video && loadedSrc !== undefined && src !== loadedSrc) {
-			pending ??= { at: video.currentTime, playing: !video.paused, speed };
+			pending ??= { at: video.currentTime, playing: !video.paused };
 		}
 		loadedSrc = src;
 	});
@@ -75,30 +83,22 @@
 	function resume(): void {
 		if (!video || !pending) return;
 		time = Math.min(pending.at, video.duration);
-		speed = pending.speed;
 		if (pending.playing) void video.play().catch(() => {});
 		else video.pause();
 		pending = null;
 	}
 
 	function playback(): Playback {
-		return {
-			at: pending?.at ?? time,
-			playing: running(),
-			muted,
-			volume,
-			speed: pending?.speed ?? speed,
-		};
+		return { at: pending?.at ?? time, playing: running() };
 	}
 
 	function adopt(next: Playback): void {
-		muted = next.muted;
-		volume = next.volume;
-		pending = { at: next.at, playing: next.playing, speed: next.speed };
+		pending = next;
 		if (video && video.readyState >= HTMLMediaElement.HAVE_METADATA) resume();
 	}
 
 	function open(): void {
+		heard = true;
 		const handoff = { playback: playback(), resume: adopt };
 		hold();
 		onopen?.(handoff);
@@ -121,6 +121,7 @@
 	}
 
 	export function toggle(): void {
+		heard = true;
 		if (running()) hold();
 		else play();
 	}
@@ -158,8 +159,12 @@
 	}
 
 	function cycleSpeed(): void {
-		speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length] ?? 1;
-		if (pending) pending = { ...pending, speed };
+		chooseVideoPreferencesCommand({ speed: nextVideoSpeed(preferences.speed) });
+	}
+
+	function changeSound(sound: Readonly<{ muted: boolean; volume: number }>): void {
+		heard = true;
+		chooseVideoPreferencesCommand(sound);
 	}
 
 	function clock(seconds: number): string {
@@ -183,9 +188,6 @@
 			bind:paused
 			bind:currentTime={time}
 			bind:duration
-			bind:muted
-			bind:volume
-			bind:playbackRate={speed}
 			bind:videoWidth
 			bind:videoHeight
 			{src}
@@ -202,10 +204,10 @@
 		></video>
 		<Button
 			bare
-			ariaLabel={onopen ? (openLabel ?? label) : stopped ? `Play ${label}` : `Pause ${label}`}
-			tabindex={onopen ? 0 : -1}
-			class={['absolute inset-0 rounded-[inherit]', onopen ? 'cursor-zoom-in' : 'cursor-default']}
-			onclick={onopen ? open : toggle}
+			ariaLabel={stopped ? `Play ${label}` : `Pause ${label}`}
+			tabindex={-1}
+			class="absolute inset-0 cursor-default rounded-[inherit]"
+			onclick={toggle}
 		/>
 		{#if caption}
 			<div
@@ -260,13 +262,13 @@
 			<span class="text-fg-tertiary shrink-0 px-1 font-mono text-xs tabular-nums">
 				{clock(time)} / {clock(length)}
 			</span>
-			<VideoVolume bind:muted bind:volume />
+			<VideoVolume {muted} volume={preferences.volume} onchange={changeSound} />
 			<MediaToolbarButton
 				tooltip="Playback speed"
-				label="Playback speed {speed}×"
+				label="Playback speed {preferences.speed}×"
 				onclick={cycleSpeed}
 			>
-				<span class="w-7 text-center tabular-nums">{speed}×</span>
+				<span class="w-7 text-center tabular-nums">{preferences.speed}×</span>
 			</MediaToolbarButton>
 			{#if onopen}
 				<MediaToolbarButton tooltip="Maximize" label="Maximize" square onclick={open}>

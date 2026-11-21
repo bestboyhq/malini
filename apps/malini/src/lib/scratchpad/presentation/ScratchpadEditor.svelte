@@ -24,8 +24,9 @@
 	interface Props {
 		content: string | null;
 		label: string;
-		onchange: (content: string) => void;
-		onstart: (start: ScratchpadStart) => void;
+		placeholder?: string;
+		onchange: (content: string, blank: boolean) => void;
+		onstart: ((start: ScratchpadStart) => void) | null;
 	}
 
 	type GutterRow = ScratchpadNote & Readonly<{ top: number; height: number; lineHeight: number }>;
@@ -34,7 +35,7 @@
 	const START_LABEL = 'Move into a new workstream';
 	const HOVER_SLACK_PX = 12;
 
-	let { content, label, onchange, onstart }: Props = $props();
+	let { content, label, placeholder, onchange, onstart }: Props = $props();
 
 	const opened = readScratchpadDocument(untrack(() => content));
 
@@ -45,6 +46,7 @@
 	let empty = $state(false);
 	let editor: Editor | null = null;
 	let resizeObserver: ResizeObserver | null = null;
+	let shown = untrack(() => content);
 
 	onMount(() => {
 		if (!host || opened.kind === 'unreadable') return;
@@ -52,14 +54,14 @@
 			element: host,
 			extensions: scratchpadExtensions(),
 			content: opened.json,
-			autofocus: opened.json === null ? 'end' : false,
+			autofocus: opened.json === null && untrack(() => onstart) !== null ? 'end' : false,
 			editorProps: {
 				attributes: {
 					class: 'scratchpad-editor text-fg-default outline-none select-text',
 					role: 'textbox',
 					'aria-multiline': 'true',
 					'aria-label': label,
-					'aria-placeholder': PLACEHOLDER,
+					'aria-placeholder': untrack(() => placeholder) ?? PLACEHOLDER,
 					'data-testid': 'scratchpad-editor',
 				},
 				handleKeyDown: (view, event) => isStartShortcut(event) && startAtCaret(view),
@@ -67,7 +69,8 @@
 			onCreate: ({ editor: created }) => (empty = isBlankScratchpad(created.state.doc)),
 			onUpdate: ({ editor: updated }) => {
 				empty = isBlankScratchpad(updated.state.doc);
-				onchange(JSON.stringify(updated.getJSON()));
+				shown = JSON.stringify(updated.getJSON());
+				onchange(shown, empty);
 			},
 			onTransaction: ({ transaction }) => {
 				if (transaction.docChanged) measure();
@@ -78,6 +81,16 @@
 		measure();
 	});
 
+	$effect(() => {
+		const next = content;
+		if (!editor || editor.isFocused || next === shown || (next === null && empty)) return;
+		const changed = readScratchpadDocument(next);
+		if (changed.kind === 'unreadable') return;
+		shown = next;
+		editor.commands.setContent(changed.json ?? '', { emitUpdate: false });
+		empty = isBlankScratchpad(editor.state.doc);
+	});
+
 	onDestroy(() => {
 		resizeObserver?.disconnect();
 		editor?.destroy();
@@ -85,7 +98,7 @@
 	});
 
 	function start(pos: number): void {
-		if (!editor) return;
+		if (!editor || !onstart) return;
 		const note = noteAt(editor.state.doc.resolve(pos + 1));
 		if (!note || note.prompt.length === 0) return;
 		onstart({ prompt: note.prompt, onStarted: () => cut(note) });
@@ -97,7 +110,7 @@
 
 	function startAtCaret(view: EditorView): boolean {
 		const note = noteAt(caret(view));
-		if (!note) return false;
+		if (!note || !onstart) return false;
 		start(note.pos);
 		return true;
 	}
@@ -175,17 +188,21 @@
 >
 	{#if empty}
 		<p class="scratchpad-hint pointer-events-none absolute inset-x-0 top-0" aria-hidden="true">
-			Jot down an idea. <EnterShortcut
-				mod={osQuery.data.shortcut('')}
-				label={osQuery.data.primaryReturn}
-				size={15}
-			/> turns it into a workstream.
+			{#if placeholder}
+				{placeholder}
+			{:else}
+				Jot down an idea. <EnterShortcut
+					mod={osQuery.data.shortcut('')}
+					label={osQuery.data.primaryReturn}
+					size={14}
+				/> turns it into a workstream.
+			{/if}
 		</p>
 	{/if}
 	<div bind:this={host} class="scratchpad-host"></div>
 	<div class="absolute inset-y-0 -left-9 w-9">
 		{#each rows as row (row.pos)}
-			{#if row.pos === hoveredPos && row.prompt.length > 0}
+			{#if onstart && row.pos === hoveredPos && row.prompt.length > 0}
 				<div
 					class="absolute left-0 flex w-7 items-center justify-center"
 					style:top={`${row.top}px`}
@@ -217,84 +234,144 @@
 {/snippet}
 
 <style>
+	.scratchpad-hint,
+	.scratchpad-host :global(.scratchpad-editor) {
+		font-family: 'Inter Variable', var(--font-sans);
+		font-optical-sizing: auto;
+		font-size: var(--text-sm);
+		line-height: 1.5rem;
+		text-rendering: optimizeLegibility;
+		-webkit-font-smoothing: antialiased;
+	}
+
 	.scratchpad-hint {
 		color: var(--color-fg-placeholder);
-		font-size: var(--text-base);
-		line-height: 1.7;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor) {
-		font-size: var(--text-base);
-		line-height: 1.7;
+		--scratchpad-well: color-mix(in srgb, var(--color-surface-100) 50%, var(--color-surface-50));
+		color: var(--color-fg-default);
 		min-height: 40vh;
 		overflow-wrap: anywhere;
 		padding-bottom: 30vh;
 		white-space: pre-wrap;
 	}
 
-	.scratchpad-host :global(.scratchpad-editor > * + *) {
-		margin-top: 0.5rem;
-	}
-
-	.scratchpad-host :global(.scratchpad-editor h1),
-	.scratchpad-host :global(.scratchpad-editor h2),
-	.scratchpad-host :global(.scratchpad-editor h3) {
-		font-weight: 600;
-		letter-spacing: -0.01em;
-		line-height: 1.3;
-	}
-
-	.scratchpad-host :global(.scratchpad-editor h1) {
-		font-size: 1.6em;
-		margin-top: 1.6rem;
-	}
-
-	.scratchpad-host :global(.scratchpad-editor h2) {
-		font-size: 1.3em;
-		margin-top: 1.4rem;
-	}
-
-	.scratchpad-host :global(.scratchpad-editor h3) {
-		font-size: 1.1em;
-		margin-top: 1.2rem;
-	}
-
 	.scratchpad-host :global(.scratchpad-editor > :first-child) {
 		margin-top: 0;
 	}
 
-	.scratchpad-host :global(.scratchpad-editor ul),
-	.scratchpad-host :global(.scratchpad-editor ol) {
-		padding-left: 1.5em;
+	.scratchpad-host :global(.scratchpad-editor p) {
+		margin: 0 0 1.375rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor :is(h1, h2, h3)) {
+		color: var(--color-fg-agent-message-strong);
+		font-weight: 550;
+		line-height: 1.5rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor h1) {
+		font-size: 1.0625rem;
+		font-weight: 600;
+		letter-spacing: -0.011em;
+		margin: 3rem 0 1.125rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor h2) {
+		font-size: 0.9375rem;
+		letter-spacing: -0.006em;
+		margin: 3rem 0 1.125rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor h3) {
+		font-size: inherit;
+		margin: 2rem 0 0.625rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor :is(ul, ol)) {
+		margin: 0 0 1.375rem;
+		padding-left: 2rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor ul) {
 		list-style: disc;
+		padding-left: 1.3125rem;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor ol) {
 		list-style: decimal;
 	}
 
-	.scratchpad-host :global(.scratchpad-editor li + li),
-	.scratchpad-host :global(.scratchpad-editor li > * + *) {
-		margin-top: 0.25rem;
+	.scratchpad-host :global(.scratchpad-editor li) {
+		margin-bottom: 0.4375rem;
+		padding-left: 2px;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor li > p) {
+		margin: 0;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor li::marker) {
+		color: var(--color-fg-agent-message-strong);
+		font-weight: 600;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor ol > li::marker) {
+		font-size: 0.82em;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor ul > li::marker) {
 		color: var(--color-fg-tertiary);
 	}
 
+	.scratchpad-host :global(.scratchpad-editor li > :is(ul, ol)) {
+		margin-top: 0.4375rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor li > :is(ul, ol, pre, blockquote):last-child) {
+		margin-bottom: 0;
+	}
+
 	.scratchpad-host :global(.scratchpad-editor blockquote) {
-		border-left: 2px solid var(--color-surface-100-border);
 		color: var(--color-fg-secondary);
-		padding-left: 0.875em;
+		font-family: 'STIX Two Text Variable', ui-serif, Georgia, serif;
+		font-size: 1.24em;
+		font-style: italic;
+		line-height: 1.875rem;
+		margin: 0 0 1.625rem;
+		padding: 0.5rem 0 0.5rem 1.125rem;
+		position: relative;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor blockquote::before) {
+		background: var(--color-surface-invert);
+		border-radius: 999px;
+		bottom: 0.3125rem;
+		content: '';
+		left: 0;
+		position: absolute;
+		top: 0.3125rem;
+		width: 3px;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor blockquote p) {
+		margin: 0;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor blockquote p + p) {
+		margin-top: 0.625rem;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor blockquote em) {
+		font-family: inherit;
+		font-size: inherit;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor hr) {
 		border: 0;
-		border-top: 1px solid var(--color-surface-100-border);
-		margin: 1.25rem 0;
+		border-top: 1px solid var(--color-border-default);
+		margin: 2.25rem 0;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor hr.ProseMirror-selectednode) {
@@ -305,29 +382,38 @@
 		font-weight: 600;
 	}
 
-	.scratchpad-host :global(.scratchpad-editor code) {
-		background: var(--color-surface-100);
-		border-radius: var(--radius-sm);
+	.scratchpad-host :global(.scratchpad-editor em) {
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: 0.98em;
+		font-style: italic;
+	}
+
+	.scratchpad-host :global(.scratchpad-editor :not(pre) > code) {
+		background: var(--scratchpad-well);
+		border: 1px solid var(--color-border-default);
+		border-radius: 3px;
 		font-family: var(--font-mono);
-		font-size: 0.875em;
-		padding: 0.1em 0.35em;
+		font-size: 0.86em;
+		line-height: 1;
+		padding: 1px 6px;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor pre) {
-		background: var(--color-surface-50);
-		border-radius: var(--radius-md);
+		background: var(--scratchpad-well);
+		border-radius: 0.5rem;
+		box-shadow: inset 0 0 0 0.5px var(--color-border-default);
 		font-family: var(--font-mono);
-		font-size: var(--text-sm);
-		line-height: var(--leading-code);
+		font-size: 0.75rem;
+		font-variant-ligatures: none;
+		line-height: 1.25rem;
+		margin: 0 0 1.375rem;
 		overflow-x: auto;
-		padding: 0.625rem 0.75rem;
+		padding: 0.875rem 1rem;
 		white-space: pre;
 	}
 
 	.scratchpad-host :global(.scratchpad-editor pre code) {
-		background: none;
-		font-size: inherit;
-		padding: 0;
+		font: inherit;
 	}
 
 	.scratchpad-host :global(.ProseMirror-gapcursor::after) {

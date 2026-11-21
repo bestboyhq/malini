@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, your repositories and workstreams, your automations and events - how often they ask, and where you see every call.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, MCP servers it adds, your repositories and workstreams, your automations and events - how often they ask, and where you see every call.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -122,6 +122,24 @@ The agent never reads or writes those, so it opens the file for you instead.
 - A tab can read and save a file outside the worktree only after an agent opened that file in that workstream, and it keeps that access after you quit and reopen Malini.
 - While streamer mode hides personal data, a secrets file or a file from outside the worktree stays hidden behind a **Show** button that names it.
 
+## MCP servers
+
+The sandbox keeps `~/.claude.json` closed, so `claude mcp add` fails in a chat.
+The agent adds a server with Malini's tool instead.
+
+| Tool              | What it does                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `mcp_servers_add` | Adds an MCP server to Claude Code's user config: a `command` with `args` and `env`, or a `url` with `headers`. |
+
+- Malini connects the server in the chat's running Claude Code first, so the agent uses its tools in the same turn, with no restart.
+- Malini saves it with `claude mcp add-json --scope user` only once it connects or waits for a sign-in; a server that fails is neither saved nor kept, and the agent gets its error.
+- A saved server of the same name is replaced, and put back when Claude Code cannot save the new one.
+- Every other open chat loads it on its next prompt, and so does `claude` in your terminal.
+- A server that needs a sign-in opens its sign-in page in your browser, and the call waits up to 5 minutes for you to finish, so the agent uses its tools in the same turn.
+  Closed the page? **Sign in** in the [MCP panel](/malini/docs/chat.md#mcp-servers) opens it again.
+- The card shows what the server runs or reaches and the names in `env` and `headers`, never their values.
+- An automation that cannot reach the internet cannot add one.
+
 ## Repositories and workstreams
 
 The agent can do in Malini what you do from the sidebar, short of removing anything.
@@ -223,7 +241,7 @@ Merge still waits for checks, fixes what fails and resolves conflicts first, and
 - **Merge**, **Open draft** that opens a pull request, and any automation whose Thens reach either always ask, since [shipping is your call](#shipping-is-your-call).
   **Open draft** that pushes to the open draft of a workstream in the chat's own work runs without asking.
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
-- **Always allow** remembers one action: cloning repositories, hiding them, archiving workstreams, saving automations, or running one automation.
+- **Always allow** remembers one action: cloning repositories, hiding them, archiving workstreams, adding MCP servers, saving automations, or running one automation.
   Always allowing **Release notes** to run never lets the agent run any other automation.
 - **Settings > Agent access > Always allowed** lists everything you always allow, and **Revoke** takes it back.
 - A trigger the agent adds starts **Off**: the automation never runs on its own until you turn it on from the [Automations page](/malini/docs/automations.md).

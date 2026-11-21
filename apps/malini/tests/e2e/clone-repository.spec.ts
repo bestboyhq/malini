@@ -19,7 +19,7 @@ import {
 	type WorkstreamRow,
 } from './harness';
 
-test('cloning searches your GitHub repositories in the command center, reading your login once, and opens the scratchpad of the pick', async () => {
+test('cloning searches your GitHub repositories in the command center, reading your login once, and starts a workstream in the pick', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -68,20 +68,20 @@ test('cloning searches your GitHub repositories in the command center, reading y
 		await captureFlow(app, 'clone-repository-dialog');
 
 		await page.keyboard.press('Enter');
-		await expectScratchpadOf(page, 'hutch');
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 		await expect(dialog).toHaveCount(0);
-		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
+		await expect(page.getByTestId('sidebar-workstream')).toHaveAttribute('aria-current', 'page');
 		await expect
 			.poll(async () => (await listProjects(page)).some((project) => project.id.endsWith('hutch')))
 			.toBe(true);
-		await captureFlow(app, 'clone-repository-scratchpad');
+		await captureFlow(app, 'clone-repository-workstream');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a cloned repository lists your open pull requests beside its scratchpad without opening any, reads them once while it stays open, and Continue here opens one on its own branch', async () => {
+test('a cloned repository lists your open pull requests only behind its Pull requests button, reads them as it opens, and Continue here opens one on its own branch', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'OAuth sign-in' } });
 	try {
@@ -124,18 +124,28 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 			.getByRole('dialog', { name: 'Command center' })
 			.getByRole('option', { name: /e2e\/warren/u })
 			.click();
-		await expectScratchpadOf(page, 'warren');
+		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 30_000 });
+		await page.getByTestId('sidebar-connected-repository').filter({ hasText: 'warren' }).click();
+		await expectRepositoryPageOf(page, 'warren');
 
 		const title = 'feat(auth): add OAuth sign-in with refresh tokens and a remember-me option';
-		const gutter = page.getByRole('complementary', { name: 'Your open pull requests' });
-		const continueHere = gutter.getByRole('button', { name: `Continue ${title} here` });
-		await expect(continueHere).toBeVisible({ timeout: 30_000 });
+		const button = page
+			.getByTestId('repository-bar')
+			.getByRole('button', { name: 'Pull requests', exact: true });
+		const list = page.getByRole('dialog', { name: 'Your open pull requests' });
+		const continueHere = list.getByRole('button', { name: `Continue ${title} here` });
+		await expect(button).toHaveAttribute('aria-expanded', 'false', { timeout: 30_000 });
 		await page.waitForTimeout(2_000);
-		expect(
-			ghCalls(app.home).filter((call) => call.startsWith('pr list --author @me')),
-		).toHaveLength(1);
-		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(0);
-		expect(await repositoryWorkstreams(page)).toEqual([]);
+		await expect(list).toHaveCount(0);
+		expect(ownPullRequestReads(app.home)).toBe(0);
+
+		await button.click();
+		await expect(continueHere).toBeVisible({ timeout: 30_000 });
+		await expect(button).toHaveAttribute('aria-expanded', 'true');
+		await page.waitForTimeout(2_000);
+		expect(ownPullRequestReads(app.home)).toBe(1);
+		await expect(page.getByTestId('sidebar-workstream')).toHaveCount(1);
+		expect(await repositoryWorkstreams(page)).toHaveLength(1);
 		await continueHere.hover();
 		await captureFlow(app, 'repository-own-pull-requests');
 
@@ -145,13 +155,18 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 			page.getByTestId('sidebar-workstream').filter({ hasText: 'OAuth sign-in' }),
 		).toHaveAttribute('aria-current', 'page');
 		const workstreams = await repositoryWorkstreams(page);
-		expect(workstreams.map(({ name, branch }) => ({ name, branch }))).toEqual([
-			{ name: 'OAuth sign-in', branch: 'feat/oauth' },
-		]);
+		expect(workstreams.map(({ name, branch }) => ({ name, branch }))).toContainEqual({
+			name: 'OAuth sign-in',
+			branch: 'feat/oauth',
+		});
 		await page.getByTestId('sidebar-connected-repository').filter({ hasText: 'warren' }).click();
-		await expect(gutter.getByRole('button', { name: `Open ${title}` })).toBeVisible({
+		await button.click({ timeout: 30_000 });
+		await expect(list.getByRole('button', { name: `Open ${title}` })).toBeVisible({
 			timeout: 30_000,
 		});
+		await page.keyboard.press('Escape');
+		await expect(list).toHaveCount(0);
+		await expect(button).toBeFocused();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -159,6 +174,10 @@ test('a cloned repository lists your open pull requests beside its scratchpad wi
 });
 
 const LOGIN = 'api user --jq .login';
+
+function ownPullRequestReads(home: string): number {
+	return ghCalls(home).filter((call) => call.startsWith('pr list --author @me')).length;
+}
 
 function signInReadDone(calls: readonly string[]): boolean {
 	const asked = calls.lastIndexOf('auth status');
@@ -169,10 +188,11 @@ function repositoryWorkstreams(page: Page): Promise<WorkstreamRow[]> {
 	return invoke<WorkstreamRow[]>(page, 'repositories.list-workstreams', undefined);
 }
 
-async function expectScratchpadOf(page: Page, repository: string): Promise<void> {
-	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });
+async function expectRepositoryPageOf(page: Page, repository: string): Promise<void> {
 	await expect(
-		page.getByRole('textbox', { name: new RegExp(`^Scratchpad for .*${repository}$`, 'u') }),
-	).toBeVisible();
+		page
+			.getByTestId('repository-bar')
+			.getByRole('heading', { level: 1, name: new RegExp(`${repository}$`, 'u') }),
+	).toBeVisible({ timeout: 30_000 });
 	await expect(page).toHaveURL(/#\/repositories\//u);
 }

@@ -124,5 +124,5 @@ async function cloneHutch(page: Page): Promise<void> {
 	const dialog = page.getByRole('dialog', { name: 'Command center' });
 	await dialog.getByRole('option', { name: /e2e\/hutch/u }).click();
 	await expect(dialog).toHaveCount(0, { timeout: 30_000 });
-	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });
+	await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 }

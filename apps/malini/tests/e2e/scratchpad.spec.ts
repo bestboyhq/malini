@@ -1,39 +1,18 @@
-import { rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
-	type LaunchedApp,
+	holdCheckouts,
 	launchMalini,
 	listProjects,
-	REAL_GIT,
+	openWorkstream,
 	seedWorkstream,
-	writeExecutable,
-	waitWhile,
 } from './harness';
 
-function holdCheckouts(app: LaunchedApp): string {
-	const held = join(app.root, 'checkouts-held');
-	const stub = join(app.bin, 'git');
-	writeExecutable(
-		stub,
-		[
-			'#!/bin/sh',
-			'case "$*" in *"worktree add "*)',
-			`\t${waitWhile(`[ -e '${held}' ]`, 0.05)} ;;`,
-			'esac',
-			`exec '${REAL_GIT}' "$@"`,
-			'',
-		].join('\n'),
-	);
-	writeFileSync(held, '');
-	return held;
-}
-
-test('a repository opens on its scratchpad, which keeps every idea and moves one into a new workstream', async () => {
+test('a repository page keeps its scratchpad beside its plan, resizes it with a handle, keeps every idea and moves one into a new workstream', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -48,7 +27,15 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 		await expect(repository).toHaveAttribute('aria-current', 'page');
 		const pad = page.getByRole('textbox', { name: 'Scratchpad for alpha' });
 		await expect(pad).toBeFocused({ timeout: 20_000 });
+		await expect(page.getByRole('region', { name: 'Initiatives' })).toBeVisible();
 		await expect(repository).toHaveAccessibleDescription('');
+		const handle = page.getByRole('separator', { name: 'Resize scratchpad' });
+		const planWidth = Number(await handle.getAttribute('aria-valuenow'));
+		await handle.press('Shift+ArrowLeft');
+		await expect(handle).toHaveAttribute('aria-valuenow', String(planWidth - 16));
+		await handle.dblclick();
+		await expect(handle).toHaveAttribute('aria-valuenow', String(planWidth));
+		await pad.click();
 
 		await page.keyboard.type('# Ideas');
 		await expect(repository).toHaveAccessibleDescription('1 idea in the scratchpad');
@@ -99,7 +86,61 @@ test('a repository opens on its scratchpad, which keeps every idea and moves one
 	}
 });
 
-test('removing the repository whose scratchpad is open goes back to the repository list', async () => {
+test('Notes in the inspector keeps the repository scratchpad in every workstream and moves an idea into a new one', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const alpha = await createSourceRepo(app.root, 'alpha');
+		await seedWorkstream(page, alpha, 'e2e-notes-one', 'First work');
+		await seedWorkstream(page, alpha, 'e2e-notes-two', 'Second work');
+		await openWorkstream(page, 'e2e-notes-one');
+
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		const notesRow = page
+			.getByTestId('extension-inspector-gutter')
+			.getByRole('button', { name: /^Notes/u });
+		await notesRow.click({ timeout: 20_000 });
+		await expect(inspector.getByRole('tab', { name: 'Notes', selected: true })).toBeVisible();
+		await expect(inspector.getByRole('tab')).toHaveCount(1);
+		const pad = inspector.getByRole('textbox', { name: 'Scratchpad for alpha' });
+		await pad.click();
+		await page.keyboard.type('Say hello to the fake bridge');
+		await captureFlow(app, 'scratchpad-notes-tab');
+
+		await openWorkstream(page, 'e2e-notes-two');
+		await notesRow.click({ timeout: 20_000 });
+		await expect(pad).toHaveText('Say hello to the fake bridge');
+		await pad.click();
+		const firstIdea = await pad.getByText('Say hello to the fake bridge').boundingBox();
+		if (!firstIdea) throw new Error('the first idea has no box');
+		await page.mouse.click(firstIdea.x + firstIdea.width - 2, firstIdea.y + firstIdea.height / 2);
+		await page.keyboard.press('Enter');
+		await page.keyboard.type('Then say goodbye');
+
+		await openWorkstream(page, 'e2e-notes-one');
+		await expect(pad).toContainText('Then say goodbye', { timeout: 20_000 });
+		const workstreams = page
+			.getByRole('navigation', { name: 'Connected repositories' })
+			.getByTestId('sidebar-workstream');
+		await pad.getByText('Say hello to the fake bridge').click();
+		await page.keyboard.press('Meta+Enter');
+		await expect(pad).toHaveText('Then say goodbye');
+		await expect(workstreams).toHaveCount(3);
+		await expect(page).toHaveURL(/#\/workstreams\/e2e-notes-one/u);
+
+		await page.getByRole('link', { name: 'Open alpha' }).click();
+		await expect(page.getByRole('textbox', { name: 'Scratchpad for alpha' })).toHaveText(
+			'Then say goodbye',
+			{ timeout: 20_000 },
+		);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('removing the repository whose page is open goes back to the repository list', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {

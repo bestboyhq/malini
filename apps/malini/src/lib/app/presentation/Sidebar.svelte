@@ -13,7 +13,12 @@
 		sidebarOrderQuery,
 		type SidebarMove,
 	} from '$shared/repositories/repositories.api';
-	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
+	import {
+		reorderIndex,
+		reorderShift,
+		settledOffset,
+		type ReorderSlot,
+	} from '$shared/shell/reorder';
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
 	import { sidebarDensityQuery } from '$lib/app/application/queries/sidebar-density.query.svelte';
 	import { sidebarFocusQuery } from '$lib/app/application/queries/sidebar-focus.query.svelte';
@@ -562,7 +567,7 @@
 	type SidebarReorder = Readonly<{
 		item: SidebarItem;
 		siblingIds: readonly string[];
-		slots: readonly SidebarSlot[];
+		slots: readonly ReorderSlot[];
 		from: number;
 		to: number;
 		offset: number;
@@ -604,7 +609,7 @@
 			siblingIds: siblings.map((sibling) => sibling.dataset['sidebarItem'] ?? ''),
 			slots: siblings.map((sibling) => {
 				const { top, bottom } = sibling.getBoundingClientRect();
-				return { top, bottom };
+				return { start: top, end: bottom };
 			}),
 			from,
 			to: from,

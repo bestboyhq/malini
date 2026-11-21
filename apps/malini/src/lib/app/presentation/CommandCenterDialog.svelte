@@ -32,7 +32,6 @@
 		repositoryConnectingKeyQuery,
 		repositoryConnectingQuery,
 		repositoryConnectionFor,
-		repositoryPreparationQuery,
 		type GithubRepository,
 		type GithubRepositoryState,
 		type RepositoryConnectOptions,
@@ -41,7 +40,6 @@
 	import { closeCommandCenterCommand } from '$lib/app/application/commands/close-command-center.command';
 	import { openCommandCenterCommand } from '$lib/app/application/commands/open-command-center.command';
 	import { runMenuChoiceCommand } from '$lib/app/application/commands/run-menu-choice.command';
-	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import {
 		COMMAND_CENTER_COMMANDS,
 		START_CHAT_CHIP,
@@ -85,7 +83,7 @@
 				['↑↓', 'Move'],
 			],
 			find: [
-				['↵', 'Open'],
+				['↵', 'Start'],
 				[back, 'All commands'],
 			],
 			'new-repository': [
@@ -110,16 +108,11 @@
 	const auth = $derived(githubAuthQuery.data);
 	const organizations = $derived(githubOrganizationsQuery.data);
 	const connected = $derived(connectedRepositoriesQuery.data);
-	const preparationOf = $derived(repositoryPreparationQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectingKey = $derived(repositoryConnectingKeyQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
 	const workstreamId = $derived(page.params.workstreamId ?? '');
-	const startsWorkstream = $derived(mode === 'start' || onboardingQuery.data.picking);
-	const connectOptions: RepositoryConnectOptions = $derived({
-		open: startsWorkstream ? 'workstream' : 'repository',
-		onConnected: closeCommandCenterCommand,
-	});
+	const connectOptions: RepositoryConnectOptions = { onConnected: closeCommandCenterCommand };
 	const repositories = $derived.by(() => {
 		const github = listing.kind === 'loaded' ? listing.repositories : null;
 		return mode === 'start'
@@ -182,7 +175,7 @@
 	}
 
 	function stateOf(repository: GithubRepository): GithubRepositoryState {
-		return githubRepositoryState(repository, connectingKey, connected, preparationOf);
+		return githubRepositoryState(repository, connectingKey, connected);
 	}
 
 	function optionId(index: number): string {
@@ -197,9 +190,7 @@
 	}
 
 	function entryDisabled(entry: CommandCenterEntry): boolean {
-		if (entry.kind !== 'repository') return false;
-		const state = stateOf(entry.repository);
-		return state.kind === 'cloning' && (state.repository === null || startsWorkstream);
+		return entry.kind === 'repository' && stateOf(entry.repository).kind === 'cloning';
 	}
 
 	function cloningUrl(url: string): boolean {

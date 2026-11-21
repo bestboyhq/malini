@@ -2,7 +2,13 @@ import { existsSync } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
-import { describeError, errorCode } from '$main/errors';
+import {
+	describeError,
+	errorCode,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import {
 	legacyProjectBaseDir,
 	repositoryBaseDir,
@@ -16,26 +22,34 @@ export const UNKNOWN_WORKSTREAM_REPOSITORY = 'Unknown workstream repository';
 export const UNRESOLVABLE_WORKSTREAM_CHECKOUT = 'Could not resolve workstream checkout';
 export const WORKSTREAM_CHECKOUT_NOT_A_DIRECTORY = 'Workstream checkout is not a directory';
 
-export type WorkstreamErrorKind =
-	| 'unknown'
-	| 'unresolvable'
-	| 'not-archived'
-	| 'chat-gone'
-	| 'repository-gone'
-	| 'rollback-failed'
-	| 'image-path'
-	| 'image-unreadable'
-	| 'open-failed';
+const WORKSTREAM_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	unknown: 'bug',
+	unresolvable: 'bug',
+	'not-archived': 'bug',
+	'chat-gone': 'expected',
+	'repository-gone': 'expected',
+	'rollback-failed': 'bug',
+	'image-path': 'expected',
+	'image-unreadable': 'bug',
+	'open-failed': 'bug',
+	'empty-repository': 'expected',
+	'no-default-branch': 'expected',
+	'checkout-broken': 'expected',
+	'no-checkout': 'expected',
+	'branch-exists': 'expected',
+	'nothing-to-commit': 'expected',
+	'record-failed': 'bug',
+} as const satisfies ErrorVerdicts;
 
-export class WorkstreamError extends Error {
-	override readonly name = 'WorkstreamError';
-	readonly kind: WorkstreamErrorKind;
-	readonly code: string | null;
+export type WorkstreamErrorKind = keyof typeof WORKSTREAM_ERROR_VERDICTS;
 
+export class WorkstreamError extends MaliniError<WorkstreamErrorKind> {
 	constructor(kind: WorkstreamErrorKind, message: string, cause?: unknown) {
-		super(message, cause === undefined ? undefined : { cause });
-		this.kind = kind;
-		this.code = errorCode(cause) ?? null;
+		super('WorkstreamError', WORKSTREAM_ERROR_VERDICTS, kind, message, {
+			code: errorCode(cause),
+			cause,
+		});
 	}
 }
 
@@ -110,7 +124,10 @@ export function createCheckoutResolver(deps: CheckoutResolverDeps): CheckoutReso
 			}
 			const project = getProject(db, workstream.projectId);
 			if (project === null) {
-				throw new Error(`${UNKNOWN_WORKSTREAM_REPOSITORY}: ${workstream.projectId}`);
+				throw new WorkstreamError(
+					'unknown',
+					`${UNKNOWN_WORKSTREAM_REPOSITORY}: ${workstream.projectId}`,
+				);
 			}
 			return canonicalDirectory(project.repoPath);
 		},

@@ -40,7 +40,33 @@ Shortcuts in these docs are the Mac's; on Windows and Linux, **Ctrl** takes the 
 
 ## Where your code goes
 
-Malini is the missing abstraction layer for building with agents, on macOS, Windows and Linux.
+Your code leaves your computer only through your own Claude Code, to Anthropic or the provider you pick, and the GitHub CLI, to GitHub.
+Malini makes thirteen calls of its own: update checks to GitHub Releases, usage data to Logdash, stored in the EU, [the GitHub CLI from GitHub and Claude Code from Anthropic](/malini/docs/install.md) when this computer lacks a working one, and Git for Windows from GitHub when a Windows PC has no git, each checked against its published checksum, the model lists of DeepSeek and OpenCode from models.dev, one-token messages to opencode.ai when you save an OpenCode key, to learn whether it runs Go or Console, the usage of an OpenCode Go key from opencode.ai while you use it or point at the composer's gauge, the chats you run on a DeepSeek or OpenCode key, which Malini passes to that provider with your key, [the extension marketplace](/malini/docs/extensions.md#what-reaches-bestboydev) at bestboy.dev while Extensions or Profile is open in Settings or something is installed, only after you turn on **Publish my stats**, [the numbers on your profile](/malini/docs/profile.md) at bestboy.dev, [the projects you turn on](/malini/docs/profile.md#projects-on-bestboy) in Settings, Profile, to bestboy.dev, and, only after you sign in with ChatGPT, [OpenAI](/malini/docs/chat.md#chatgpt-plan), which runs the GPT models your plan covers.
+Usage data counts the days Malini runs, the agent runs it finishes and the profiles you publish, and names the errors it hits: which command failed on which version and commit, the kind of failure, such as `network`, the files and lines in Malini's own code it passed through, how many times it repeated, and a fingerprint that stays the same for the same failure from one version to the next.
+Each error also says what was going on, and a real one reads:
+
+```
+GPU process gone: crashed, SIGABRT {
+  "fingerprint": "3f9a0c1d2e4b",
+  "app": {
+    "version": "0.125.0 release a1b2c3d",
+    "running_for": "42m",
+    "memory_used": "1.3 GB",
+    "rendering": "gpu",
+    "route": "workstreams",
+    "agent_runs": 2
+  },
+  "device": { "chip": "Apple M3 Pro", "memory": "18 GB", "arch": "arm64" },
+  "os": "macOS 27.0.1 arm64",
+  "last_commands": ["chat.send-prompt", "browser.show"]
+}
+```
+
+`last_commands` names the last commands Malini ran, never what they were given, and no error carries your account or an install ID.
+A failed git or GitHub CLI command adds how it went under `error`, such as `{ "subcommand": "read-tree", "exit": 128, "said": "index-corrupt" }`: the subcommand, the exit code or signal, and what git or the GitHub CLI said, as one name from a fixed list.
+When git says something Malini does not know, the error also carries a template of git's last message, with every quoted part and every word outside a fixed list of git's own words replaced by `_`, such as `unable to write _ index file in _`, so it never holds a path, a name or a number.
+A workstream checkout that git can no longer read sends one error that names what Malini found, such as `index-corrupt`.
+Each error also counts once as an error event with its fingerprint, its kind and the Malini version, with no account and no ID, and the daily count carries the version too, so we see when a release makes more errors.
 For a new install, it marks each first step once: the first open, the first way in you pick, the first repository, with whether it came from GitHub, a folder or a new repository, the first workstream, prompt sent, prompt run, merge and published profile, and the first return in the following week and month.
 Each mark says the day you first opened Malini and how many days have passed.
 When Malini installs Claude Code or the GitHub CLI, or you sign in to either, it counts the start and the finish, cancel or failure, with the tool, which try it was, the seconds it took, and whether it came before your first prompt.
@@ -55,7 +81,7 @@ That ID is not linked to you, your computer or your account, and turning the swi
 Once you answer where you heard about Malini, after your first merge, each count carries the option you picked, never the words you typed for somewhere else.
 Once a day it also sends a few counts about the day before: workstreams started, prompts, merges, workstreams archived without a merge, the prompts and minutes a typical merge took, and roughly how long you have used Malini.
 Settings, Privacy, **Yesterday's numbers** shows those counts exactly as Malini sends them.
-It never contains your code, what your prompts say, paths on your Mac, keys, or error messages, and Logdash stores no IP address.
+It never contains your code, what your prompts say, paths on your computer, keys, or error messages beyond that template, and Logdash stores no IP address.
 **What are we working on?** says so.
 Turn it off under Settings, Privacy, **Share usage stats**, or set `DO_NOT_TRACK=1` in your shell.
 Turning the switch off sends one last count that says so, with no account, no ID and nothing else, so we know how many people the numbers leave out; after that, nothing.

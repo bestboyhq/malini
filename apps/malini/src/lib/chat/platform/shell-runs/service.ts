@@ -13,7 +13,12 @@ import type {
 } from '$contract/shell-runs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import {
+	describeError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import { environmentVariable, findExecutable } from '$main/process/command';
 import { gitBash, preferredShell } from '$main/process/environment';
 import { killProcessGroup } from '$main/process/process-group';
@@ -43,6 +48,21 @@ const POWERSHELL_EXIT_ON_FAILURE = '\r\nif (-not $?) { exit 1 }\r\n';
 const POWERSHELL_QUOTES = /['\u2018-\u201b]/gu;
 const GIT_BASH_MISSING =
 	'Run needs Git Bash. Malini installs Git for Windows, and the line above the composer says where that stands.';
+
+const SHELL_RUN_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'still-running': 'expected',
+	'unknown-run': 'bug',
+	'no-git-bash': 'expected',
+} as const satisfies ErrorVerdicts;
+
+type ShellRunErrorKind = keyof typeof SHELL_RUN_ERROR_VERDICTS;
+
+export class ShellRunError extends MaliniError<ShellRunErrorKind> {
+	constructor(kind: ShellRunErrorKind, message: string) {
+		super('ShellRunError', SHELL_RUN_ERROR_VERDICTS, kind, message);
+	}
+}
 
 export type ReportedShellRun = Readonly<
 	Pick<ShellRun, 'command' | 'state' | 'exitCode' | 'output'>
@@ -96,7 +116,10 @@ export class ShellRuns {
 	async start(args: RunShellCommandArgs): Promise<ShellRun> {
 		const { workstreamId, command } = args;
 		if (command.trim().length === 0 || command.length > MAX_COMMAND_LENGTH) {
-			throw new Error(`invalid args: \`command\` must hold 1 to ${MAX_COMMAND_LENGTH} characters`);
+			throw new ShellRunError(
+				'invalid-argument',
+				`invalid args: \`command\` must hold 1 to ${MAX_COMMAND_LENGTH} characters`,
+			);
 		}
 		const cwd = await this.#deps.checkout(workstreamId);
 		const previous = this.#anchoredAt(args.anchor);
@@ -147,7 +170,10 @@ export class ShellRuns {
 
 	write(runId: string, text: string): void {
 		if (text.length > MAX_INPUT_LENGTH) {
-			throw new Error(`invalid args: \`text\` must hold at most ${MAX_INPUT_LENGTH} characters`);
+			throw new ShellRunError(
+				'invalid-argument',
+				`invalid args: \`text\` must hold at most ${MAX_INPUT_LENGTH} characters`,
+			);
 		}
 		this.#entry(runId).pty?.write(text);
 	}
@@ -165,7 +191,8 @@ export class ShellRuns {
 	}
 
 	dismiss(runId: string): void {
-		if (this.#entry(runId).pty !== null) throw new Error('Stop the command before you dismiss it');
+		if (this.#entry(runId).pty !== null)
+			throw new ShellRunError('still-running', 'Stop the command before you dismiss it');
 		this.#entries.delete(runId);
 		this.#write('forget the command', (db) => deleteShellRun(db, runId));
 	}
@@ -239,7 +266,7 @@ export class ShellRuns {
 
 	#entry(runId: string): Entry {
 		const entry = this.#entries.get(runId);
-		if (!entry) throw new Error(`Unknown command run: ${runId}`);
+		if (!entry) throw new ShellRunError('unknown-run', `Unknown command run: ${runId}`);
 		return entry;
 	}
 
@@ -394,7 +421,7 @@ function windowsShell(fence: string, env: Readonly<Record<string, string>>): Win
 		};
 	}
 	const bash = gitBash(env);
-	if (bash === null) throw new Error(GIT_BASH_MISSING);
+	if (bash === null) throw new ShellRunError('no-git-bash', GIT_BASH_MISSING);
 	return {
 		file: bash,
 		extension: '.sh',

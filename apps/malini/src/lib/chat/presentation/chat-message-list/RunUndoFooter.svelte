@@ -30,7 +30,6 @@
 	const failed = $derived(runUndo.state === 'failed' && runUndo.errorKey === run.runId);
 
 	const blocked = $derived(transcript.workstreamRunInFlight);
-	const forkBlocked = $derived(transcript.chatRunInFlight);
 	const warning = $derived(target ? runUndoWarning(target.changeCount) : '');
 	const showFork = $derived(forkAtSeq !== null && !run.obsoleted && !run.superseded);
 
@@ -50,7 +49,7 @@
 	}
 
 	function forkToNewChat(): void {
-		if (forkBlocked || forking || forkAtSeq === null) return;
+		if (forking || forkAtSeq === null) return;
 		const requestId = newChatRequestId();
 		forkRequestId = requestId;
 		forkToNewChatCommand({ requestId, atSeq: forkAtSeq });
@@ -127,19 +126,17 @@
 				{forkFailed}
 			</span>
 		{/if}
-		<Tooltip content="Finish the open run before forking" placement="top" suppressed={!forkBlocked}>
-			<Button
-				bare
-				class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-				data-testid="chat-run-fork"
-				ariaLabel="Slice and fork"
-				ariaBusy={forking}
-				disabled={forking || forkBlocked}
-				onclick={forkToNewChat}
-			>
-				<Icon name="branch" size={14} />
-				Slice and fork
-			</Button>
-		</Tooltip>
+		<Button
+			bare
+			class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+			data-testid="chat-run-fork"
+			ariaLabel="Slice and fork"
+			ariaBusy={forking}
+			disabled={forking}
+			onclick={forkToNewChat}
+		>
+			<Icon name="branch" size={14} />
+			Slice and fork
+		</Button>
 	{/if}
 </div>
