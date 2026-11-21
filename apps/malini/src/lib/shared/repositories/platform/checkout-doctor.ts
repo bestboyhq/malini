@@ -304,7 +304,7 @@ function lastGitLine(output: string | undefined): string | null {
 	const line = output
 		?.split('\n')
 		.map((text) => text.trim())
-		.filter((text) => /^(?:fatal|error):/u.test(text))
+		.filter((text) => /^(?:fatal|error):(?! git upload-pack:)/u.test(text))
 		.at(-1);
 	return line === undefined ? null : line.slice(0, 200);
 }
