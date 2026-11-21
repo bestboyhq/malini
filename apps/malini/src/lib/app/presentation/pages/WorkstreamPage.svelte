@@ -9,6 +9,7 @@
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
+	import { startWorkstreamFromNoteCommand } from '$lib/app/application/commands/start-workstream-from-note.command';
 	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
 	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
@@ -23,6 +24,7 @@
 	import { inspectorPanelsQuery } from '$lib/extensions/application/queries/inspector-panels.query.svelte';
 	import { WorkstreamInspector } from '$lib/extensions/extensions.api';
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
+	import { scratchpadPanel } from '$lib/scratchpad/scratchpad.api';
 	import {
 		archiveWorkstreamCommand,
 		changeTotalsQuery,
@@ -54,7 +56,14 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
-	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery));
+	const notesPanel = scratchpadPanel((id, start) => {
+		const repository = repositoryContextQuery.data(id)?.repo;
+		if (repository) startWorkstreamFromNoteCommand(repository, start);
+	});
+	const builtInPanels = $derived([
+		notesPanel,
+		...browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery),
+	]);
 	let mediaOpen = $state(false);
 	const panelActions = $derived([
 		{

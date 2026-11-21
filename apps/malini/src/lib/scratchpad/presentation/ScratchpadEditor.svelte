@@ -45,6 +45,7 @@
 	let empty = $state(false);
 	let editor: Editor | null = null;
 	let resizeObserver: ResizeObserver | null = null;
+	let shown = untrack(() => content);
 
 	onMount(() => {
 		if (!host || opened.kind === 'unreadable') return;
@@ -67,7 +68,8 @@
 			onCreate: ({ editor: created }) => (empty = isBlankScratchpad(created.state.doc)),
 			onUpdate: ({ editor: updated }) => {
 				empty = isBlankScratchpad(updated.state.doc);
-				onchange(JSON.stringify(updated.getJSON()), empty);
+				shown = JSON.stringify(updated.getJSON());
+				onchange(shown, empty);
 			},
 			onTransaction: ({ transaction }) => {
 				if (transaction.docChanged) measure();
@@ -76,6 +78,16 @@
 		resizeObserver = new ResizeObserver(measure);
 		resizeObserver.observe(editor.view.dom);
 		measure();
+	});
+
+	$effect(() => {
+		const next = content;
+		if (!editor || next === shown || (next === null && empty)) return;
+		const changed = readScratchpadDocument(next);
+		if (changed.kind === 'unreadable') return;
+		shown = next;
+		editor.commands.setContent(changed.json ?? '', { emitUpdate: false });
+		empty = isBlankScratchpad(editor.state.doc);
 	});
 
 	onDestroy(() => {

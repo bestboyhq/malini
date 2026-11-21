@@ -20,6 +20,7 @@
 		'git-diff': 'diff',
 		changes: 'diff',
 		media: 'image',
+		notes: 'note',
 		checks: 'checklist',
 		verification: 'checklist',
 		'workstream-setup': 'cube',
