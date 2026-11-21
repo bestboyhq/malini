@@ -1238,7 +1238,7 @@ describe('ClaudeSession', () => {
 		});
 	});
 
-	describe('mcp_servers_add', () => {
+	describe.skipIf(WINDOWS)('mcp_servers_add', () => {
 		const GRIP = '/Applications/Grip.app/Contents/Resources/grip-mcp';
 
 		async function addingChat(

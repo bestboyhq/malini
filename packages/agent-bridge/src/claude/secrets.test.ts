@@ -213,7 +213,7 @@ describe('SessionSecrets environment', () => {
 	});
 });
 
-describe('SessionSecrets leftovers', () => {
+describe.skipIf(WINDOWS)('SessionSecrets leftovers', () => {
 	function runLeading(secrets: SessionSecrets, command: string): Promise<Ran & { pid: number }> {
 		return new Promise((resolve) => {
 			const child = spawn(secrets.runScript, [command], {
