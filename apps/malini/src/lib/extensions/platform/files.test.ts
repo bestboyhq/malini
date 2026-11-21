@@ -21,6 +21,7 @@ import {
 	validateOwner,
 	writeFile,
 } from './files';
+import { GitError } from '$main/errors';
 import { realGit } from '$main/git/fixtures.test-support';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 
@@ -260,6 +261,12 @@ describe('workstream files', () => {
 		await expect(listFiles(join(root, 'file'))).rejects.toThrow(
 			'Extension workstream root is not a directory',
 		);
+	});
+
+	it('keeps the git error when git cannot list the workstream', async () => {
+		const root = await tempdir('broken');
+		await writeBytes(join(root, '.git'), `gitdir: ${join(root, 'missing')}\n`);
+		await expect(listFiles(root)).rejects.toBeInstanceOf(GitError);
 	});
 });
 

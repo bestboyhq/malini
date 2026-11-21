@@ -27,6 +27,7 @@ import {
 	leasedEnvironment,
 	listLeasedPorts,
 	listWorkstreams,
+	type PathAliases,
 } from '$shared/repositories/repositories.platform';
 import {
 	leftoverContainers,
@@ -36,7 +37,13 @@ import {
 	stopProcesses,
 	type LeftoverPlace,
 } from './leftovers';
-import { dockerRunning, parseDockerInspect, type DockerContainer } from './running-docker';
+import {
+	dockerRunning,
+	parseDockerInspect,
+	withAliases,
+	type DockerContainer,
+	type WorkstreamFolder,
+} from './running-docker';
 import {
 	commandDetail,
 	commandDirectory,
@@ -49,6 +56,7 @@ import {
 	type ServiceName,
 } from './running-names';
 import { readPortsByFile, type PortTool } from './running-ports';
+import { StatsError } from './stats-error';
 
 const POLL_MS = 5_000;
 const DOCKER_SCAN_MS = 15_000;
@@ -72,6 +80,7 @@ export interface WorkstreamRunningDeps {
 	readonly db: MaliniDatabase;
 	readonly events: EventBus;
 	readonly runner: ProcessRunner;
+	readonly folderAliases: Promise<PathAliases>;
 	nameService(task: string): Promise<string>;
 	stopBackgroundTask(sessionId: string, taskId: string): Promise<void>;
 }
@@ -181,12 +190,15 @@ export class WorkstreamRunningMonitor {
 	}
 
 	async stopLeftovers(place: LeftoverPlace): Promise<void> {
-		const [listed, containers] = await Promise.all([
+		const [listed, containers, folders, live] = await Promise.all([
 			this.#readTool('ps', PROCESS_LIST_ARGS),
 			this.#scanContainers(),
+			this.#withAliases(place.folders),
+			this.#withAliases(place.live),
 		]);
-		const pids = leftoverProcesses(parseProcessList(listed), place, process.pid);
-		const containerIds = leftoverContainers(containers, place);
+		const aliased = { folders, live };
+		const pids = leftoverProcesses(parseProcessList(listed), aliased, process.pid);
+		const containerIds = leftoverContainers(containers, aliased);
 		const [processes, ...stopped] = await Promise.all([
 			stopProcesses(pids, (pid) => this.#deps.runner.processIsAlive(pid)),
 			...containerIds.map((containerId) => this.#stopLeftoverContainer(containerId)),
@@ -219,7 +231,8 @@ export class WorkstreamRunningMonitor {
 			deadline: Date.now() + DOCKER_STOP_TIMEOUT_MS,
 			env: buildSpawnEnvironment(),
 		});
-		if (!boundedRunSucceeded(run)) throw new Error(boundedRunFailureReason(run, 'docker stop'));
+		if (!boundedRunSucceeded(run))
+			throw new StatsError('stop-failed', boundedRunFailureReason(run, 'docker stop'));
 	}
 
 	#heard(envelope: LiveEventEnvelope): void {
@@ -288,7 +301,7 @@ export class WorkstreamRunningMonitor {
 			agentItems.set(command.workstreamId, [...(agentItems.get(command.workstreamId) ?? []), item]);
 			targets.set(id, { origin: 'agent', sessionId: command.sessionId, taskId: command.taskId });
 		}
-		const docker = dockerRunning(containers, folders);
+		const docker = dockerRunning(containers, await this.#withAliases(folders));
 		for (const { items } of docker.values()) {
 			for (const { id } of items) {
 				targets.set(id, { origin: 'docker', containerId: id.slice('docker:'.length) });
@@ -390,6 +403,10 @@ export class WorkstreamRunningMonitor {
 		} catch {
 			return '';
 		}
+	}
+
+	async #withAliases(folders: readonly WorkstreamFolder[]): Promise<WorkstreamFolder[]> {
+		return withAliases(folders, await this.#deps.folderAliases);
 	}
 
 	async #scanContainers(): Promise<readonly DockerContainer[]> {

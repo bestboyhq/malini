@@ -42,6 +42,7 @@ import type {
 	ToolChoiceOptions,
 } from 'openai/resources/responses/responses';
 import { z } from 'zod';
+import { MaliniError, type ErrorVerdicts } from '$main/errors';
 
 const MAX_TOOL_NAME_LENGTH = 64;
 const REASONING_SIGNATURE_PREFIX = 'malini-chatgpt-reasoning:';
@@ -782,15 +783,20 @@ export type UpstreamErrorKind =
 	| 'rate-limit'
 	| 'server';
 
-export class UpstreamError extends Error {
-	readonly kind: UpstreamErrorKind;
-	readonly code: string | null;
+const UPSTREAM_ERROR_VERDICTS: ErrorVerdicts<UpstreamErrorKind> = {
+	authentication: 'expected',
+	'invalid-request': 'bug',
+	'model-not-found': 'expected',
+	overloaded: 'expected',
+	permission: 'expected',
+	'prompt-too-long': 'expected',
+	'rate-limit': 'expected',
+	server: 'bug',
+};
 
+export class UpstreamError extends MaliniError<UpstreamErrorKind> {
 	constructor(kind: UpstreamErrorKind, message: string, code: string | null = null) {
-		super(message);
-		this.name = 'UpstreamError';
-		this.kind = kind;
-		this.code = code;
+		super('UpstreamError', UPSTREAM_ERROR_VERDICTS, kind, message, { code });
 	}
 }
 

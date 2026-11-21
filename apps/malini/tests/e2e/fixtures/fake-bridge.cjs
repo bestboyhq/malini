@@ -778,6 +778,17 @@ const heldReportRun = (sessionId, runId) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, STREAM_LINE_MS);
 };
+const CHECKOUT_FIX_RELEASE = 'release-checkout-fix';
+const checkoutFixRun = (sessionId, runId) => {
+	pendingRuns.set(runId, sessionId);
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!released(CHECKOUT_FIX_RELEASE)) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		completeRun(sessionId, runId, 'Put the lost HEAD commit back');
+	}, STREAM_LINE_MS);
+};
 const goesOnAfterBackgroundCommand = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
@@ -1179,6 +1190,9 @@ const respond = async (sessionId, runId, prompt) => {
 			}
 			fs.writeFileSync(nodePath.join(directory, 'file-' + index + '.txt'), 'a\nb\nc\n');
 		}
+	}
+	if (prompt.includes("Git cannot read this workstream's checkout")) {
+		return checkoutFixRun(sessionId, runId);
 	}
 	if (prompt.includes('HANG')) {
 		pendingRuns.set(runId, sessionId);

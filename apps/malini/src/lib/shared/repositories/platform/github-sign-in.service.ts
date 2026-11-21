@@ -71,7 +71,9 @@ export class GitHubSignIn {
 			};
 		});
 		timer = setTimeout(() => {
-			refuse(new Error(`GitHub CLI showed no sign-in code. ${failureMessage(output, null)}`));
+			refuse(
+				new GhError('failed', `GitHub CLI showed no sign-in code. ${failureMessage(output, null)}`),
+			);
 			this.cancel();
 		}, this.#codeTimeoutMs);
 		const read = (chunk: Buffer): void => {
@@ -91,7 +93,7 @@ export class GitHubSignIn {
 				child.once('exit', (exitCode) => {
 					if (session.cancelled) resolve('cancelled');
 					else if (exitCode === 0) resolve('signed-in');
-					else reject(new Error(failureMessage(output, exitCode)));
+					else reject(new GhError('failed', failureMessage(output, exitCode), { code: exitCode }));
 				});
 			}),
 		};
@@ -118,7 +120,7 @@ async function refuseWhenSettled(
 ): Promise<void> {
 	try {
 		await outcome;
-		refuse(new Error('GitHub sign-in ended before GitHub gave a code.'));
+		refuse(new GhError('failed', 'GitHub sign-in ended before GitHub gave a code.'));
 	} catch (error) {
 		refuse(error);
 	}

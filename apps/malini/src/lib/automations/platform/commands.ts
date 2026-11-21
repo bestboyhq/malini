@@ -34,7 +34,12 @@ import { chatTurnChainId, listChatTurns, listChatTurnsSince } from '$lib/chat/ch
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
-import { describeError } from '$main/errors';
+import {
+	describeError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import {
 	DEFAULT_AGENT_MODEL,
 	DEFAULT_PROVIDER_ID,
@@ -129,16 +134,21 @@ const TIMELINE_PAYLOAD_CHARS = 4_096;
 
 const TRIGGER_GRAMMAR = `on <channel>, optionally followed by where <path> is <value> or where <path> is set, joined with and; or ${SCHEDULE_GRAMMAR}`;
 
-export type AutomationErrorKind =
-	'invalid-args' | 'not-found' | 'builtin' | 'not-builtin' | 'busy' | 'loop';
+const AUTOMATION_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'invalid-args': 'bug',
+	'not-found': 'bug',
+	builtin: 'bug',
+	'not-builtin': 'bug',
+	busy: 'expected',
+	loop: 'expected',
+} as const satisfies ErrorVerdicts;
 
-export class AutomationError extends Error {
-	readonly kind: AutomationErrorKind;
+export type AutomationErrorKind = keyof typeof AUTOMATION_ERROR_VERDICTS;
 
+export class AutomationError extends MaliniError<AutomationErrorKind> {
 	constructor(kind: AutomationErrorKind, message: string) {
-		super(message);
-		this.name = 'AutomationError';
-		this.kind = kind;
+		super('AutomationError', AUTOMATION_ERROR_VERDICTS, kind, message);
 	}
 }
 
@@ -691,9 +701,9 @@ async function triggerWhen(
 	try {
 		const trigger = parseAutomationTrigger(when);
 		const unknownValue = when === stored ? null : unknownTriggerValueMessage(trigger);
-		if (unknownValue !== null) throw new Error(unknownValue);
-		if (trigger.kind === 'event') return when;
-		if (trigger.kind === 'schedule') {
+		if (unknownValue !== null) reason = ` (${unknownValue})`;
+		else if (trigger.kind === 'event') return when;
+		else if (trigger.kind === 'schedule') {
 			return scheduleWhen({
 				...trigger,
 				place: await knownPlace(db, trigger.place, unplacedAllowed),

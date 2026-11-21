@@ -1,6 +1,7 @@
 import type { MaliniDatabase } from '$main/db/driver';
 import { insertRun, insertRunForWorkstream, type AgentRun } from './runs.repository';
 import { column, get, run } from '$main/db/rows';
+import { ChatError } from './chat-error';
 import {
 	MAX_ATTACHMENT_FILE_BYTES,
 	MAX_ATTACHMENT_FILE_MB,
@@ -73,7 +74,8 @@ export function insertStagedAttachments(
 				expiresAt,
 				workstreamId,
 			);
-			if (changes !== 1) throw new Error(`workstream \`${workstreamId}\` is missing or inactive`);
+			if (changes !== 1)
+				throw new ChatError('not-found', `workstream \`${workstreamId}\` is missing or inactive`);
 		}
 	});
 }
@@ -121,12 +123,18 @@ export function insertRunAndBindAttachments(
 		return [];
 	}
 	if (attachmentIds.length > MAX_ATTACHMENT_FILES) {
-		throw new Error(`at most ${MAX_ATTACHMENT_FILES} staged attachments can be sent`);
+		throw new ChatError(
+			'invalid-argument',
+			`at most ${MAX_ATTACHMENT_FILES} staged attachments can be sent`,
+		);
 	}
 	const unique = new Set<string>();
 	for (const id of attachmentIds) {
 		if (!attachmentIdIsSafe(id) || unique.has(id)) {
-			throw new Error('attachment ids must be unique staged attachment identifiers');
+			throw new ChatError(
+				'invalid-argument',
+				'attachment ids must be unique staged attachment identifiers',
+			);
 		}
 		unique.add(id);
 	}
@@ -136,22 +144,27 @@ export function insertRunAndBindAttachments(
 		let totalSize = 0;
 		for (const id of attachmentIds) {
 			const stored = loadStoredAttachment(db, id);
-			if (!stored) throw new Error(`attachment \`${id}\` is not staged`);
+			if (!stored) throw new ChatError('not-found', `attachment \`${id}\` is not staged`);
 			const validOwnerAndState =
 				stored.workstreamId === workstreamId &&
 				stored.state === 'staged' &&
 				stored.expiresAt !== null &&
 				stored.expiresAt > now;
 			if (!validOwnerAndState) {
-				throw new Error(
+				throw new ChatError(
+					'attachment-unavailable',
 					`attachment \`${id}\` is expired, already consumed, or belongs to another workstream`,
 				);
 			}
 			input.verify?.(stored);
 			totalSize += stored.descriptor.size;
-			if (!Number.isSafeInteger(totalSize)) throw new Error('attachment size overflow');
+			if (!Number.isSafeInteger(totalSize))
+				throw new ChatError('invariant', 'attachment size overflow');
 			if (totalSize > MAX_ATTACHMENT_TOTAL_BYTES) {
-				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
+				throw new ChatError(
+					'invalid-argument',
+					`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`,
+				);
 			}
 			verified.push(stored.descriptor);
 		}
@@ -171,7 +184,10 @@ export function insertRunAndBindAttachments(
 				now,
 			);
 			if (changes !== 1) {
-				throw new Error(`attachment \`${attachment.id}\` changed while the run was being created`);
+				throw new ChatError(
+					'invariant',
+					`attachment \`${attachment.id}\` changed while the run was being created`,
+				);
 			}
 		}
 		return verified;
@@ -219,7 +235,8 @@ export function removeStagedAttachment(
 	attachmentId: string,
 	removedAt: string,
 ): void {
-	if (!attachmentIdIsSafe(attachmentId)) throw new Error('attachment id is unsafe');
+	if (!attachmentIdIsSafe(attachmentId))
+		throw new ChatError('invalid-argument', 'attachment id is unsafe');
 	db.transaction(() => {
 		const row = get<{ state: AttachmentState }>(
 			db,
@@ -227,9 +244,10 @@ export function removeStagedAttachment(
 			attachmentId,
 			workstreamId,
 		);
-		if (!row) throw new Error(`staged attachment \`${attachmentId}\` not found`);
+		if (!row) throw new ChatError('not-found', `staged attachment \`${attachmentId}\` not found`);
 		if (row.state !== 'staged') {
-			throw new Error(
+			throw new ChatError(
+				'attachment-unavailable',
 				`attachment \`${attachmentId}\` cannot be removed from state \`${row.state}\``,
 			);
 		}

@@ -8,7 +8,7 @@ export class RepositoryFileTargetUnavailableError extends Error {}
 
 export class AgentFileMentionExtensionTarget {
 	async open(workstreamId: string, target: RepositoryFileTarget): Promise<void> {
-		if (!extensionCommands.isReadyFor(workstreamId)) {
+		if (!(await extensionCommands.whenReadyFor(workstreamId))) {
 			throw new RepositoryFileTargetUnavailableError(
 				'The repository extension is not active for this workstream',
 			);

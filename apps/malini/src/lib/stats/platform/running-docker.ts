@@ -2,6 +2,7 @@ import { basename, sep } from 'node:path';
 import type { RunningItem } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
 import { LABEL_WORKSTREAM } from '$main/docker/labels';
+import type { PathAliases } from '$shared/repositories/repositories.platform';
 
 export const COMPOSE_PROJECT = 'com.docker.compose.project';
 export const COMPOSE_SERVICE = 'com.docker.compose.service';
@@ -114,6 +115,18 @@ export function linkedWorkstreams(
 	return [
 		...new Set(container.bindSources.flatMap((source) => folderOf(source, workstreams) ?? [])),
 	];
+}
+
+export function withAliases(
+	folders: readonly WorkstreamFolder[],
+	{ path: root, aliases }: PathAliases,
+): WorkstreamFolder[] {
+	return folders.flatMap((folder) => [
+		folder,
+		...(isInside(folder.path, root)
+			? aliases.map((alias) => ({ id: folder.id, path: alias + folder.path.slice(root.length) }))
+			: []),
+	]);
 }
 
 function folderOf(path: string, workstreams: readonly WorkstreamFolder[]): string | undefined {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkstreamProvisioningRecord } from '$shared/repositories/domain/provisioning';
-import { provisioningTopBarStatus } from './provisioning-top-bar-status';
+import { provisioningTopBarStatus, setupStepTopBarStatus } from './provisioning-top-bar-status';
 
 function record(failure: string | null): WorkstreamProvisioningRecord {
 	return {
@@ -106,6 +106,89 @@ describe('the provisioning top bar status', () => {
 			'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.';
 		expect(provisioningTopBarStatus(record(failure), false, noRetry)?.headline?.tooltip).toBe(
 			`${failure} Then retry this workstream’s setup`,
+		);
+	});
+
+	it('sends a failed setup step to the top bar with the action of that step', () => {
+		const handlers = {
+			onCheckoutAction: vi.fn(),
+			onRetryInstall: vi.fn(),
+			onDismissInstall: vi.fn(),
+		};
+		const done = {
+			key: 'copy',
+			state: 'done',
+			label: 'Made a fresh copy',
+			detail: null,
+			action: null,
+		} as const;
+		const signedOut = {
+			key: 'checkout',
+			state: 'failed',
+			label: 'Cannot clone rabbits/hutch again',
+			detail: 'GitHub is signed out',
+			action: 'sign-in',
+			actionLabel: 'Sign in to GitHub',
+		} as const;
+		const install = {
+			key: 'install',
+			state: 'failed',
+			label: 'Install failed',
+			detail: 'ENOENT',
+			action: 'retry-install',
+		} as const;
+
+		expect(setupStepTopBarStatus([done], 'malini/ws-a', handlers)).toBeNull();
+		const signIn = setupStepTopBarStatus([done, signedOut, install], 'malini/ws-a', handlers);
+		expect(signIn?.headline).toEqual({
+			tone: 'needs-you',
+			busy: false,
+			label: 'Needs you',
+			detail: 'Cannot clone rabbits/hutch again',
+			tooltip: 'Cannot clone rabbits/hutch again. GitHub is signed out',
+		});
+		expect(signIn?.action?.label).toBe('Sign in to GitHub');
+		void signIn?.action?.onInvoke();
+		expect(handlers.onCheckoutAction).toHaveBeenCalledExactlyOnceWith('sign-in');
+
+		const retry = setupStepTopBarStatus([done, install], 'malini/ws-a', handlers);
+		expect(retry?.action?.label).toBe('Retry');
+		void retry?.action?.onInvoke();
+		void retry?.secondaryAction?.onInvoke();
+		expect(handlers.onRetryInstall).toHaveBeenCalledOnce();
+		expect(handlers.onDismissInstall).toHaveBeenCalledOnce();
+	});
+
+	it('shows a checkout Malini mends as setup in progress, with the clone percent', () => {
+		const handlers = {
+			onCheckoutAction: vi.fn(),
+			onRetryInstall: vi.fn(),
+			onDismissInstall: vi.fn(),
+		};
+		const mending = {
+			key: 'checkout',
+			state: 'busy',
+			label: 'Linking the folder to git',
+			detail: 'Your files stay',
+			action: null,
+		} as const;
+		expect(setupStepTopBarStatus([mending], null, handlers)).toMatchObject({
+			headline: {
+				tone: 'idle',
+				busy: true,
+				label: 'Setting up',
+				detail: 'Linking the folder to git',
+			},
+			action: null,
+		});
+		const cloning = {
+			...mending,
+			label: 'Cloning rabbits/hutch again',
+			detail: 'Its copy on this Mac is gone. 38%',
+			clonePercent: 38,
+		} as const;
+		expect(setupStepTopBarStatus([cloning], null, handlers)?.headline?.detail).toBe(
+			'Cloning again. 38%',
 		);
 	});
 });

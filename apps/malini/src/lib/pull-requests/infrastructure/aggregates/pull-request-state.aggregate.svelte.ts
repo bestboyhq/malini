@@ -4,6 +4,7 @@ import {
 	type PullRequestTarget,
 } from '$lib/pull-requests/domain/pull-request-state';
 import { loadPullRequestStates } from '$lib/pull-requests/infrastructure/services/pull-request-states.service';
+import { checkoutHealthQuery } from '$shared/repositories/repositories.api';
 
 const MAX_CONCURRENT_PULL_REQUEST_LOADS = 4;
 
@@ -26,9 +27,14 @@ export class PullRequestStateAggregate {
 	#refreshes = new Map<string, BatchRefresh>();
 	#pollTimer: ReturnType<typeof setInterval> | null = null;
 	readonly #load: PullRequestStateLoader;
+	readonly #readable: (workstreamId: string) => boolean;
 
-	constructor(load: PullRequestStateLoader) {
+	constructor(
+		load: PullRequestStateLoader,
+		readable: (workstreamId: string) => boolean = () => true,
+	) {
 		this.#load = load;
+		this.#readable = readable;
 	}
 
 	stateFor(workstreamId: string): PullRequestState {
@@ -134,7 +140,7 @@ export class PullRequestStateAggregate {
 	async #refreshMany(workstreamIds: readonly string[]): Promise<void> {
 		const joined: Promise<void>[] = [];
 		const fresh: string[] = [];
-		for (const workstreamId of workstreamIds) {
+		for (const workstreamId of workstreamIds.filter(this.#readable)) {
 			const existing = this.#refreshes.get(workstreamId);
 			if (existing) {
 				existing.trailing.add(workstreamId);
@@ -300,4 +306,7 @@ function withValues<T>(
 	return next;
 }
 
-export const pullRequestStateAggregate = new PullRequestStateAggregate(loadPullRequestStates);
+export const pullRequestStateAggregate = new PullRequestStateAggregate(
+	loadPullRequestStates,
+	(workstreamId) => checkoutHealthQuery.data(workstreamId).state === 'healthy',
+);

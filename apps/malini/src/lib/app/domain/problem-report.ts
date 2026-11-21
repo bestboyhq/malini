@@ -1,3 +1,5 @@
+import type { CheckoutFinding } from '$contract/repositories';
+
 export const ISSUES_REPOSITORY = 'bestboyhq/malini';
 export const DISCORD_URL = 'https://bestboy.dev/malini/discord';
 export const PROBLEM_TEXT_LIMIT = 10_000;
@@ -5,6 +7,12 @@ export const PROBLEM_FACT_LIMIT = 300;
 export const PROBLEM_FACTS_MAX = 5;
 
 const TITLE_LIMIT = 80;
+
+export type ProblemFact = Readonly<{ label: string; value: string }>;
+
+export type ProblemDraft = Readonly<{ text: string; facts: readonly ProblemFact[] }>;
+
+export const EMPTY_PROBLEM_DRAFT: ProblemDraft = { text: '', facts: [] };
 
 export interface Journey {
 	readonly repositories: number;
@@ -25,6 +33,17 @@ export function problemBody(text: string, facts: readonly string[]): string {
 	const said = text.trim();
 	if (facts.length === 0) return said;
 	return `${said}\n\n---\n\n${facts.map((fact) => `- ${fact}`).join('\n')}`;
+}
+
+export function checkoutProblemDraft(
+	finding: CheckoutFinding | null,
+	said: string | null,
+): ProblemDraft {
+	const checkout = `Checkout ${finding ?? 'unknown'}`;
+	return {
+		text: 'Git cannot read a workstream checkout',
+		facts: [{ label: 'Git', value: said === null ? checkout : `${checkout} · ${said}` }],
+	};
 }
 
 export function journeyLine(journey: Journey): string {

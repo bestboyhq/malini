@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
 
-import { GhError, GitError } from '../errors';
+import { GhError, GitError, MaliniError } from '../errors';
 import { CommandRegistry } from '../ipc/registry';
 import {
 	captureMainProcess,
@@ -22,6 +22,12 @@ import {
 	REPEAT_WINDOW_MS,
 	type DiagnosticsRuntime,
 } from './main-diagnostics';
+
+class RemovalError extends MaliniError<'run-active' | 'failed'> {
+	constructor(kind: 'run-active' | 'failed', message: string) {
+		super('RemovalError', { 'run-active': 'expected', failed: 'bug' }, kind, message);
+	}
+}
 
 const RUNTIME: DiagnosticsRuntime = {
 	productName: 'Malini',
@@ -182,69 +188,22 @@ describe('the main-process diagnostics log', () => {
 		]);
 	});
 
-	it('logs a prompt the runtime turned away while a run closes as a warning, the renderer retries it', async () => {
-		const diagnostics = log();
-		const registry = new CommandRegistry();
-		registry.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
-		const refusal = (kind: string, message: string): Error =>
-			Object.assign(new Error(message), { name: 'LifecycleError', kind });
-		registry.define('chat.send-prompt', (args) => {
-			const kind = typeof args === 'object' && args !== null ? Reflect.get(args, 'kind') : '';
-			if (kind === 'already_running') {
-				throw refusal(kind, 'work stream `ws-1` already has an active run');
-			}
-			throw refusal('db', 'database is locked');
-		});
-
-		await registry.invoke({ command: 'chat.send-prompt', args: { kind: 'already_running' } });
-		await registry.invoke({ command: 'chat.send-prompt', args: { kind: 'db' } });
-
-		expect(records().map((record) => [record.message, record.level])).toEqual([
-			['work stream `ws-1` already has an active run', 'warn'],
-			['database is locked', 'error'],
-		]);
-	});
-
-	it('logs a command the closing app stopped under the agent bridge as a warning', async () => {
-		const diagnostics = log();
-		const registry = new CommandRegistry();
-		registry.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
-		const bridgeFailure = (kind: string, message: string): Error =>
-			Object.assign(new Error(message), { name: 'SupervisorError', kind });
-		registry.define('skills.list', () => {
-			throw bridgeFailure('stopped', 'bridge stopped before command acknowledgement');
-		});
-		registry.define('chat.send-prompt', () => {
-			throw bridgeFailure(
-				'protocol',
-				'bridge protocol error: bridge exited before acknowledgement',
-			);
-		});
-
-		await registry.invoke({ command: 'skills.list', args: undefined });
-		await registry.invoke({ command: 'chat.send-prompt', args: undefined });
-
-		expect(records().map((record) => [record.message, record.level])).toEqual([
-			['bridge stopped before command acknowledgement', 'warn'],
-			['bridge protocol error: bridge exited before acknowledgement', 'error'],
-		]);
-	});
-
 	it('logs what the user or the Mac must fix as a warning, and what Malini must fix as an error', async () => {
 		const diagnostics = log();
 		const registry = new CommandRegistry();
 		registry.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
-		const failure = (name: string, kind: string | null, code: string | null): Error =>
-			Object.assign(new Error(`${name} ${kind} ${code}`), { name, kind, code });
+		const io = (code: string): Error => new GitError('io', `io ${code}`, { code });
 		const thrown = [
-			failure('GitError', 'network', null),
-			failure('GitError', 'merge-conflict', null),
-			failure('WorkstreamRemovalError', 'run-active', null),
-			failure('GitError', 'io', 'ENOSPC'),
-			failure('Error', null, 'EDQUOT'),
-			failure('GitError', 'git', null),
-			failure('GitError', 'io', 'ENOENT'),
-			failure('WorkstreamRemovalError', 'failed', null),
+			new GitError('network', 'network'),
+			new GitError('merge-conflict', 'merge conflict'),
+			new GhError('auth-required', 'sign in'),
+			new RemovalError('run-active', 'removal run-active'),
+			io('ENOSPC'),
+			Object.assign(new Error('quota'), { code: 'EDQUOT' }),
+			Object.assign(new Error('looks expected'), { name: 'GitError', kind: 'network' }),
+			new GitError('git', 'git'),
+			io('ENOENT'),
+			new RemovalError('failed', 'removal failed'),
 		];
 		registry.define('repositories.workstream-diff', (args) => {
 			throw thrown[Number(args)];
@@ -254,15 +213,17 @@ describe('the main-process diagnostics log', () => {
 			await registry.invoke({ command: 'repositories.workstream-diff', args: index });
 		}
 
-		expect(records().map((record) => record.level)).toEqual([
-			'warn',
-			'warn',
-			'warn',
-			'warn',
-			'warn',
-			'error',
-			'error',
-			'error',
+		expect(records().map((record) => [record.message, record.level])).toEqual([
+			['network', 'warn'],
+			['merge conflict', 'warn'],
+			['sign in', 'warn'],
+			['removal run-active', 'warn'],
+			['io ENOSPC', 'warn'],
+			['quota', 'warn'],
+			['looks expected', 'error'],
+			['git', 'error'],
+			['io ENOENT', 'error'],
+			['removal failed', 'error'],
 		]);
 	});
 

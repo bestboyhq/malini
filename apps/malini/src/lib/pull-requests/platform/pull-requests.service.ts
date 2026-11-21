@@ -3,6 +3,7 @@ import type { ConnectedRepository } from '$shared/repositories/repositories.plat
 import { GhError, describeError } from '$main/errors';
 import { parseGhJson, type GhResult } from '$main/process/gh';
 import { checkNotStartedReason } from '../domain/check-not-started';
+import { ShipError } from './ship-target';
 
 export type GhRunner = (args: readonly string[], options?: { cwd?: string }) => Promise<GhResult>;
 
@@ -182,7 +183,7 @@ export async function runCheckedGh(
 	cwd?: string,
 ): Promise<GhResult> {
 	const result = await run(args, cwd === undefined ? {} : { cwd });
-	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, args);
 	return result;
 }
 
@@ -203,7 +204,7 @@ export async function viewPullRequest(
 		const result = await run(['pr', 'view', target, '--json', PR_VIEW_FIELDS], { cwd: checkout });
 		if (result.code !== 0) {
 			if (/no pull requests found|not found/iu.test(result.stderr)) return null;
-			throw GhError.fromStderr(result.stderr, result.code);
+			throw GhError.fromStderr(result.stderr, result.code, ['pr']);
 		}
 		return parseGhJson<PullRequestView>(result, 'gh pr view');
 	};
@@ -214,7 +215,7 @@ export async function viewPullRequest(
 		['pr', 'list', '--head', head, '--state', 'all', '--limit', '1', '--json', PR_VIEW_FIELDS],
 		{ cwd: checkout },
 	);
-	if (list.code !== 0) throw GhError.fromStderr(list.stderr, list.code);
+	if (list.code !== 0) throw GhError.fromStderr(list.stderr, list.code, ['pr']);
 	const rows = parseGhJson<PullRequestView[]>(list, 'gh pr list');
 	return rows[0] ?? null;
 }
@@ -526,9 +527,10 @@ export async function fetchCheckDiagnostics(
 	number: number,
 ): Promise<CheckDiagnosticsDto> {
 	const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
-	if (!view) throw new Error(`Pull request #${number} was not found`);
+	if (!view) throw new ShipError('pull-request-missing', `Pull request #${number} was not found`);
 	const headSha = textOrNull(view.headRefOid);
-	if (!headSha) throw new Error(`Pull request #${number} has no head commit`);
+	if (!headSha)
+		throw new ShipError('pull-request-missing', `Pull request #${number} has no head commit`);
 	const checkRunsResult = await runCheckedGh(
 		run,
 		[
@@ -736,7 +738,10 @@ export async function fetchReviewFeedback(
 ): Promise<ReviewFeedbackDto> {
 	const [owner, name] = repository.fullName.split('/');
 	if (!owner || !name)
-		throw new Error(`Repository ${repository.fullName} is not a GitHub repository`);
+		throw new ShipError(
+			'invariant',
+			`Repository ${repository.fullName} is not a GitHub repository`,
+		);
 	const result = await runCheckedGh(
 		run,
 		[
@@ -755,7 +760,8 @@ export async function fetchReviewFeedback(
 	);
 	const body = parseGhJson<Record<string, unknown>>(result, 'gh api graphql');
 	const pullRequest = nested(nested(body, ['data']), ['repository', 'pullRequest']);
-	if (!pullRequest) throw new Error(`Pull request #${number} was not found`);
+	if (!pullRequest)
+		throw new ShipError('pull-request-missing', `Pull request #${number} was not found`);
 	const threads = nested(pullRequest, ['reviewThreads']);
 	const reviews = nested(pullRequest, ['reviews']);
 	const threadNodes = arrayOf(nested(threads, ['nodes']));

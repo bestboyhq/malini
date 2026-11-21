@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { ClaudeSignInOutcome } from '$contract/agent';
+import { ProviderError } from './provider-error';
 
 const PASTE_PROMPT = 'Paste code here if prompted >';
 const PROGRESS_LINES = ['Opening browser to sign in', "If the browser didn't open, visit:"];
@@ -25,7 +26,12 @@ export class ClaudeSignIn {
 		this.cancel();
 		const executable = this.#deps.executable();
 		if (!executable) {
-			return Promise.reject(new Error('Claude Code is not installed. Install it, then sign in.'));
+			return Promise.reject(
+				new ProviderError(
+					'not-installed',
+					'Claude Code is not installed. Install it, then sign in.',
+				),
+			);
 		}
 		const child = spawn(executable, ['auth', 'login', ...(email ? [`--email=${email}`] : [])], {
 			env: { ...environment },
@@ -48,7 +54,7 @@ export class ClaudeSignIn {
 				this.#release(child);
 				if (cancelled) resolve('cancelled');
 				else if (code === 0) resolve('signed-in');
-				else reject(new Error(failureMessage(output, code)));
+				else reject(new ProviderError('sign-in-failed', failureMessage(output, code)));
 			});
 		});
 	}

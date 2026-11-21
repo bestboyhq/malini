@@ -7,6 +7,7 @@ import {
 	type InvokeRequest,
 	type InvokeResponse,
 } from '../../contract/ipc';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '../errors';
 import { toCommandFailure } from './command-failure';
 
 export type CommandHandler<Args = unknown, Result = unknown> = {
@@ -43,6 +44,19 @@ export type CommandStartObserver = (started: StartedCommand) => void;
 
 export type CommandFailureObserver = (failed: FailedCommand) => void;
 
+const COMMAND_REGISTRY_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'unknown-command': 'bug',
+} as const satisfies ErrorVerdicts;
+
+type CommandRegistryErrorKind = keyof typeof COMMAND_REGISTRY_ERROR_VERDICTS;
+
+export class CommandRegistryError extends MaliniError<CommandRegistryErrorKind> {
+	constructor(kind: CommandRegistryErrorKind, message: string) {
+		super('CommandRegistryError', COMMAND_REGISTRY_ERROR_VERDICTS, kind, message);
+	}
+}
+
 function closedFailure(command: string): CommandFailure {
 	return {
 		name: 'CommandRegistryClosed',
@@ -65,7 +79,7 @@ export class CommandRegistry {
 		handler: CommandHandler<unknown, CommandResult<Name>>,
 	): void {
 		if (this.handlers.has(name)) {
-			throw new Error(`command "${name}" is already registered`);
+			throw new CommandRegistryError('invariant', `command "${name}" is already registered`);
 		}
 		this.handlers.set(name, handler);
 	}
@@ -73,7 +87,7 @@ export class CommandRegistry {
 	call<Name extends CommandName>(name: Name, args: CommandArgs<Name>): Promise<CommandResult<Name>>;
 	async call(name: CommandName, args: unknown): Promise<unknown> {
 		const handler = this.handlers.get(name);
-		if (!handler) throw new Error(`unknown command "${name}"`);
+		if (!handler) throw new CommandRegistryError('unknown-command', `unknown command "${name}"`);
 		return handler(args);
 	}
 
@@ -130,7 +144,9 @@ export class CommandRegistry {
 		const startedAt = performance.now();
 		try {
 			const handler = this.lookup(request.command);
-			if (!handler) throw new Error(`unknown command "${request.command}"`);
+			if (!handler) {
+				throw new CommandRegistryError('unknown-command', `unknown command "${request.command}"`);
+			}
 			notify(this.startObservers, { command: request.command, args: request.args });
 			const value = await handler(request.args);
 			notify(this.observers, {

@@ -11,6 +11,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	STATS_PROFILE_PUBLISHED_CHANNEL,
 } from '$contract/events';
@@ -18,8 +19,9 @@ import type { UsageReport, UsageStep } from '$contract/system';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
+import type { ErrorFacts } from '$main/errors';
 import type { CommandOutcome, StartedCommand } from '$main/ipc/registry';
-import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
+import { failureLevel } from '$main/diagnostics/main-diagnostics';
 import { thrownDetail } from '$main/diagnostics/thrown';
 import { throwSites } from '$main/diagnostics/throw-site';
 import { currentEnvironment } from '$main/process/environment';
@@ -27,6 +29,7 @@ import { isDogfoodWindow } from '$main/url-scheme';
 import { localDate, shiftDate } from '$lib/stats/stats.platform';
 import { listProjects, listRepositoryCatalog } from '$shared/repositories/repositories.platform';
 import { commandTrail, electronErrorMoment, gigabytes, type ErrorMoment } from './error-context';
+import { errorFingerprint, factsOf, sendableFacts } from './error-facts';
 import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/heard-about';
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
@@ -69,6 +72,7 @@ export type UsageActivity =
 	| 'profile_published'
 	| 'stats_off'
 	| 'day'
+	| 'error'
 	| ToolActivity;
 
 export interface UsageSink {
@@ -138,6 +142,7 @@ const FIRST_REPOSITORY_SOURCE_SETTING = 'usage-data.first-repository-source';
 const REPORT_CHECK_MS = 60 * 60_000;
 const DAY_MS = 86_400_000;
 const ERROR_SITES = 5;
+const ERROR_KIND = /^[A-Za-z][\w-]{0,39}$/u;
 
 export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
 	const now = deps.now ?? ((): Date => new Date());
@@ -235,6 +240,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			week_first: previous === null || weekStart(previous) !== weekStart(today) ? 'yes' : 'no',
 			month_first: previous === null || monthOf(previous) !== monthOf(today) ? 'yes' : 'no',
 			age: base === null ? 'later' : reportAge(Date.parse(today) - Date.parse(base)),
+			version: context.appVersion,
 		};
 		sendOnce(
 			`day:${today}`,
@@ -287,33 +293,54 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			return null;
 		}
 	};
-	const unsent = new Map<string, { headline: string; stack: string[]; repeats: number }>();
-	const report = (headline: string, stack: string[] = []): void => {
+	const unsent = new Map<
+		string,
+		{ headline: string; fingerprint: string; stack: string[]; repeats: number }
+	>();
+	const report = (
+		scope: string,
+		headline: string,
+		shape: ErrorShape,
+		error?: unknown,
+		extra: ErrorFacts = {},
+	): void => {
 		if (!shared()) return;
-		const key = [headline, ...stack].join('\n');
+		const stack = stackOf(error);
+		const facts = sendableFacts({ ...factsOf(error), ...extra });
+		const key = [headline, ...stack, JSON.stringify(facts)].join('\n');
 		const known = unsent.get(key);
 		if (known) {
 			known.repeats += 1;
 			return;
 		}
-		unsent.set(key, { headline, stack, repeats: 0 });
+		const fingerprint = errorFingerprint({ scope, ...shape, said: facts['said'], stack });
+		unsent.set(key, { headline, fingerprint, stack, repeats: 0 });
 		const details: ErrorDetails = {
+			fingerprint,
 			app: { ...system.app, ...momentNow() },
 			device: system.device ?? null,
 			os: system.os ?? null,
 			last_commands: trail.names(),
 			stack,
+			error: facts,
 		};
 		void (async () => {
 			if (!(await send(() => sink.error(headline, details)))) unsent.delete(key);
 		})();
+		const kind = shape.kind ?? shape.name;
+		void sink.activity(
+			'error',
+			{ fingerprint, kind: ERROR_KIND.test(kind) ? kind : 'other', version: context.appVersion },
+			null,
+		);
 	};
 	const reportRepeats = (): void => {
 		for (const entry of unsent.values()) {
-			const { headline, stack, repeats } = entry;
+			const { headline, fingerprint, stack, repeats } = entry;
 			if (repeats === 0) continue;
 			entry.repeats = 0;
 			const details: ErrorDetails = {
+				fingerprint,
 				app: system.app,
 				device: system.device ?? null,
 				os: system.os ?? null,
@@ -327,18 +354,47 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	};
 
 	const stopFailures = context.commands.observeFailures((failed) => {
-		if (commandFailureLevel(failed.failure) === 'error')
-			report(`${failed.command} failed: ${described(failed.failure)}`, stackOf(failed.error));
+		if (failureLevel(failed.error) === 'error')
+			report(
+				failed.command,
+				`${failed.command} failed: ${described(failed.failure)}`,
+				failed.failure,
+				failed.error,
+			);
 	});
+	const reportThrown = (scope: string, error: unknown): void => {
+		const detail = thrownDetail(error);
+		report(scope, `${scope}: ${described(detail)}`, detail, error);
+	};
 	const hooks = deps.hooks ?? nodeProcessHooks();
 	const stopExceptions = hooks.onUncaughtException((error) =>
-		report(`uncaught exception: ${described(thrownDetail(error))}`, stackOf(error)),
+		reportThrown('uncaught exception', error),
 	);
 	const stopRejections = hooks.onUnhandledRejection((reason) =>
-		report(`unhandled rejection: ${described(thrownDetail(reason))}`, stackOf(reason)),
+		reportThrown('unhandled rejection', reason),
 	);
 	(deps.processGone ?? electronProcessGone)((kind, reason, status) =>
-		report(`${kind} process gone: ${reason}, ${processEnding(reason, status)}`),
+		report(
+			`${kind} process gone`,
+			`${kind} process gone: ${reason}, ${processEnding(reason, status)}`,
+			{ name: 'ProcessGone', code: reason, kind: 'process-gone' },
+		),
+	);
+	const brokenCheckouts = new Set<string>();
+	const stopCheckoutHealth = context.events.subscribe(
+		REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL,
+		({ workstreamId, state, finding }) => {
+			if (state === 'healthy') brokenCheckouts.delete(workstreamId);
+			if (finding === null || brokenCheckouts.has(workstreamId)) return;
+			brokenCheckouts.add(workstreamId);
+			report(
+				'checkout broken',
+				`checkout broken: ${finding}`,
+				{ name: 'CheckoutBroken', code: null, kind: finding },
+				undefined,
+				{ finding },
+			);
+		},
 	);
 
 	const stopRuns = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => {
@@ -452,6 +508,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 			clearInterval(reportTimer);
 			stopStarted();
 			stopFailures();
+			stopCheckoutHealth();
 			stopExceptions();
 			stopRejections();
 			stopRuns();
@@ -556,7 +613,9 @@ function systemDetails(context: MainContext): ErrorSystem {
 
 export function errorLine(headline: string, details: ErrorDetails): string {
 	return `${headline} ${JSON.stringify(details, (_key, value: unknown) =>
-		value === null || (Array.isArray(value) && value.length === 0) ? undefined : value,
+		value === null || (typeof value === 'object' && Object.keys(value).length === 0)
+			? undefined
+			: value,
 	)}`;
 }
 

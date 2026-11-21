@@ -608,6 +608,14 @@ describe('user baselines', () => {
 		expect((await realGit(repo, ['log', '--oneline', 'HEAD'])).trim().split('\n')).toHaveLength(1);
 	});
 
+	it('a checkout whose HEAD git cannot read records no user baseline', async () => {
+		const { db, repo, context } = await harness();
+		await writeFile(join(repo, 'by-hand.txt'), 'untracked human work\n');
+		await realGit(repo, ['symbolic-ref', 'HEAD', 'refs/heads/gone']);
+		insertOpenRun(db, 'chat-a', 'run-one', '2026-07-22T00:00:01.000Z');
+		expect(await captureUserBaselineForRun(context, WORKSTREAM_ID, 'chat-a', 'run-one')).toBeNull();
+	});
+
 	it('workstream deletion collects user baseline refs with the rest', async () => {
 		const { db, repo, context } = await harness();
 		await writeFile(join(repo, 'tracked.txt'), 'human dirt\n');

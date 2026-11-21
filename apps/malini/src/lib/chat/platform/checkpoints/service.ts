@@ -37,7 +37,16 @@ import { getRun, workstreamHasOpenRun } from '../runs.repository';
 import { agentSessionBelongsToWorkstream, conciseSessionTitle } from '../sessions.repository';
 import type { EventBus } from '$main/events';
 import { getWorkstream, type CheckoutResolver } from '$shared/repositories/repositories.platform';
-import { DbInvariantError, GitError, isNotFoundError } from '$main/errors';
+import {
+	DbInvariantError,
+	describeError,
+	errorCode,
+	GitError,
+	isNotFoundError,
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+} from '$main/errors';
 import { resolveBaseCommit } from '$main/git/diff';
 import { runGit } from '$main/git/run';
 import {
@@ -53,6 +62,7 @@ import {
 	diffComposedSessionSnapshotPatch,
 	diffWorktreeSnapshotPatch,
 	diffWorktreeSnapshots,
+	headTree,
 	pinSnapshotRef,
 	restoreCheckpointSnapshot,
 	RUN_CHANGE_REF_NAMESPACE,
@@ -88,23 +98,30 @@ export interface AgentSessionChangeScope {
 	workstreamId: string;
 }
 
-export type CheckpointErrorKind = 'db' | 'git' | 'not-found' | 'run-active';
+const CHECKPOINT_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	db: 'bug',
+	git: 'bug',
+	'not-found': 'bug',
+	'run-active': 'expected',
+} as const satisfies ErrorVerdicts;
 
-export class CheckpointError extends Error {
-	readonly kind: CheckpointErrorKind;
+export type CheckpointErrorKind = keyof typeof CHECKPOINT_ERROR_VERDICTS;
 
+export class CheckpointError extends MaliniError<CheckpointErrorKind> {
 	constructor(kind: CheckpointErrorKind, message: string, cause?: unknown) {
-		super(message, cause === undefined ? undefined : { cause });
-		this.name = 'CheckpointError';
-		this.kind = kind;
+		super('CheckpointError', CHECKPOINT_ERROR_VERDICTS, kind, message, {
+			code: errorCode(cause),
+			cause,
+		});
 	}
 
 	static db(cause: Error): CheckpointError {
 		return new CheckpointError('db', `checkpoint database error: ${cause.message}`, cause);
 	}
 
-	static git(cause: Error, failed?: string): CheckpointError {
-		const message = failed ? `${failed}: ${cause.message}` : cause.message;
+	static git(cause: unknown, failed?: string): CheckpointError {
+		const message = failed ? `${failed}: ${describeError(cause)}` : describeError(cause);
 		return new CheckpointError('git', message, cause);
 	}
 
@@ -171,9 +188,8 @@ async function resolveCheckout(
 	try {
 		return await context.resolver.resolveCheckout(workstreamId);
 	} catch (error) {
-		const cause = error instanceof Error ? error : new Error(String(error));
-		if (whenMissing && isNotFoundError(error)) throw new CheckpointError('git', whenMissing, cause);
-		throw CheckpointError.git(cause);
+		if (whenMissing && isNotFoundError(error)) throw new CheckpointError('git', whenMissing, error);
+		throw CheckpointError.git(error);
 	}
 }
 
@@ -189,11 +205,9 @@ export function captureUserBaselineForRun(
 		const probeTree = await worktreeSnapshotTree(worktree);
 
 		const previous = latestWorkstreamRunChangeCommit(db, workstreamId);
-		if (previous !== null) {
-			if ((await snapshotCommitTree(worktree, previous)) === probeTree) return null;
-		} else if ((await snapshotCommitTree(worktree, 'HEAD')) === probeTree) {
-			return null;
-		}
+		const reference =
+			previous === null ? await headTree(worktree) : await snapshotCommitTree(worktree, previous);
+		if (reference === null || reference === probeTree) return null;
 
 		const id = userBaselineId(context);
 		const gitRef = `${USER_BASELINE_REF_NAMESPACE}${workstreamId}/${id}`;
@@ -311,7 +325,7 @@ export function ensureAgentSessionChangeScope(
 	sessionId: string,
 ): void {
 	if (agentSessionBelongsToWorkstream(db, workstreamId, sessionId)) return;
-	throw new Error(SESSION_CHANGE_SCOPE_ERROR);
+	throw new CheckpointError('not-found', SESSION_CHANGE_SCOPE_ERROR);
 }
 
 interface SessionChangeProjection {
@@ -390,7 +404,10 @@ export async function sessionChangePatchForWorkstream(
 	const file = changes.files.find((candidate) => candidate.path === path);
 	const { beforeCommit, afterCommit } = changes;
 	if (!file || beforeCommit === null || afterCommit === null) {
-		throw new Error(`file \`${path}\` is not part of the changes for session \`${sessionId}\``);
+		throw new CheckpointError(
+			'not-found',
+			`file \`${path}\` is not part of the changes for session \`${sessionId}\``,
+		);
 	}
 	const worktree = await resolveCheckout(context, workstreamId, DIFFS_NEED_THE_FOLDER);
 	if (composed !== null && !composed.stackedPaths.has(path)) {
@@ -495,10 +512,14 @@ export async function runChangePatchForWorkstream(
 	const { db } = context;
 	const change = getRunChangeForSession(db, sessionId, runId);
 	if (!change) {
-		throw new Error(`run change \`${runId}\` was not found in session \`${sessionId}\``);
+		throw new CheckpointError(
+			'not-found',
+			`run change \`${runId}\` was not found in session \`${sessionId}\``,
+		);
 	}
 	if (path !== null && !change.files.some((file) => file.path === path)) {
-		throw new Error(
+		throw new CheckpointError(
+			'not-found',
 			`file \`${path}\` is not attributed to run \`${runId}\` in session \`${sessionId}\``,
 		);
 	}
@@ -510,7 +531,7 @@ export async function runChangePatchForWorkstream(
 		checkpoint.workstreamId === workstreamId &&
 		checkpoint.gitCommit === change.beforeCommit;
 	if (!matches) {
-		throw new Error(`run change \`${runId}\` has no matching checkpoint`);
+		throw new CheckpointError('invariant', `run change \`${runId}\` has no matching checkpoint`);
 	}
 	const worktree = await resolveCheckout(context, checkpoint.workstreamId, DIFFS_NEED_THE_FOLDER);
 	const patch = await diffWorktreeSnapshotPatch(

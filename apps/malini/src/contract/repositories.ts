@@ -3,6 +3,50 @@ export type WorkstreamStatus = 'active' | 'paused' | 'merged' | 'archived';
 export type WorkstreamCheckoutState =
 	'healthy' | 'path-diverged' | 'missing' | 'not-a-checkout' | 'unresolvable';
 
+export const CHECKOUT_FINDINGS = [
+	'folder-missing',
+	'git-link-missing',
+	'admin-missing',
+	'base-repository-missing',
+	'github-signed-out',
+	'remote-missing',
+	'checkouts-folder-missing',
+	'stale-lock',
+	'index-corrupt',
+	'head-invalid',
+	'dubious-ownership',
+	'git-unavailable',
+	'developer-tools-missing',
+	'xcode-license',
+	'permission-denied',
+	'disk-full',
+	'unknown',
+] as const;
+
+export type CheckoutFinding = (typeof CHECKOUT_FINDINGS)[number];
+
+export const CHECKOUT_HEALTH_STATES = ['healthy', 'broken', 'repairing'] as const;
+
+export type CheckoutHealthState = (typeof CHECKOUT_HEALTH_STATES)[number];
+
+export const CHECKOUT_RESTORES = [
+	'branch-from-github',
+	'commits-as-edits',
+	'nothing-lost',
+] as const;
+
+export type CheckoutRestore = (typeof CHECKOUT_RESTORES)[number];
+
+export type CheckoutHealth = Readonly<{
+	state: CheckoutHealthState;
+	finding: CheckoutFinding | null;
+	repairable: boolean;
+	said: string | null;
+	restored: CheckoutRestore | null;
+}>;
+
+export type WorkstreamCheckoutHealthPayload = CheckoutHealth & Readonly<{ workstreamId: string }>;
+
 export type CheckoutsFolderProblem =
 	'inside-checkouts' | 'other-disk' | 'not-empty' | 'not-writable' | 'move-failed';
 

@@ -1,4 +1,5 @@
 import type { FiledProblem, ProblemReport } from '$contract/system';
+import { EMPTY_PROBLEM_DRAFT, type ProblemDraft } from '$lib/app/domain/problem-report';
 
 class ProblemReportStore {
 	open = $state(false);
@@ -7,14 +8,20 @@ class ProblemReportStore {
 	filing = $state(false);
 	filed = $state.raw<FiledProblem | null>(null);
 	failure = $state<string | null>(null);
+	draft = $state.raw<ProblemDraft>(EMPTY_PROBLEM_DRAFT);
 
 	begin(): void {
 		this.open = true;
+		this.draft = EMPTY_PROBLEM_DRAFT;
 		this.report = null;
 		this.readFailed = false;
 		this.filing = false;
 		this.filed = null;
 		this.failure = null;
+	}
+
+	prefill(draft: ProblemDraft): void {
+		this.draft = draft;
 	}
 
 	setReport(report: ProblemReport): void {

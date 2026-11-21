@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { open } from 'node:fs/promises';
 import type { InstallProgressPayload } from '$contract/events';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '../errors.ts';
 
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -9,6 +10,20 @@ export type SaveDownloadOptions = Readonly<{
 	total?: number | null;
 	stallMs?: number;
 }>;
+
+const DOWNLOAD_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	http: 'bug',
+	stalled: 'bug',
+} as const satisfies ErrorVerdicts;
+
+type DownloadErrorKind = keyof typeof DOWNLOAD_ERROR_VERDICTS;
+
+export class DownloadError extends MaliniError<DownloadErrorKind> {
+	constructor(kind: DownloadErrorKind, message: string) {
+		super('DownloadError', DOWNLOAD_ERROR_VERDICTS, kind, message);
+	}
+}
 
 export const DOWNLOAD_STALL_MS = 30_000;
 const PROGRESS_STEPS = 100;
@@ -31,7 +46,10 @@ export async function saveDownload(
 	const expectData = (): void => {
 		clearTimeout(stall);
 		stall = setTimeout(
-			() => controller.abort(new Error(`no data for ${Math.round(stallMs / 1000)} seconds`)),
+			() =>
+				controller.abort(
+					new DownloadError('stalled', `no data for ${Math.round(stallMs / 1000)} seconds`),
+				),
 			stallMs,
 		);
 	};
@@ -39,7 +57,7 @@ export async function saveDownload(
 	const handle = await open(file, 'w');
 	try {
 		const response = await Promise.race([fetch(url, { signal: controller.signal }), stalled]);
-		if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+		if (!response.ok || !response.body) throw new DownloadError('http', `HTTP ${response.status}`);
 		const reader = response.body.getReader();
 		controller.signal.addEventListener('abort', () => void reader.cancel().catch(() => {}), {
 			once: true,

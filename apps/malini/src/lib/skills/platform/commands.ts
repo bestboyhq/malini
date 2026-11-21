@@ -9,6 +9,7 @@ import {
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
+import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import {
 	getWorkstream,
 	listConnectedRepositories,
@@ -29,15 +30,17 @@ export interface SkillsDeps {
 	readonly claudeConfig: () => ClaudeConfigFiles;
 }
 
-export type SkillErrorKind = 'invalid-args' | 'not-found';
+const SKILL_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	'invalid-args': 'bug',
+	'not-found': 'bug',
+} as const satisfies ErrorVerdicts;
 
-export class SkillError extends Error {
-	readonly kind: SkillErrorKind;
+export type SkillErrorKind = keyof typeof SKILL_ERROR_VERDICTS;
 
+export class SkillError extends MaliniError<SkillErrorKind> {
 	constructor(kind: SkillErrorKind, message: string) {
-		super(message);
-		this.name = 'SkillError';
-		this.kind = kind;
+		super('SkillError', SKILL_ERROR_VERDICTS, kind, message);
 	}
 }
 

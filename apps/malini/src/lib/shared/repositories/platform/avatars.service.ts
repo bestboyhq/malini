@@ -1,6 +1,8 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MainContext } from '$main/context';
+import { MaliniError, type ErrorVerdicts } from '$main/errors';
+import { WorkstreamError } from './checkout-resolver';
 import { imageMediaType } from './images';
 import type { OwnerAvatar } from '$contract/repositories';
 
@@ -37,10 +39,16 @@ const EXTENSION_BY_MEDIA_TYPE: Record<string, string> = {
 
 export function validateOwner(owner: unknown): string {
 	if (typeof owner !== 'string' || owner.length === 0) {
-		throw new Error('invalid args: `owner` must be a non-empty string');
+		throw new WorkstreamError(
+			'invalid-argument',
+			'invalid args: `owner` must be a non-empty string',
+		);
 	}
 	if (owner.length > 39 || !/^[A-Za-z0-9-]+$/.test(owner)) {
-		throw new Error(`invalid args: \`owner\` is not a GitHub login: \`${owner}\``);
+		throw new WorkstreamError(
+			'invalid-argument',
+			`invalid args: \`owner\` is not a GitHub login: \`${owner}\``,
+		);
 	}
 	return owner;
 }
@@ -198,7 +206,13 @@ async function fetchAvatar(fetcher: AvatarFetcher, owner: string): Promise<Fetch
 	return { kind: 'image', mediaType, bytes };
 }
 
-class TooLargeError extends Error {}
+const TOO_LARGE_ERROR_VERDICTS: ErrorVerdicts<'too-large'> = { 'too-large': 'expected' };
+
+class TooLargeError extends MaliniError<'too-large'> {
+	constructor(message: string) {
+		super('TooLargeError', TOO_LARGE_ERROR_VERDICTS, 'too-large', message);
+	}
+}
 
 async function readBounded(response: Response, limit: number): Promise<Buffer> {
 	if (!response.body) return Buffer.alloc(0);

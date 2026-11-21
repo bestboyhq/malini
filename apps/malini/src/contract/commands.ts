@@ -148,6 +148,7 @@ import type {
 	AddressedReviewThreadsDto,
 	ArchivedWorkstreamDto,
 	AuthStatusDto,
+	CheckoutHealth,
 	CheckoutsFolder,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
@@ -727,6 +728,8 @@ export interface ContractCommands {
 	'repositories.list-owned-docker-containers': { args: undefined; result: OwnedContainer[] };
 	'repositories.list-repositories': { args: undefined; result: ProjectDto[] };
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
+	'repositories.checkout-health': { args: WorkstreamIdArgs; result: CheckoutHealth };
+	'repositories.repair-checkout': { args: WorkstreamIdArgs; result: CheckoutHealth };
 	'repositories.workstream-context-media': { args: WorkstreamIdArgs; result: ContextMedia[] };
 	'repositories.base-files': { args: RepositoryBaseFilesArgs; result: string[] };
 	'repositories.list-workstreams': { args: undefined; result: WorkstreamDto[] };
@@ -1062,6 +1065,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.list-owned-docker-containers',
 	'repositories.list-repositories',
 	'repositories.workstream-files',
+	'repositories.checkout-health',
+	'repositories.repair-checkout',
 	'repositories.workstream-context-media',
 	'repositories.base-files',
 	'repositories.list-workstreams',

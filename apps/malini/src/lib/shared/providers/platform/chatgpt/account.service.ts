@@ -7,6 +7,7 @@ import { isValidAgentModel } from '$shared/providers/domain/model-id';
 import { modelDescription } from '$shared/providers/domain/models-dev';
 import { AGENT_REASONING_EFFORTS } from '$shared/providers/domain/run-profile';
 import type { SecretCipher } from '../claude-accounts.service';
+import { ProviderError } from '../provider-error';
 import { setProviderModels } from '../provider.repository';
 import {
 	ChatGptError,
@@ -127,7 +128,8 @@ export class ChatGptAccount {
 		);
 		this.#usageLimitReachedAt = null;
 		if (stored && !(await this.#deps.auth.revoke(stored.connection))) {
-			throw new Error(
+			throw new ChatGptError(
+				'revoke_unconfirmed',
 				'Malini forgot your ChatGPT sign-in, but ChatGPT did not confirm it. Remove Malini in ChatGPT, Settings, Apps.',
 			);
 		}
@@ -282,7 +284,8 @@ export class ChatGptAccount {
 	async #readyCipher(): Promise<SecretCipher> {
 		const cipher = await this.#deps.cipher();
 		if (!cipher.isEncryptionAvailable()) {
-			throw new Error(
+			throw new ProviderError(
+				'keychain-locked',
 				'Malini cannot reach the macOS keychain to keep your ChatGPT sign-in. Unlock it, then try again.',
 			);
 		}

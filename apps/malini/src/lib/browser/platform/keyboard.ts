@@ -1,3 +1,5 @@
+import { BrowserError } from '../browser.platform';
+
 export interface KeyEvent {
 	readonly type: 'keyDown' | 'rawKeyDown' | 'keyUp';
 	readonly key: string;
@@ -119,11 +121,11 @@ export function keyPresses(chord: string, mac: boolean): KeyEvent[] {
 	const main = names.at(-1);
 	const held = names.slice(0, -1);
 	if (main === undefined || main.length === 0 || held.some((name) => !isModifier(name))) {
-		throw new Error(unknownKey(chord));
+		throw new BrowserError('unknown-key', unknownKey(chord));
 	}
 	const modifiers = held.filter(isModifier);
 	const definition = isModifier(main) ? modifierKey(main) : keyDefinition(main, modifiers);
-	if (!definition) throw new Error(unknownKey(chord));
+	if (!definition) throw new BrowserError('unknown-key', unknownKey(chord));
 	const events: KeyEvent[] = [];
 	let mask = 0;
 	for (const name of modifiers) {

@@ -3,12 +3,14 @@ import { join, resolve } from 'node:path';
 import { isErrnoException } from '$main/errors';
 import { isInsideDirectory } from '$main/fs/paths';
 import { SANDBOX_SCRATCH_PATH } from '$main/git/paths';
-import type {
-	BrowserScreenshotFile,
-	BrowserScreenshotPart,
-	BrowserScrollPosition,
-	BrowserSize,
-	BrowserWait,
+import {
+	BrowserError,
+	type BrowserErrorKind,
+	type BrowserScreenshotFile,
+	type BrowserScreenshotPart,
+	type BrowserScrollPosition,
+	type BrowserSize,
+	type BrowserWait,
 } from '../browser.platform';
 import { keyPresses } from './keyboard';
 import type { PageContents, PageImage, Rectangle } from './page';
@@ -113,11 +115,12 @@ export async function openUrl(contents: PageContents, url: string): Promise<void
 		failure = await load(contents, url);
 	}
 	if (failure === REFUSED && waitsForServer) {
-		throw new Error(
+		throw new BrowserError(
+			'load-failed',
 			`Could not open ${url}: nothing listened on that port for ${OPEN_TIMEOUT_MS / 1_000}s (${REFUSED}). Start the server, then open it again.`,
 		);
 	}
-	if (failure !== null) throw new Error(`Could not open ${url}: ${failure}`);
+	if (failure !== null) throw new BrowserError('load-failed', `Could not open ${url}: ${failure}`);
 }
 
 async function load(contents: PageContents, url: string): Promise<string | null> {
@@ -144,7 +147,8 @@ export async function settleAfterAction(contents: PageContents): Promise<void> {
 export async function captureVisible(contents: PageContents): Promise<PageImage> {
 	const image = await captureFrame(contents);
 	if (!image) {
-		throw new Error(
+		throw new BrowserError(
+			'empty-capture',
 			`The browser painted nothing for ${FIRST_FRAME_MS / 1_000}s. Call browser_reload, then browser_screenshot again.`,
 		);
 	}
@@ -182,7 +186,8 @@ export async function captureRegion(
 		captureBeyondViewport: !inside(clip, visible),
 	});
 	const png = Buffer.from(stringField(shot, 'data') ?? '', 'base64');
-	if (png.length === 0) throw new Error('The browser returned an empty screenshot.');
+	if (png.length === 0)
+		throw new BrowserError('empty-capture', 'The browser returned an empty screenshot.');
 	const cut = element === null && height > FULL_PAGE_MAX_HEIGHT;
 	return cut ? { png, pageHeight: Math.round(height) } : { png };
 }
@@ -264,7 +269,8 @@ export async function clickTarget(contents: PageContents, target: string): Promi
 		await settleAfterAction(contents);
 	});
 	if (chooser !== null) {
-		throw new Error(
+		throw new BrowserError(
+			'action-refused',
 			`\`${target}\` opened a file chooser, and Malini closed it. Pick the files with browser_upload on \`${target}\` instead.`,
 		);
 	}
@@ -283,11 +289,13 @@ export async function uploadFiles(
 			await settleAfterAction(contents);
 		});
 		if (chooser === null) {
-			throw new Error(
+			throw new BrowserError(
+				'action-refused',
 				`\`${target}\` is not a file field, and clicking it opened no file chooser. Call browser_snapshot to find the file field or the button that opens one.`,
 			);
 		}
-		if (!chooser.multiple && files.length > 1) throw new Error(oneFile(target, files));
+		if (!chooser.multiple && files.length > 1)
+			throw new BrowserError('action-refused', oneFile(target, files));
 		await devtools(
 			contents,
 			'DOM.setFileInputFiles',
@@ -295,8 +303,10 @@ export async function uploadFiles(
 			chooser.session,
 		);
 	} else {
-		if (fileInput.disabled) throw new Error(`\`${target}\` is disabled, so it takes no files.`);
-		if (!fileInput.multiple && files.length > 1) throw new Error(oneFile(target, files));
+		if (fileInput.disabled)
+			throw new BrowserError('action-refused', `\`${target}\` is disabled, so it takes no files.`);
+		if (!fileInput.multiple && files.length > 1)
+			throw new BrowserError('action-refused', oneFile(target, files));
 		const { frame, local } = await frameOf(contents, target);
 		const input = await evaluateInFrame(
 			contents,
@@ -305,7 +315,8 @@ export async function uploadFiles(
 			false,
 		);
 		const objectId = stringField(field(input, 'result'), 'objectId');
-		if (objectId === undefined) throw new Error(locateError(target, 'stale', null));
+		if (objectId === undefined)
+			throw new BrowserError('locate-failed', locateError(target, 'stale', null));
 		try {
 			await devtools(contents, 'DOM.setFileInputFiles', { files, objectId }, frame.session);
 		} finally {
@@ -338,7 +349,7 @@ async function fileField(
 			};
 		}
 		if (FINAL_PROBLEMS.has(problem) || Date.now() >= deadline) {
-			throw new Error(locateError(target, problem, answer));
+			throw new BrowserError('locate-failed', locateError(target, problem, answer));
 		}
 		await delay(LOCATE_POLL_MS);
 	}
@@ -354,7 +365,8 @@ export async function worktreeUploads(
 			const file = await realpath(resolve(root, path)).catch(() => null);
 			const info = file === null ? null : await stat(file).catch(() => null);
 			if (file === null || !info?.isFile() || !isInsideDirectory(root, file)) {
-				throw new Error(
+				throw new BrowserError(
+					'outside-worktree',
 					`${path} is not a file in this worktree. Copy it into the worktree first, for example under .context/, then pass that path.`,
 				);
 			}
@@ -384,7 +396,9 @@ export async function typeInto(
 		submit,
 	]);
 	const problem = stringField(answer, 'problem');
-	if (problem !== undefined) throw new Error(typeError(target, text, problem, answer));
+	if (problem !== undefined) {
+		throw new BrowserError('action-refused', typeError(target, text, problem, answer));
+	}
 	await settleAfterAction(contents);
 }
 
@@ -395,7 +409,8 @@ export async function pressKey(contents: PageContents, chord: string): Promise<v
 		await settleAfterAction(contents);
 	});
 	if (chooser !== null) {
-		throw new Error(
+		throw new BrowserError(
+			'action-refused',
 			`${chord} opened a file chooser, and Malini closed it. Pick the files with browser_upload on the file field or the button that opens one.`,
 		);
 	}
@@ -465,10 +480,10 @@ export async function waitFor(contents: PageContents, until: BrowserWait): Promi
 						).catch(() => null);
 		if (shows === 'stale' && gone) return;
 		if (shows === 'invalid' || shows === 'stale') {
-			throw new Error(locateError(selector ?? '', shows, null));
+			throw new BrowserError('locate-failed', locateError(selector ?? '', shows, null));
 		}
 		if (typeof shows === 'boolean' && shows !== gone) return;
-		if (Date.now() >= deadline) throw new Error(waitError(until));
+		if (Date.now() >= deadline) throw new BrowserError('wait-timeout', waitError(until));
 		await delay(WAIT_POLL_MS);
 	}
 }
@@ -479,7 +494,7 @@ export async function evaluateScript(contents: PageContents, script: string): Pr
 		if (returnsAtTopLevel(evaluated)) {
 			evaluated = await evaluateInPage(contents, `(async () => {\n${script}\n})()`);
 		}
-		throwIfThrew(evaluated);
+		throwIfThrew(evaluated, 'script-threw');
 		return clipResult(await serialized(contents, field(evaluated, 'result')));
 	} finally {
 		if (contents.debugger.isAttached()) {
@@ -513,7 +528,7 @@ async function writeUnique(directory: string, base: string, png: Buffer): Promis
 			if (!isErrnoException(error) || error.code !== 'EEXIST') throw error;
 		}
 	}
-	throw new Error(`Too many screenshots named ${base} in ${directory}.`);
+	throw new BrowserError('invariant', `Too many screenshots named ${base} in ${directory}.`);
 }
 
 function fitLongEdge(image: PageImage, longEdge: number): PageImage {
@@ -547,7 +562,7 @@ async function locate(contents: PageContents, target: string, mode: LocateMode):
 			last = found;
 		} else {
 			if (FINAL_PROBLEMS.has(problem) || Date.now() >= deadline) {
-				throw new Error(locateError(target, problem, answer));
+				throw new BrowserError('locate-failed', locateError(target, problem, answer));
 			}
 			last = null;
 		}
@@ -714,14 +729,14 @@ function returnsAtTopLevel(evaluated: unknown): boolean {
 	);
 }
 
-function throwIfThrew(answer: unknown): void {
+function throwIfThrew(answer: unknown, kind: BrowserErrorKind): void {
 	const details = field(answer, 'exceptionDetails');
 	if (details === undefined) return;
 	const description =
 		stringField(field(details, 'exception'), 'description') ??
 		stringField(details, 'text') ??
 		'an error';
-	throw new Error(`The script threw ${description}`);
+	throw new BrowserError(kind, `The script threw ${description}`);
 }
 
 async function serialized(contents: PageContents, remote: unknown): Promise<string> {
@@ -748,7 +763,7 @@ async function serialized(contents: PageContents, remote: unknown): Promise<stri
 		undefined,
 		EVALUATE_TIMEOUT_MS,
 	);
-	throwIfThrew(call);
+	throwIfThrew(call, 'script-threw');
 	return stringField(field(call, 'result'), 'value') ?? 'undefined';
 }
 
@@ -797,14 +812,15 @@ async function evaluateInFrame(
 		session,
 		ms,
 	);
-	throwIfThrew(answer);
+	throwIfThrew(answer, 'bad-answer');
 	return answer;
 }
 
 async function topFrame(contents: PageContents): Promise<PageFrame> {
 	const tree = await devtools(contents, 'Page.getFrameTree');
 	const frameId = stringField(field(field(tree, 'frameTree'), 'frame'), 'id');
-	if (frameId === undefined) throw new Error('The browser answered without its page frame.');
+	if (frameId === undefined)
+		throw new BrowserError('bad-answer', 'The browser answered without its page frame.');
 	return { frameId, session: undefined, parent: null, index: -1 };
 }
 
@@ -815,7 +831,7 @@ async function frameOf(
 	const ref = FRAME_REF.exec(target);
 	if (!ref) return { frame: await topFrame(contents), local: target };
 	const frame = framesOf(contents).numbered.get(Number(ref[1]));
-	if (!frame) throw new Error(locateError(target, 'stale', null));
+	if (!frame) throw new BrowserError('locate-failed', locateError(target, 'stale', null));
 	return { frame, local: `@${ref[2] ?? ''}` };
 }
 
@@ -954,7 +970,7 @@ async function devtools(
 		await target.sendCommand('Target.setAutoAttach', AUTO_ATTACH);
 	}
 	const answer = await within(target.sendCommand(method, params, session), ms);
-	if (answer === undefined) throw new Error(noAnswer(ms));
+	if (answer === undefined) throw new BrowserError('page-unresponsive', noAnswer(ms));
 	return answer;
 }
 
@@ -1013,7 +1029,7 @@ function stringField(value: unknown, key: string): string | undefined {
 function requireNumber(value: unknown, key: string): number {
 	const found = field(value, key);
 	if (typeof found !== 'number' || !Number.isFinite(found)) {
-		throw new Error(`The browser answered without a number for \`${key}\`.`);
+		throw new BrowserError('bad-answer', `The browser answered without a number for \`${key}\`.`);
 	}
 	return found;
 }

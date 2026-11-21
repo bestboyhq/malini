@@ -1,7 +1,7 @@
-import { lstat, readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
+import { dirname, isAbsolute, join } from 'node:path';
 import { APP_MANAGED_REPOSITORY_EXCLUDES } from './paths';
-import { GitError, isErrnoException } from '$main/errors';
+import { errorCode, GitError, isErrnoException, isGitError, isNotFoundError } from '$main/errors';
 import { atomicReplaceFile } from '$main/fs/atomic';
 import { runGit } from './run';
 
@@ -41,6 +41,9 @@ export async function ensureAppManagedGitExcludes(worktreePath: string): Promise
 		const desired = repositoryExcludeWithManagedRule(existing);
 		if (desired === existing) return;
 		try {
+			await mkdir(dirname(excludePath)).catch((error: unknown) => {
+				if (errorCode(error) !== 'EEXIST') throw error;
+			});
 			await atomicReplaceFile(excludePath, desired);
 		} catch (error) {
 			throw GitError.fromNodeError(error);
@@ -54,12 +57,18 @@ export async function ensureStagingPrecondition(worktreePath: string): Promise<v
 	try {
 		await ensureAppManagedGitExcludes(worktreePath);
 	} catch (error) {
+		if (checkoutUnreadable(error)) throw error;
 		console.error(
 			`malini: could not install the repository exclude rule for \`${worktreePath}\`: ${
 				error instanceof Error ? error.message : String(error)
 			}`,
 		);
 	}
+}
+
+function checkoutUnreadable(error: unknown): boolean {
+	if (isNotFoundError(error) || isGitError(error, 'not-a-repo')) return true;
+	return isGitError(error, 'git') && error.facts['said'] === 'not-a-work-tree';
 }
 
 export function repositoryExcludeWithManagedRule(existing: string): string {

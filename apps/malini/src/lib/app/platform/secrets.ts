@@ -1,5 +1,6 @@
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { AppError } from './app-error';
 
 export const SECRET_STORE_FILE = 'renderer-secrets.json';
 
@@ -26,7 +27,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 
 function requireName(value: unknown, field: 'service' | 'key'): string {
 	if (typeof value !== 'string' || value.length === 0) {
-		throw new Error(`keychain ${field} must be a non-empty string`);
+		throw new AppError('invalid-argument', `keychain ${field} must be a non-empty string`);
 	}
 	return value;
 }
@@ -51,14 +52,19 @@ export class RendererSecretStore {
 			try {
 				return this.cipher.decryptString(Buffer.from(encoded, 'base64'));
 			} catch (error) {
-				throw new Error(`could not decrypt secret ${s}/${k}: ${describe(error)}`);
+				throw new AppError(
+					'secret-store',
+					`could not decrypt secret ${s}/${k}: ${describe(error)}`,
+					error,
+				);
 			}
 		});
 	}
 
 	async set(service: unknown, key: unknown, value: unknown): Promise<void> {
 		const [s, k] = this.validate(service, key);
-		if (typeof value !== 'string') throw new Error('keychain value must be a string');
+		if (typeof value !== 'string')
+			throw new AppError('invalid-argument', 'keychain value must be a string');
 		return this.serialized(async () => {
 			const file = await this.read();
 			const bucket = (file.entries[s] ??= {});
@@ -82,7 +88,8 @@ export class RendererSecretStore {
 	private validate(service: unknown, key: unknown): [string, string] {
 		const s = requireName(service, 'service');
 		const k = requireName(key, 'key');
-		if (!this.cipher.isEncryptionAvailable()) throw new Error(SECURE_STORAGE_UNAVAILABLE_ERROR);
+		if (!this.cipher.isEncryptionAvailable())
+			throw new AppError('secure-storage-unavailable', SECURE_STORAGE_UNAVAILABLE_ERROR);
 		return [s, k];
 	}
 
@@ -106,16 +113,24 @@ export class RendererSecretStore {
 			raw = await readFile(this.path, 'utf8');
 		} catch (error) {
 			if (isErrnoException(error) && error.code === 'ENOENT') return { version: 1, entries: {} };
-			throw new Error(`could not read secret store ${this.path}: ${describe(error)}`);
+			throw new AppError(
+				'io',
+				`could not read secret store ${this.path}: ${describe(error)}`,
+				error,
+			);
 		}
 		let parsed: unknown;
 		try {
 			parsed = JSON.parse(raw);
 		} catch (error) {
-			throw new Error(`secret store ${this.path} is not valid JSON: ${describe(error)}`);
+			throw new AppError(
+				'secret-store',
+				`secret store ${this.path} is not valid JSON: ${describe(error)}`,
+				error,
+			);
 		}
 		if (!isSecretStoreFile(parsed)) {
-			throw new Error(`secret store ${this.path} has an unknown layout`);
+			throw new AppError('secret-store', `secret store ${this.path} has an unknown layout`);
 		}
 		return parsed;
 	}

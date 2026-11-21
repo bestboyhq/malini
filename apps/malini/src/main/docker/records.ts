@@ -1,11 +1,13 @@
 import type { MaliniDatabase } from '../db/driver';
 import { all, nowIso8601, run } from '../db/rows';
+import { DockerError } from './errors';
 
 export type ContainerOwner = 'workstream' | 'shared' | 'extension';
 
 export function parseContainerOwner(value: string): ContainerOwner {
 	if (value === 'workstream' || value === 'shared' || value === 'extension') return value;
-	throw new Error(
+	throw new DockerError(
+		'invalid-argument',
 		`docker container owner must be workstream, shared, or extension, not \`${value}\``,
 	);
 }

@@ -6,7 +6,7 @@ import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import type { AutomationsPlatform, ShippingRule } from '../automations.platform';
 import { pickOutput, promptCandidates } from '../domain/reconciler';
-import { defineAutomationCommands, seedBuiltinAutomations } from './commands';
+import { AutomationError, defineAutomationCommands, seedBuiltinAutomations } from './commands';
 import { settleInterruptedAgentActions } from './agent-actions.repository';
 import type {
 	AnswerWithAutomation,
@@ -63,13 +63,20 @@ export function registerAutomations(
 	const log = options.log ?? ((line: string) => console.error(line));
 	const suggestTitle =
 		options.suggestTitle ??
-		(() => Promise.reject(new Error('Naming is not available in this Malini.')));
+		(() =>
+			Promise.reject(new AutomationError('invariant', 'Naming is not available in this Malini.')));
 	const choose =
 		options.choose ??
-		(() => Promise.reject(new Error('Choosing is not available in this Malini.')));
+		(() =>
+			Promise.reject(
+				new AutomationError('invariant', 'Choosing is not available in this Malini.'),
+			));
 	const answer =
 		options.answer ??
-		(() => Promise.reject(new Error('Answering is not available in this Malini.')));
+		(() =>
+			Promise.reject(
+				new AutomationError('invariant', 'Answering is not available in this Malini.'),
+			));
 	const work = new BackgroundWork(log);
 	const runner = new AutomationRunner(context, log, work);
 	const experiments = new AutomationExperiments(
@@ -98,7 +105,10 @@ export function registerAutomations(
 			compatibility: (event) => checkCompatibility(context, event, log),
 		},
 		options.deliver ??
-			(() => Promise.reject(new Error('Delivering prompts is not available in this Malini.'))),
+			(() =>
+				Promise.reject(
+					new AutomationError('invariant', 'Delivering prompts is not available in this Malini.'),
+				)),
 		work,
 	);
 	defineAutomationCommands(
@@ -187,6 +197,7 @@ async function replay(
 	}
 	if (builtin !== 'reconcile') return suggestTitle(task, automation);
 	const labels = promptCandidates(task);
-	if (labels.length < 2) throw new Error('This decision has no candidates to pick from.');
+	if (labels.length < 2)
+		throw new AutomationError('invariant', 'This decision has no candidates to pick from.');
 	return pickOutput(labels, await choose(task, automation, labels.length));
 }

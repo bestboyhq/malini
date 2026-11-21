@@ -9,7 +9,7 @@ import {
 	removeCustomSound,
 	type NewCustomSound,
 } from './sounds.repository';
-import { readSoundFile } from './sound-file';
+import { readSoundFile, SoundError, soundTooLarge } from './sound-file';
 
 const AUDIO_MEDIA_TYPE = /^audio\/[\w.+-]+(?:;[\w .=+-]*)?$/u;
 
@@ -30,7 +30,7 @@ export function registerSounds(
 	commands.define('sounds.read', (args: unknown) => {
 		const id = soundId(args);
 		const sound = readCustomSound(db, id);
-		if (!sound) throw new Error(`no sound \`${id}\``);
+		if (!sound) throw new SoundError('not-found', `no sound \`${id}\``);
 		return sound;
 	});
 
@@ -51,26 +51,26 @@ export function registerSounds(
 function soundId(args: unknown): string {
 	const value = isRecord(args) ? args['id'] : undefined;
 	if (typeof value !== 'string' || value.length === 0) {
-		throw new Error('invalid args: `id` must be a sound id');
+		throw new SoundError('invalid-argument', 'invalid args: `id` must be a sound id');
 	}
 	return value;
 }
 
 function newSound(args: unknown): NewCustomSound {
-	if (!isRecord(args)) throw new Error('invalid args: a sound must be an object');
+	if (!isRecord(args))
+		throw new SoundError('invalid-argument', 'invalid args: a sound must be an object');
 	const { label, kind, mediaType, bytes } = args;
 	if (typeof label !== 'string' || label.trim().length === 0) {
-		throw new Error('invalid args: `label` must name the sound');
+		throw new SoundError('invalid-argument', 'invalid args: `label` must name the sound');
 	}
-	if (!isCustomSoundKind(kind)) throw new Error('invalid args: `kind` must be recording or file');
+	if (!isCustomSoundKind(kind))
+		throw new SoundError('invalid-argument', 'invalid args: `kind` must be recording or file');
 	if (typeof mediaType !== 'string' || !AUDIO_MEDIA_TYPE.test(mediaType)) {
-		throw new Error('invalid args: `mediaType` must be an audio type');
+		throw new SoundError('invalid-argument', 'invalid args: `mediaType` must be an audio type');
 	}
 	if (!(bytes instanceof Uint8Array) || bytes.length === 0) {
-		throw new Error('invalid args: `bytes` must hold the sound');
+		throw new SoundError('invalid-argument', 'invalid args: `bytes` must hold the sound');
 	}
-	if (bytes.length > SOUND_MAX_BYTES) {
-		throw new Error(`a sound can be at most ${SOUND_MAX_BYTES / 1024 / 1024} MB`);
-	}
+	if (bytes.length > SOUND_MAX_BYTES) throw soundTooLarge();
 	return { label: label.trim().slice(0, SOUND_LABEL_MAX_LENGTH), kind, mediaType, bytes };
 }

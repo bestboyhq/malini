@@ -1,6 +1,13 @@
 import { basename } from 'node:path';
-import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
+import { githubFailure, isNetworkFailure, type GithubFailure } from '../contract/github-failure.ts';
 import type { ShipWaitsFor } from '$contract/pull-requests';
+import {
+	ghSaid,
+	ghSubcommand,
+	gitMessageTemplate,
+	gitSaid,
+	gitSubcommand,
+} from './failure-facts.ts';
 
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return (
@@ -14,6 +21,51 @@ export function errorCode(error: unknown): string | undefined {
 
 export function describeError(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+export type FailureVerdict = 'expected' | 'bug';
+
+export type ErrorVerdicts<Kind extends string = string> = Readonly<Record<Kind, FailureVerdict>>;
+
+export type ErrorFacts = Readonly<Record<string, string | number>>;
+
+export interface MaliniErrorOptions {
+	readonly code?: string | null | undefined;
+	readonly facts?: ErrorFacts | undefined;
+	readonly cause?: unknown;
+}
+
+export const SHARED_ERROR_VERDICTS = {
+	'invalid-argument': 'bug',
+	invariant: 'bug',
+} as const satisfies ErrorVerdicts;
+
+export abstract class MaliniError<Kind extends string = string> extends Error {
+	readonly kind: Kind;
+	readonly verdict: FailureVerdict;
+	readonly code: string | null;
+	readonly facts: ErrorFacts;
+
+	constructor(
+		name: string,
+		verdicts: ErrorVerdicts<Kind>,
+		kind: Kind,
+		message: string,
+		options: MaliniErrorOptions = {},
+	) {
+		super(message, options.cause === undefined ? undefined : { cause: options.cause });
+		this.name = name;
+		this.kind = kind;
+		const cause = options.cause instanceof MaliniError ? options.cause : null;
+		this.verdict = cause?.verdict === 'expected' ? 'expected' : verdicts[kind];
+		this.code = options.code ?? null;
+		this.facts = options.facts ?? cause?.facts ?? {};
+		Error.captureStackTrace(this, new.target);
+	}
+}
+
+export function isMaliniError(error: unknown): error is MaliniError {
+	return error instanceof MaliniError;
 }
 
 export const WORKSTREAM_FOLDER_MISSING = "This workstream's folder is missing.";
@@ -67,23 +119,41 @@ interface GitErrorExtra {
 	readonly credentials?: GitCredentialOffer | undefined;
 	readonly code?: string | undefined;
 	readonly exitCode?: number | null | undefined;
+	readonly facts?: ErrorFacts | undefined;
 	readonly cause?: unknown;
 }
 
-export class GitError extends Error {
-	readonly kind: GitErrorKind;
+const GIT_ERROR_VERDICTS: ErrorVerdicts<GitErrorKind> = {
+	'auth-failed': 'expected',
+	'push-denied': 'expected',
+	'repository-not-found': 'expected',
+	network: 'expected',
+	'remote-ahead': 'expected',
+	'remote-rejected': 'expected',
+	'merge-conflict': 'expected',
+	'unsafe-path': 'bug',
+	'not-a-repo': 'expected',
+	'branch-exists': 'expected',
+	'worktree-busy': 'expected',
+	'output-too-large': 'expected',
+	'git-unavailable': 'expected',
+	git: 'bug',
+	io: 'bug',
+};
+
+export class GitError extends MaliniError<GitErrorKind> {
 	readonly detail: string | undefined;
 	readonly credentials: GitCredentialOffer | undefined;
-	readonly code: string | undefined;
 	readonly exitCode: number | null;
 
 	constructor(kind: GitErrorKind, message: string, extra: GitErrorExtra = {}) {
-		super(message, extra.cause === undefined ? undefined : { cause: extra.cause });
-		this.name = 'GitError';
-		this.kind = kind;
+		super('GitError', GIT_ERROR_VERDICTS, kind, message, {
+			code: extra.code,
+			facts: extra.facts,
+			cause: extra.cause,
+		});
 		this.detail = extra.detail;
 		this.credentials = extra.credentials;
-		this.code = extra.code;
 		this.exitCode = extra.exitCode ?? null;
 	}
 
@@ -95,6 +165,11 @@ export class GitError extends Error {
 			detail: failure.output,
 			code: verdict.code,
 			exitCode: failure.exitCode,
+			facts: {
+				subcommand: gitSubcommand(failure.args),
+				...processEnding(failure.exitCode, failure.signal),
+				...(verdict.kind === 'git' ? gitSaidFacts(failure.output) : {}),
+			},
 			cause: new Error(gitCommandTranscript(failure)),
 		});
 	}
@@ -152,6 +227,17 @@ export class GitError extends Error {
 		}
 		return GitError.io(describeError(error));
 	}
+}
+
+function processEnding(exitCode: number | null, signal: string | null): ErrorFacts {
+	if (exitCode !== null) return { exit: exitCode };
+	return signal === null ? {} : { signal };
+}
+
+function gitSaidFacts(output: string): ErrorFacts {
+	const said = gitSaid(output);
+	const template = said === 'unrecognized' ? gitMessageTemplate(output) : null;
+	return template === null ? { said } : { said, template };
 }
 
 export function isGitError(error: unknown, kind?: GitErrorKind): error is GitError {
@@ -396,20 +482,27 @@ function firstMeaningfulGhLine(stderr: string): string {
 	return (verdict ?? '').replace(/^(fatal|error|gh):\s*/iu, '').trim();
 }
 
-export class GhError extends Error {
-	readonly kind: GhErrorKind;
-	readonly code: number | null;
+const GH_ERROR_VERDICTS: ErrorVerdicts<GhErrorKind> = {
+	'not-installed': 'expected',
+	'auth-required': 'expected',
+	'no-pull-request': 'expected',
+	unreachable: 'expected',
+	down: 'expected',
+	'rate-limited': 'expected',
+	failed: 'bug',
+};
+
+export class GhError extends MaliniError<GhErrorKind> {
+	readonly exitCode: number | null;
 	readonly stderr: string;
 
 	constructor(
 		kind: GhErrorKind,
 		message: string,
-		extra: { code?: number | null; stderr?: string; cause?: unknown } = {},
+		extra: { code?: number | null; stderr?: string; facts?: ErrorFacts; cause?: unknown } = {},
 	) {
-		super(message, { cause: extra.cause });
-		this.name = 'GhError';
-		this.kind = kind;
-		this.code = extra.code ?? null;
+		super('GhError', GH_ERROR_VERDICTS, kind, message, { facts: extra.facts, cause: extra.cause });
+		this.exitCode = extra.code ?? null;
 		this.stderr = extra.stderr ?? '';
 	}
 
@@ -428,23 +521,29 @@ export class GhError extends Error {
 		);
 	}
 
-	static fromStderr(stderr: string, code: number): GhError {
+	static fromStderr(stderr: string, code: number, args: readonly string[] = []): GhError {
 		const detail = firstMeaningfulGhLine(stderr) || stderr.trim() || `gh exited with code ${code}`;
+		const facts = { subcommand: ghSubcommand(args), exit: code };
 		if (GH_AUTH_REQUIRED_PATTERN.test(stderr)) {
-			return new GhError('auth-required', detail, { code, stderr });
+			return new GhError('auth-required', detail, { code, stderr, facts });
 		}
 		if (/no pull requests found|no open pull requests/iu.test(stderr)) {
-			return new GhError('no-pull-request', detail, { code, stderr });
+			return new GhError('no-pull-request', detail, { code, stderr, facts });
 		}
 		const failure = githubFailure(stderr);
 		if (failure !== null) {
 			return new GhError(failure, githubFailureMessage(failure, stderr), {
 				code,
 				stderr,
+				facts,
 				cause: new Error(detail),
 			});
 		}
-		return new GhError('failed', detail, { code, stderr });
+		return new GhError('failed', detail, {
+			code,
+			stderr,
+			facts: { ...facts, said: ghSaid(stderr) },
+		});
 	}
 }
 
@@ -452,12 +551,11 @@ export function isGhError(error: unknown, kind?: GhErrorKind): error is GhError 
 	return error instanceof GhError && (kind === undefined || error.kind === kind);
 }
 
-export class DbInvariantError extends Error {
+export class DbInvariantError extends MaliniError<'invariant'> {
 	readonly detail: string;
 
 	constructor(detail: string) {
-		super(`db invariant failed: ${detail}`);
-		this.name = 'DbInvariantError';
+		super('DbInvariantError', SHARED_ERROR_VERDICTS, 'invariant', `db invariant failed: ${detail}`);
 		this.detail = detail;
 	}
 }

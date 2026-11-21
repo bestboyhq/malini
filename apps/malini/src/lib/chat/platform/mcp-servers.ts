@@ -9,6 +9,12 @@ import {
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord } from '$main/db/rows';
 import type { EventBus } from '$main/events';
+import {
+	MaliniError,
+	SHARED_ERROR_VERDICTS,
+	type ErrorVerdicts,
+	type MaliniErrorOptions,
+} from '$main/errors';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { readJsonObject, updateClaudeSettings, type JsonObject } from '$lib/skills/skills.platform';
 import type { AgentMcpServerListing, BridgeMcpServerTarget } from './agent/protocol';
@@ -217,7 +223,8 @@ export function defineMcpServerCommands(
 
 	commands.define('chat.watch-mcp-servers', (args: unknown) => {
 		const restart = field(args, 'restart') ?? false;
-		if (typeof restart !== 'boolean') throw new Error('invalid args: `restart` must be a boolean');
+		if (typeof restart !== 'boolean')
+			throw new McpServerError('invalid-argument', 'invalid args: `restart` must be a boolean');
 		return listings.watch(optionalWorkstreamId(args), restart);
 	});
 
@@ -228,7 +235,8 @@ export function defineMcpServerCommands(
 	commands.define('chat.switch-mcp-server', async (args: unknown) => {
 		const serverName = requireServerName(args);
 		const on = field(args, 'on');
-		if (typeof on !== 'boolean') throw new Error('invalid args: `on` must be a boolean');
+		if (typeof on !== 'boolean')
+			throw new McpServerError('invalid-argument', 'invalid args: `on` must be a boolean');
 		return listings.switchServer(serverName, on);
 	});
 
@@ -254,14 +262,16 @@ export function turnedOffMcpServers(settings: JsonObject): string[] {
 
 const BRIDGE_ERROR_CODE = /^([A-Z_]+): /u;
 
-class McpServerError extends Error {
-	override readonly name = 'McpServerError';
-	readonly kind = 'protocol';
-	readonly code: string | null;
+const MCP_SERVER_ERROR_VERDICTS = {
+	...SHARED_ERROR_VERDICTS,
+	protocol: 'bug',
+} as const satisfies ErrorVerdicts;
 
-	constructor(cause: SupervisorError) {
-		super(cause.detail.replace(BRIDGE_ERROR_CODE, ''), { cause });
-		this.code = BRIDGE_ERROR_CODE.exec(cause.detail)?.[1] ?? null;
+type McpServerErrorKind = keyof typeof MCP_SERVER_ERROR_VERDICTS;
+
+class McpServerError extends MaliniError<McpServerErrorKind> {
+	constructor(kind: McpServerErrorKind, message: string, options?: MaliniErrorOptions) {
+		super('McpServerError', MCP_SERVER_ERROR_VERDICTS, kind, message, options);
 	}
 }
 
@@ -270,7 +280,10 @@ async function plainly<T>(work: () => Promise<T>): Promise<T> {
 		return await work();
 	} catch (error) {
 		if (!(error instanceof SupervisorError) || error.kind !== 'protocol') throw error;
-		throw new McpServerError(error);
+		throw new McpServerError('protocol', error.detail.replace(BRIDGE_ERROR_CODE, ''), {
+			code: BRIDGE_ERROR_CODE.exec(error.detail)?.[1] ?? null,
+			cause: error,
+		});
 	}
 }
 
@@ -285,7 +298,10 @@ async function resolveTarget(
 	const sessionId = field(args, 'sessionId');
 	if (sessionId !== undefined) {
 		if (typeof sessionId !== 'string' || sessionId.length === 0) {
-			throw new Error('invalid args: `sessionId` must be a non-empty string');
+			throw new McpServerError(
+				'invalid-argument',
+				'invalid args: `sessionId` must be a non-empty string',
+			);
 		}
 		return { supervisor: await deps.runtime.ensureSessionReady(sessionId), target: { sessionId } };
 	}
@@ -301,7 +317,10 @@ function optionalWorkstreamId(args: unknown): string | null {
 	const value = field(args, 'workstreamId');
 	if (value === undefined || value === null) return null;
 	if (typeof value !== 'string' || value.length === 0) {
-		throw new Error('invalid args: `workstreamId` must be a non-empty string or null');
+		throw new McpServerError(
+			'invalid-argument',
+			'invalid args: `workstreamId` must be a non-empty string or null',
+		);
 	}
 	return value;
 }
@@ -309,10 +328,14 @@ function optionalWorkstreamId(args: unknown): string | null {
 function requireServerName(args: unknown): string {
 	const value = field(args, 'serverName');
 	if (typeof value !== 'string' || value.trim().length === 0) {
-		throw new Error('invalid args: `serverName` must be a non-empty string');
+		throw new McpServerError(
+			'invalid-argument',
+			'invalid args: `serverName` must be a non-empty string',
+		);
 	}
 	if (value.length > MCP_SERVER_NAME_MAX_LENGTH) {
-		throw new Error(
+		throw new McpServerError(
+			'invalid-argument',
 			`invalid args: \`serverName\` must be at most ${MCP_SERVER_NAME_MAX_LENGTH} characters`,
 		);
 	}

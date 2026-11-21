@@ -1,11 +1,11 @@
-import type { CommandFailure } from '../../contract/ipc';
 import type { FailedCommand } from '../ipc/registry';
 import { workstreamIdOf } from '../ipc/command-failure';
 import { MAIN_LOG_STEM } from './diagnostics-files';
 import { appendNdjsonRecord } from './ndjson-log';
 import { redactSensitiveText, sanitizeDiagnosticText } from './redaction';
 import { throwSite } from './throw-site';
-import { thrownDetail } from './thrown';
+import { stringProperty, thrownDetail } from './thrown';
+import { isMaliniError } from '../errors';
 
 export const MAIN_DIAGNOSTICS_SCHEMA_VERSION = 1;
 export const MAX_RECORDS_PER_WINDOW = 100;
@@ -88,7 +88,7 @@ export class MainDiagnosticsLog {
 		const suppressedRepeats = this.#claimRepeat(failed);
 		if (suppressedRepeats === null) return;
 		this.record({
-			level: commandFailureLevel(failed.failure),
+			level: failureLevel(failed.error),
 			source: 'ipc-command',
 			message: failed.failure.message,
 			error: failed.error,
@@ -202,35 +202,13 @@ function budgetOf(level: MainDiagnosticLevel): RecordBudget {
 	return level === 'info' ? 'info' : 'problems';
 }
 
-const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
-	GhError: new Set(['auth-required', 'not-installed', 'unreachable', 'down', 'rate-limited']),
-	GitError: new Set([
-		'auth-failed',
-		'push-denied',
-		'repository-not-found',
-		'network',
-		'remote-ahead',
-		'remote-rejected',
-		'merge-conflict',
-		'worktree-busy',
-		'output-too-large',
-	]),
-	WorkstreamRemovalError: new Set(['run-active', 'busy']),
-	WorkstreamError: new Set(['chat-gone', 'repository-gone', 'image-path']),
-	AutomationError: new Set(['busy', 'loop']),
-	LifecycleError: new Set(['already_running', 'checkout_busy', 'cancel_race', 'run_ended']),
-	ReconcilerError: new Set(['decided']),
-	ShipError: new Set(['nothing-to-ship', 'not-github', 'not-queued']),
-	SupervisorError: new Set(['stopped']),
-	WorkstreamRetiredError: new Set(['retired']),
-};
-
 const EXPECTED_FAILURE_CODES: ReadonlySet<string> = new Set(['ENOSPC', 'EDQUOT']);
 
-export function commandFailureLevel(failure: CommandFailure): MainDiagnosticLevel {
+export function failureLevel(error: unknown): MainDiagnosticLevel {
+	const code = stringProperty(error, 'code');
 	const expected =
-		(failure.kind !== null && EXPECTED_FAILURE_KINDS[failure.name]?.has(failure.kind)) ||
-		(failure.code !== null && EXPECTED_FAILURE_CODES.has(failure.code));
+		(isMaliniError(error) && error.verdict === 'expected') ||
+		(code !== null && EXPECTED_FAILURE_CODES.has(code));
 	return expected ? 'warn' : 'error';
 }
 

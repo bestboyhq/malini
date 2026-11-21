@@ -26,7 +26,11 @@ import type {
 	WorkstreamOpenedEvent,
 } from './pull-requests';
 import type { ExtensionChangedEvent, ExtensionPublishedEvent } from './marketplace';
-import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
+import type {
+	GitProjectRecord,
+	GitWorkstreamRecord,
+	WorkstreamCheckoutHealthPayload,
+} from './repositories';
 import type {
 	SecretDeletedEvent,
 	SecretRequestDismissedEvent,
@@ -246,6 +250,7 @@ export interface ContractEvents {
 	'repositories:github-cli-install-progress': InstallProgressPayload;
 	'repositories:changed': EmptyEventPayload;
 	'repositories:github-reach-changed': GithubReachChangedPayload;
+	'repositories:workstream-checkout-health': WorkstreamCheckoutHealthPayload;
 	'providers:claude-code-install-progress': InstallProgressPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
@@ -318,6 +323,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:github-cli-install-progress': null,
 	'repositories:changed': null,
 	'repositories:github-reach-changed': null,
+	'repositories:workstream-checkout-health': null,
 	'providers:claude-code-install-progress': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
@@ -427,6 +433,9 @@ export const REPOSITORIES_GITHUB_CLI_INSTALL_PROGRESS_CHANNEL =
 
 export const REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL =
 	'repositories:github-reach-changed' satisfies EventChannel;
+
+export const REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL =
+	'repositories:workstream-checkout-health' satisfies EventChannel;
 
 export const PROVIDERS_CLAUDE_CODE_INSTALL_PROGRESS_CHANNEL =
 	'providers:claude-code-install-progress' satisfies EventChannel;

@@ -1,4 +1,5 @@
 import { errorCode } from '$main/errors';
+import { ProcessError } from './errors';
 
 export function killProcessGroup(
 	pid: number,
@@ -9,7 +10,7 @@ export function killProcessGroup(
 		process.kill(-pid, signal);
 	} catch (error) {
 		if (errorCode(error) === 'ESRCH') return;
-		if (describeFailure) throw new Error(describeFailure(error));
+		if (describeFailure) throw new ProcessError('signal-failed', describeFailure(error), error);
 		throw error;
 	}
 }

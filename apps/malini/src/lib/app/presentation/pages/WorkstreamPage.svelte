@@ -8,6 +8,9 @@
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
+	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
+	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
+	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { keepContextMediaFreshHook } from '$lib/chat/application/hooks/keep-context-media-fresh.hook';
@@ -23,11 +26,17 @@
 	import {
 		archiveWorkstreamCommand,
 		changeTotalsQuery,
+		checkoutHealthQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
 		provisioningRecordQuery,
 		provisioningRetryingQuery,
+		dismissDependencyInstallCommand,
 		provisioningTopBarStatus,
+		runCheckoutActionCommand,
+		seedWorkstreamDependenciesCommand,
+		setupStepTopBarStatus,
+		workstreamSetupStepsQuery,
 		refreshRepositoriesCommand,
 		refreshWorkstreamsCommand,
 		repositoryContextQuery,
@@ -76,7 +85,8 @@
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
-	const checkoutReady = $derived(repositoryScopeReady && !worktreePending);
+	const checkoutHealthy = $derived(checkoutHealthQuery.data(workstreamId).state === 'healthy');
+	const checkoutReady = $derived(repositoryScopeReady && !worktreePending && checkoutHealthy);
 	const mediaReady = $derived(checkoutReady && workstream !== null);
 	const changeTotals = $derived(changeTotalsQuery.data[workstreamId] ?? null);
 	const provisioning = $derived(provisioningRecordQuery.data(workstreamId));
@@ -96,6 +106,26 @@
 		provisioningTopBarStatus(provisioning, provisioningRetrying, () =>
 			retryProvisioningCommand(workstreamId),
 		),
+	);
+	const setupStatus = $derived(
+		provisioningStatus ??
+			setupStepTopBarStatus(
+				workstreamSetupStepsQuery.data(workstreamId, checkoutFixTurnQuery.data(workstreamId)),
+				workstream?.branch ?? null,
+				{
+					onCheckoutAction: (kind) =>
+						runCheckoutActionCommand(workstreamId, kind, {
+							onAskAgent: () => askAgentToFixCheckoutCommand(workstreamId),
+							onReport: () =>
+								reportCheckoutProblemCommand(
+									workstreamId,
+									checkoutHealthQuery.data(workstreamId).said,
+								),
+						}),
+					onRetryInstall: () => seedWorkstreamDependenciesCommand(workstreamId),
+					onDismissInstall: () => dismissDependencyInstallCommand(workstreamId),
+				},
+			),
 	);
 	const inspectedWorkstream = $derived<ExtensionWorkstream | null>(
 		workstream
@@ -137,7 +167,7 @@
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
 			agentStatus={chat.agentStatus}
-			overrideStatus={provisioningStatus}
+			overrideStatus={setupStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
 			onarchive={archiveWorkstream}
 		/>
