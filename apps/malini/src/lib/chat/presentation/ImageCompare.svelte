@@ -242,7 +242,7 @@
 						>
 							<Button
 								bare
-								class="bg-brand text-brand-content outline-surface-elevated-border grid size-3 cursor-pointer place-items-center rounded-[3px] font-mono text-[8px] leading-none font-medium tabular-nums shadow-sm outline-1"
+								class="bg-brand text-brand-content outline-surface-elevated-border grid size-3 cursor-pointer place-items-center rounded-[3px] font-mono text-[7px] leading-none font-bold tabular-nums shadow-sm outline-1"
 								ariaLabel={`Change ${index + 1}`}
 								ariaPressed={selected === index}
 								onclick={() => focusOn(selected === index ? null : index)}
