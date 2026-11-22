@@ -333,13 +333,13 @@ describe('usage data', () => {
 	it('logs crashes and uncaught exceptions', async () => {
 		const { errors, throwUncaught, goneProcess } = harness();
 		throwUncaught(new TypeError('x is undefined in /Users/me'));
-		goneProcess('renderer', 'killed', 9);
+		goneProcess('renderer', 'launch-failed', 1003);
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
 				/^uncaught exception: TypeError \{"app":\{"version":"1\.0\.0"\},"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\]\}$/u,
 			),
-			'renderer process gone: killed, SIGKILL {"app":{"version":"1.0.0"}}',
+			'renderer process gone: launch-failed, code 1003 {"app":{"version":"1.0.0"}}',
 		]);
 	});
 
