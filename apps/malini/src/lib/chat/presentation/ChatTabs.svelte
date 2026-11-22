@@ -506,6 +506,7 @@
 	data-testid="chat-agent-tabs"
 >
 	<ClosedChatsMenu {workstreamId} />
+	<span class="bg-surface-150-border mx-1 h-4 w-px shrink-0" aria-hidden="true"></span>
 	<div
 		class="relative flex min-w-0 flex-1 items-center gap-px overflow-hidden select-none"
 		use:roveTabFocus
