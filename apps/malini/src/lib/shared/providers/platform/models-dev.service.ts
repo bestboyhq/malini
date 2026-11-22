@@ -1,6 +1,11 @@
 import type { MaliniDatabase } from '$main/db/driver';
-import { MODELS_DEV_URL, modelsDevModels } from '$shared/providers/domain/models-dev';
-import { listStoredProviders, setProviderModels } from './provider.repository';
+import {
+	CLAUDE_CATALOG_ID,
+	MODELS_DEV_URL,
+	modelsDevModels,
+	modelsDevVersions,
+} from '$shared/providers/domain/models-dev';
+import { listStoredProviders, setClaudeVersions, setProviderModels } from './provider.repository';
 
 export type CatalogFetch = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -66,6 +71,8 @@ export class ModelsDevCatalog {
 			const models = modelsDevModels(catalog, provider.id);
 			if (models.length > 0) setProviderModels(this.#deps.db, provider.id, models);
 		}
+		const versions = modelsDevVersions(catalog, CLAUDE_CATALOG_ID);
+		if (versions.length > 0) setClaudeVersions(this.#deps.db, versions);
 		this.#etag = response.headers.get('etag');
 		this.#checkedAt = this.#now();
 	}

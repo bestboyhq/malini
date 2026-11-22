@@ -60,6 +60,8 @@
 	let frame = $state<HTMLDivElement>();
 
 	const areas = $derived(analysis.status === 'ready' ? analysis.areas : []);
+	const lit = $derived(selected === null ? areas : areas.slice(selected, selected + 1));
+	const spotlightId = $props.id();
 	const zoomed = $derived(view.scale > 1);
 	const showsBefore = $derived(mode === 'flip' && flipped);
 	const shownSrc = $derived(showsBefore ? beforeSrc : afterSrc);
@@ -131,11 +133,10 @@
 
 <svelte:window onkeydown={zoomOut} />
 
-{#snippet statePill(state: 'Before' | 'After', side: 'left' | 'right')}
+{#snippet statePill(state: 'Before' | 'After')}
 	<span
 		class={[
-			'outline-border-subtle pointer-events-none absolute bottom-2 rounded-full px-1.5 text-[11px] leading-[18px] font-medium shadow-sm outline-[0.5px]',
-			side === 'left' ? 'left-2' : 'right-2',
+			'outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium shadow-sm outline-[0.5px]',
 			state === 'Before' ? 'bg-surface-invert text-fg-invert' : 'bg-brand text-brand-content',
 		]}
 	>
@@ -171,121 +172,135 @@
 
 <div class="flex flex-col gap-1.5" data-testid="report-image-compare">
 	<div
-		class="media bg-surface-root relative mx-auto w-fit max-w-full overflow-hidden rounded-md select-none"
-		bind:this={frame}
+		class="media bg-surface-root mx-auto w-fit max-w-full overflow-hidden rounded-md select-none"
 		role="group"
 		aria-label="Before and after"
 	>
-		{#if afterSrc}
-			<img
-				src={afterSrc}
-				alt=""
-				aria-hidden="true"
-				draggable="false"
-				class="invisible block max-h-[70vh] max-w-full"
-			/>
-		{:else}
-			<div class="aspect-[16/10] max-h-[70vh] w-screen max-w-full"></div>
-		{/if}
+		<div class="relative overflow-hidden" bind:this={frame}>
+			{#if afterSrc}
+				<img
+					src={afterSrc}
+					alt=""
+					aria-hidden="true"
+					draggable="false"
+					class="invisible block max-h-[70vh] max-w-full"
+				/>
+			{:else}
+				<div class="aspect-[16/10] max-h-[70vh] w-screen max-w-full"></div>
+			{/if}
 
-		{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}
-		{#if mode === 'wipe'}
-			<div class="absolute inset-0" style:clip-path="inset(0 0 0 {position}%)">
-				{@render layer(afterSrc, false)}
-			</div>
-			<!-- eslint-disable-next-line @malini/desktop/no-raw-form-control -- the wipe is a range slider across the picture; hyper-ui has no slider primitive, and TextInput, Checkbox and Switch cannot drag a divider. -->
-			<input
-				type="range"
-				class="wipe absolute inset-0 size-full cursor-ew-resize opacity-0"
-				min="0"
-				max="100"
-				step="0.1"
-				bind:value={position}
-				aria-label="Wipe between before and after"
-			/>
-		{:else if mode === 'flip'}
-			<Button
-				bare
-				class="absolute inset-0 size-full cursor-pointer"
-				ariaLabel={flipped
-					? 'Showing before, click to show after'
-					: 'Showing after, click to show before'}
-				ariaPressed={flipped}
-				onclick={() => (flipped = !flipped)}
-			></Button>
-		{/if}
+			{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}
+			{#if mode === 'wipe'}
+				<div class="absolute inset-0" style:clip-path="inset(0 0 0 {position}%)">
+					{@render layer(afterSrc, false)}
+				</div>
+				<!-- eslint-disable-next-line @malini/desktop/no-raw-form-control -- the wipe is a range slider across the picture; hyper-ui has no slider primitive, and TextInput, Checkbox and Switch cannot drag a divider. -->
+				<input
+					type="range"
+					class="wipe absolute inset-0 size-full cursor-ew-resize opacity-0"
+					min="0"
+					max="100"
+					step="0.1"
+					bind:value={position}
+					aria-label="Wipe between before and after"
+				/>
+			{:else if mode === 'flip'}
+				<Button
+					bare
+					class="absolute inset-0 size-full cursor-pointer"
+					ariaLabel={flipped
+						? 'Showing before, click to show after'
+						: 'Showing after, click to show before'}
+					ariaPressed={flipped}
+					onclick={() => (flipped = !flipped)}
+				></Button>
+			{/if}
 
-		<div
-			class={['zoom pointer-events-none absolute inset-0', gliding && 'glide']}
-			style:--zoom-x="{view.x * 100}%"
-			style:--zoom-y="{view.y * 100}%"
-			style:--zoom={view.scale}
-		>
-			{#each areas as area, index (index)}
-				<span
-					class={['area absolute rounded-[3px]', selected === index && 'chosen']}
-					style:left="{area.x * 100}%"
-					style:top="{area.y * 100}%"
-					style:width="{area.w * 100}%"
-					style:height="{area.h * 100}%"
-					style:--stroke="{1.5 / view.scale}px"
-				></span>
-			{/each}
-			{#each areas as area, index (index)}
-				<span
-					class="pin pointer-events-auto absolute"
-					style:--area-x="{area.x * 100}%"
-					style:--area-y="{area.y * 100}%"
-				>
-					<Tooltip
-						content={selected === index ? 'Zoom back out' : `Change ${index + 1} · zoom in`}
-						placement="top"
+			<div
+				class={['zoom pointer-events-none absolute inset-0', gliding && 'glide']}
+				style:--zoom-x="{view.x * 100}%"
+				style:--zoom-y="{view.y * 100}%"
+				style:--zoom={view.scale}
+			>
+				{#if lit.length > 0}
+					<svg class="absolute inset-0 size-full text-black/45" aria-hidden="true">
+						<mask id={spotlightId}>
+							<rect width="100%" height="100%" fill="white" />
+							{#each lit as area, index (index)}
+								<rect
+									x="{area.x * 100}%"
+									y="{area.y * 100}%"
+									width="{area.w * 100}%"
+									height="{area.h * 100}%"
+									rx="3"
+									fill="black"
+								/>
+							{/each}
+						</mask>
+						<rect width="100%" height="100%" fill="currentColor" mask="url(#{spotlightId})" />
+					</svg>
+				{/if}
+				{#each areas as area, index (index)}
+					<span
+						class="pin pointer-events-auto absolute"
+						style:--area-x="{area.x * 100}%"
+						style:--area-y="{area.y * 100}%"
 					>
-						<Button
-							bare
-							class="bg-brand text-brand-content outline-surface-elevated-border grid size-4 cursor-pointer place-items-center rounded-full text-[10px] leading-none font-semibold shadow-sm outline-[1.5px]"
-							ariaLabel={`Change ${index + 1}`}
-							ariaPressed={selected === index}
-							onclick={() => focusOn(selected === index ? null : index)}
+						<Tooltip
+							content={selected === index ? 'Zoom back out' : `Change ${index + 1} · zoom in`}
+							placement="top"
 						>
-							{index + 1}
-						</Button>
-					</Tooltip>
-				</span>
-			{/each}
+							<Button
+								bare
+								class="bg-brand text-brand-content outline-surface-elevated-border grid size-3 cursor-pointer place-items-center rounded-full font-mono text-[8px] leading-none font-medium tabular-nums shadow-sm outline-1"
+								ariaLabel={`Change ${index + 1}`}
+								ariaPressed={selected === index}
+								onclick={() => focusOn(selected === index ? null : index)}
+							>
+								{index + 1}
+							</Button>
+						</Tooltip>
+					</span>
+				{/each}
+			</div>
+
+			{#if mode === 'wipe'}
+				<div class="handle pointer-events-none absolute inset-y-0" style:left="{position}%">
+					<span
+						class="bg-surface-elevated text-fg-secondary absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-sm"
+					>
+						<Icon name="chevron-left" size={10} />
+						<Icon name="chevron-right" size={10} />
+					</span>
+				</div>
+			{/if}
+
+			{#if zoomed}
+				<Button
+					variant="secondary"
+					size="2xs"
+					class="absolute top-2 right-2"
+					onclick={() => focusOn(null)}
+				>
+					Show all
+				</Button>
+			{/if}
 		</div>
 
-		{#if mode === 'wipe'}
-			<div class="handle pointer-events-none absolute inset-y-0" style:left="{position}%">
+		<div class="flex items-center justify-between p-2">
+			{#if mode === 'wipe'}
+				{@render statePill('Before')}
+				{@render statePill('After')}
+			{:else if mode === 'flip'}
+				{@render statePill(flipped ? 'Before' : 'After')}
+			{:else}
 				<span
-					class="bg-surface-elevated text-fg-secondary absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-sm"
+					class="bg-surface-50 text-fg-secondary outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px]"
 				>
-					<Icon name="chevron-left" size={10} />
-					<Icon name="chevron-right" size={10} />
+					{areas.length === 1 ? '1 changed area' : `${areas.length} changed areas`}
 				</span>
-			</div>
-			{@render statePill('Before', 'left')}
-			{@render statePill('After', 'right')}
-		{:else if mode === 'flip'}
-			{@render statePill(flipped ? 'Before' : 'After', 'left')}
-		{:else}
-			<span
-				class="bg-surface-50/85 text-fg-secondary outline-border-subtle pointer-events-none absolute bottom-2 left-2 rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px] backdrop-blur-sm"
-			>
-				{areas.length === 1 ? '1 changed area' : `${areas.length} changed areas`}
-			</span>
-		{/if}
-
-		{#if zoomed}
-			<Button
-				variant="secondary"
-				size="2xs"
-				class="absolute top-2 right-2"
-				onclick={() => focusOn(null)}
-			>
-				Show all
-			</Button>
-		{/if}
+			{/if}
+		</div>
 	</div>
 
 	<div class="flex items-center justify-between gap-2">
@@ -346,15 +361,6 @@
 	.wipe {
 		margin: 0;
 		appearance: none;
-	}
-
-	.area {
-		outline: var(--stroke) dashed var(--color-brand-foreground);
-	}
-
-	.area.chosen {
-		outline-style: solid;
-		background: color-mix(in oklab, var(--color-brand-foreground) 10%, transparent);
 	}
 
 	.handle {

@@ -25,6 +25,7 @@ interface ProviderRow {
 }
 
 const COLUMNS = 'id, name, kind, base_url, api_key, models, subagent_model, plan';
+const CLAUDE_VERSIONS_KEY = 'claude-model-versions';
 
 export function listStoredProviders(db: MaliniDatabase): StoredProvider[] {
 	return all<ProviderRow>(
@@ -101,6 +102,25 @@ export function setProviderModels(
 			id,
 			JSON.stringify(models),
 		).changes > 0
+	);
+}
+
+export function claudeVersions(db: MaliniDatabase): AgentModelInfo[] {
+	const row = get<{ value: string }>(
+		db,
+		'SELECT value FROM settings WHERE key = ?',
+		CLAUDE_VERSIONS_KEY,
+	);
+	const models = row ? parseJsonColumn(row.value) : null;
+	return isModelList(models) ? models : [];
+}
+
+export function setClaudeVersions(db: MaliniDatabase, models: readonly AgentModelInfo[]): void {
+	run(
+		db,
+		'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+		CLAUDE_VERSIONS_KEY,
+		JSON.stringify(models),
 	);
 }
 

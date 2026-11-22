@@ -42,7 +42,7 @@ import {
 } from './config-snapshot.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
-import { claudeReplyChecker, sentBack, type ReplyChecker } from './reply-check.js';
+import { claudeReplyChecker, mayAskUser, sentBack, type ReplyChecker } from './reply-check.js';
 import {
 	mcpServerReport,
 	openInBrowser,
@@ -422,7 +422,7 @@ export class ClaudeSession implements ProviderHandle {
 			abort,
 			finished,
 			end,
-			transcript: new ClaudeTranscript(runId, this.#emit, run.steReplies),
+			transcript: new ClaudeTranscript(runId, this.#emit),
 			failureSignals: new RunFailureSignals(),
 			turnEnded: finished,
 			cancelled: false,
@@ -475,7 +475,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.promptId = randomUUID();
 		active.results = [];
 		active.snapshot = null;
-		active.transcript = new ClaudeTranscript(runId, this.#emit, active.steReplies);
+		active.transcript = new ClaudeTranscript(runId, this.#emit);
 		active.failureSignals = new RunFailureSignals();
 		const outcome = await this.#turn(active, prompt, profile, 'warm');
 		return outcome === 'process-ended' ? outcome : 'done';
@@ -943,7 +943,7 @@ export class ClaudeSession implements ProviderHandle {
 				SessionStart: [
 					{ matcher: 'compact', hooks: recordHooks(() => this.#context.requestHistory()) },
 				],
-				...(steReplies ? { Stop: [{ hooks: [this.#checkReplyHook(report !== 'high')] }] } : {}),
+				Stop: [{ hooks: [this.#checkReplyHook(steReplies, report !== 'high')] }],
 			},
 			...(compactWindow ? { settings: { autoCompactWindow: compactWindow } } : {}),
 			...maliniTools(
@@ -1162,18 +1162,17 @@ export class ClaudeSession implements ProviderHandle {
 		}, this.#outage.remainingMs).unref();
 	}
 
-	#checkReplyHook(terse: boolean): HookCallback {
+	#checkReplyHook(ste: boolean, terse: boolean): HookCallback {
 		return async (input, _toolUseId, { signal }) => {
 			const active = this.#active;
 			if (input.hook_event_name !== 'Stop' || input.stop_hook_active || !active) return {};
 			const reply = input.last_assistant_message?.trim();
-			if (!reply) return {};
-			const fix = await this.#checkReply({ request: active.request, reply, terse }, signal).catch(
-				(error: unknown) => {
-					process.stderr.write(`[claude] could not check the reply: ${describe(error)}\n`);
-					return null;
-				},
-			);
+			if (!reply || !(ste || mayAskUser(reply))) return {};
+			const check = { request: active.request, reply, ste, terse };
+			const fix = await this.#checkReply(check, signal).catch((error: unknown) => {
+				process.stderr.write(`[claude] could not check the reply: ${describe(error)}\n`);
+				return null;
+			});
 			return fix === null ? {} : { decision: 'block', reason: sentBack(fix) };
 		};
 	}

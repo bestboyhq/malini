@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
 	catalogModelLabel,
+	earlierVersions,
 	effortsForModel,
 	filterPickerRows,
 	modelLabel,
 	normalizeReasoningEffort,
 	pickerRows,
+	releaseMonth,
 	rowRunner,
 	selectionLabel,
+	withEarlierVersions,
 	type AgentModelInfo,
 } from './model-catalog';
 import type { ProviderGroup } from './provider';
@@ -202,5 +205,55 @@ describe('model picker rows', () => {
 		]);
 		expect(shape(filterPickerRows(rows, 'claude haiku'))).toEqual(['Haiku 5.5: claude']);
 		expect(filterPickerRows(rows, 'kimi')).toEqual([]);
+	});
+});
+
+describe('earlier Claude versions', () => {
+	const version = (id: string, label: string, family: string, released: string) => ({
+		...model(id, label, family),
+		released,
+	});
+	const claudeCode = [model('opus', 'Opus 5.5'), model('opus[1m]'), model('haiku', 'Haiku 5.5')];
+	const models = withEarlierVersions(claudeCode, [
+		version('claude-opus-5-5', 'Opus 5.5', 'claude-opus', '2026-09-22'),
+		version('claude-fable-5-1', 'Fable 5.1', 'claude-fable', '2026-09-01'),
+		version('claude-opus-4-5', 'Opus 4.5', 'claude-opus', '2025-11-24'),
+		version('claude-haiku-4-5', 'Haiku 4.5', 'claude-haiku', '2025-10-15'),
+	]);
+	const claude = [group('claude', true, [...models], 'claude')];
+	const ids = (runners: ReturnType<typeof earlierVersions>) =>
+		runners.map((runner) => runner.model.id);
+
+	it('adds versions of the families Claude Code offers, minus the ones its aliases run', () => {
+		expect(models.map((entry) => entry.id)).toEqual([
+			'opus',
+			'opus[1m]',
+			'haiku',
+			'claude-opus-4-5',
+			'claude-haiku-4-5',
+		]);
+	});
+
+	it('shows earlier versions only for a query, beside the rows it matches', () => {
+		const rows = pickerRows(claude, { provider: 'claude', model: 'opus' });
+		expect(shape(rows)).toEqual(['Opus 5.5: claude', 'Haiku 5.5: claude']);
+		expect(earlierVersions(claude, rows, ' ')).toEqual([]);
+		expect(ids(earlierVersions(claude, rows, 'opus'))).toEqual(['claude-opus-4-5']);
+		expect(ids(earlierVersions(claude, rows, '4.5 claude'))).toEqual([
+			'claude-opus-4-5',
+			'claude-haiku-4-5',
+		]);
+		expect(earlierVersions(claude, rows, 'kimi')).toEqual([]);
+	});
+
+	it('keeps a picked version as a row after its family, not among earlier versions', () => {
+		const rows = pickerRows(claude, { provider: 'claude', model: 'claude-opus-4-5' });
+		expect(shape(rows)).toEqual(['Opus 5.5: claude', 'Opus 4.5: claude', 'Haiku 5.5: claude']);
+		expect(earlierVersions(claude, rows, 'opus')).toEqual([]);
+	});
+
+	it('names the month a version came out', () => {
+		expect(releaseMonth('2025-11-24')).toBe('Nov 2025');
+		expect(releaseMonth('soon')).toBe('');
 	});
 });

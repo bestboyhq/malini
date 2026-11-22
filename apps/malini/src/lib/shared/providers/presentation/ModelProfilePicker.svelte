@@ -8,9 +8,11 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { createRovingFocus } from '$hyper-ui/overlay';
 	import {
+		earlierVersions,
 		effortsForModel,
 		filterPickerRows,
 		pickerRows,
+		releaseMonth,
 		rowRunner,
 		rowRuns,
 		runs,
@@ -76,7 +78,9 @@
 	const failedUpdate = $derived(
 		claudeStatus.kind === 'ready' ? claudeCodeUpdateQuery.data.failed : null,
 	);
-	const rows = $derived(filterPickerRows(pickerRows(groups, selection), query));
+	const allRows = $derived(pickerRows(groups, selection));
+	const rows = $derived(filterPickerRows(allRows, query));
+	const versions = $derived(earlierVersions(groups, allRows, query));
 	const selectedLabel = $derived(selectionLabel(groups, selection));
 	const currentPreset: ModelPreset = $derived({
 		selection,
@@ -211,7 +215,9 @@
 		if (event.key !== 'Enter' || event.isComposing) return;
 		event.preventDefault();
 		const first = rows[0];
+		const version = versions[0];
 		if (first) select(rowRunner(first, selection, ready));
+		else if (version) select(version);
 	}
 
 	onMount(() => {
@@ -384,10 +390,44 @@
 								{/if}
 							</span>
 						</DropdownItem>
-					{:else}
-						<p class="text-fg-tertiary px-2 py-1.5 text-xs leading-5">No models match</p>
 					{/each}
 				</div>
+				{#if versions.length > 0}
+					{#if rows.length > 0}
+						<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+					{/if}
+					<div role="group" aria-label="Earlier versions">
+						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Earlier versions</p>
+						{#each versions as version (version.group.id + version.model.id)}
+							<DropdownItem
+								role="option"
+								aria-selected={false}
+								class="gap-2.5 py-1.5"
+								data-testid="chat-model-version"
+								data-provider={version.group.id}
+								data-model={version.model.id}
+								onmouseenter={closeFlyout}
+								onSelect={() => select(version)}
+							>
+								<span class="min-w-0 flex-1 truncate text-[13px] leading-5">
+									{version.model.label}
+								</span>
+								<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
+									{releaseMonth(version.model.released ?? '')}
+								</span>
+								<ProviderIcon
+									providerId={version.group.id}
+									ariaLabel={version.group.name}
+									class="text-fg-secondary shrink-0"
+									size={13}
+								/>
+								<span class="w-3.5 shrink-0"></span>
+							</DropdownItem>
+						{/each}
+					</div>
+				{:else if rows.length === 0}
+					<p class="text-fg-tertiary px-2 py-1.5 text-xs leading-5">No models match</p>
+				{/if}
 			</div>
 			<div class="px-1.5 pb-1.5">
 				<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>

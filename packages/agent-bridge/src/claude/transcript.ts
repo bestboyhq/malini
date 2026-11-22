@@ -34,7 +34,6 @@ export interface RunUsage {
 export class ClaudeTranscript {
 	#runId: string;
 	readonly #emit: (event: AgentEvent) => void;
-	readonly #holdsReplies: boolean;
 	#heldReply: AssistantMessage | null = null;
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #autoModeBlocks = new Map<string, string>();
@@ -68,10 +67,9 @@ export class ClaudeTranscript {
 	#stoppedByUser = false;
 	#compaction: string | null = null;
 
-	constructor(runId: string, emit: (event: AgentEvent) => void, holdsReplies = false) {
+	constructor(runId: string, emit: (event: AgentEvent) => void) {
 		this.#runId = runId;
 		this.#emit = emit;
-		this.#holdsReplies = holdsReplies;
 	}
 
 	get cursor(): string | null {
@@ -493,7 +491,6 @@ export class ClaudeTranscript {
 	}
 
 	#reply(message: AssistantMessage): void {
-		if (!this.#holdsReplies) return this.#emit(message);
 		this.#releaseReply();
 		this.#heldReply = message;
 	}
