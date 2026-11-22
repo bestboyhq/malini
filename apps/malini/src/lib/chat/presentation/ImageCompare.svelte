@@ -37,6 +37,10 @@
 	const MAX_ZOOM = 8;
 	const ZOOM_FILL = 0.8;
 	const FIT: View = { scale: 1, x: 0, y: 0 };
+	const HANDLE_REACH = 14;
+	const LABEL_OFFSET = 20;
+	const LABEL_EDGE = 6;
+	const LABEL_HALF_HEIGHT = 9;
 
 	const beforePath = $derived(workstreamImagePath(comparison.before.src));
 	const afterPath = $derived(workstreamImagePath(comparison.after.src));
@@ -58,11 +62,30 @@
 	let view = $state<View>(FIT);
 	let gliding = $state(false);
 	let frame = $state<HTMLDivElement>();
+	let frameWidth = $state(0);
+	let frameHeight = $state(0);
+	let hoverX = $state<number | null>(null);
+	let hoverY = $state<number | null>(null);
+	let dragging = $state(false);
+	let keyed = $state(false);
+	let beforeWidth = $state(0);
+	let afterWidth = $state(0);
 
 	const areas = $derived(analysis.status === 'ready' ? analysis.areas : []);
 	const zoomed = $derived(view.scale > 1);
 	const showsBefore = $derived(mode === 'flip' && flipped);
 	const shownSrc = $derived(showsBefore ? beforeSrc : afterSrc);
+	const lineX = $derived((position / 100) * frameWidth);
+	const labeled = $derived(
+		dragging || keyed || (hoverX !== null && Math.abs(hoverX - lineX) <= HANDLE_REACH),
+	);
+	const labelY = $derived(
+		within(
+			hoverY ?? frameHeight / 2,
+			LABEL_HALF_HEIGHT + LABEL_EDGE,
+			frameHeight - LABEL_HALF_HEIGHT - LABEL_EDGE,
+		),
+	);
 
 	onMount(() => {
 		if (request) compareImagesCommand(request);
@@ -127,6 +150,25 @@
 		if (event.key !== 'Escape' || !zoomed) return;
 		focusOn(null);
 	}
+
+	function fits(room: number, width: number): boolean {
+		return room >= LABEL_OFFSET + width + LABEL_EDGE;
+	}
+
+	function track(event: PointerEvent): void {
+		hoverX = event.offsetX;
+		hoverY = event.offsetY;
+	}
+
+	function grab(): void {
+		dragging = true;
+		on(window, 'pointerup', () => (dragging = false), { once: true });
+	}
+
+	function labelOnKeys(event: FocusEvent): void {
+		keyed = event.currentTarget instanceof Element && event.currentTarget.matches(':focus-visible');
+		if (keyed) hoverY = null;
+	}
 </script>
 
 <svelte:window onkeydown={zoomOut} />
@@ -174,7 +216,12 @@
 		role="group"
 		aria-label="Before and after"
 	>
-		<div class="relative overflow-hidden" bind:this={frame}>
+		<div
+			class="relative overflow-hidden"
+			bind:this={frame}
+			bind:clientWidth={frameWidth}
+			bind:clientHeight={frameHeight}
+		>
 			{#if afterSrc}
 				<img
 					src={afterSrc}
@@ -201,6 +248,12 @@
 					step="0.1"
 					bind:value={position}
 					aria-label="Wipe between before and after"
+					onpointermove={track}
+					onpointerleave={() => (hoverX = null)}
+					onpointerdown={grab}
+					onfocus={labelOnKeys}
+					onkeydown={() => (keyed = true)}
+					onblur={() => (keyed = false)}
 				/>
 			{:else if mode === 'flip'}
 				<Button
@@ -255,12 +308,35 @@
 			</div>
 
 			{#if mode === 'wipe'}
-				<div class="handle pointer-events-none absolute inset-y-0" style:left="{position}%">
+				<div
+					class="bg-surface-invert pointer-events-none absolute inset-y-0 w-px -translate-x-1/2"
+					style:left="{position}%"
+					aria-hidden="true"
+				>
 					<span
-						class="bg-surface-elevated text-fg-secondary absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-sm"
+						class="bg-surface-invert text-fg-invert absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-sm"
 					>
 						<Icon name="chevron-left" size={10} />
 						<Icon name="chevron-right" size={10} />
+					</span>
+					<span
+						class={['label absolute right-5 flex', labeled && fits(lineX, beforeWidth) && 'shown']}
+						style:top="{labelY}px"
+						style:--drift="6px"
+						bind:offsetWidth={beforeWidth}
+					>
+						{@render statePill('Before')}
+					</span>
+					<span
+						class={[
+							'label absolute left-5 flex',
+							labeled && fits(frameWidth - lineX, afterWidth) && 'shown',
+						]}
+						style:top="{labelY}px"
+						style:--drift="-6px"
+						bind:offsetWidth={afterWidth}
+					>
+						{@render statePill('After')}
 					</span>
 				</div>
 			{/if}
@@ -274,21 +350,6 @@
 				>
 					Show all
 				</Button>
-			{/if}
-		</div>
-
-		<div class="flex items-center justify-between p-2">
-			{#if mode === 'wipe'}
-				{@render statePill('Before')}
-				{@render statePill('After')}
-			{:else if mode === 'flip'}
-				{@render statePill(flipped ? 'Before' : 'After')}
-			{:else}
-				<span
-					class="bg-surface-50 text-fg-secondary outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px]"
-				>
-					{areas.length === 1 ? '1 changed area' : `${areas.length} changed areas`}
-				</span>
 			{/if}
 		</div>
 	</div>
@@ -311,6 +372,15 @@
 			{/each}
 		</div>
 		<div class="flex items-center gap-2">
+			{#if mode === 'flip'}
+				{@render statePill(flipped ? 'Before' : 'After')}
+			{:else if mode === 'diff'}
+				<span
+					class="bg-surface-50 text-fg-secondary outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px]"
+				>
+					{areas.length === 1 ? '1 changed area' : `${areas.length} changed areas`}
+				</span>
+			{/if}
 			<span class="text-2xs text-fg-tertiary">
 				{zoomed ? `${Number(view.scale.toFixed(1))}× · scroll to pan` : HINTS[mode]}
 			</span>
@@ -353,6 +423,11 @@
 		appearance: none;
 	}
 
+	.wipe::-webkit-slider-thumb {
+		width: 0;
+		appearance: none;
+	}
+
 	.area {
 		outline: var(--stroke) dashed var(--color-brand-foreground);
 		outline-offset: calc(var(--stroke) * -1);
@@ -363,16 +438,32 @@
 		background: color-mix(in oklab, var(--color-brand-foreground) 10%, transparent);
 	}
 
-	.handle {
-		width: 1.5px;
-		margin-left: -0.75px;
-		background: var(--color-surface-elevated);
-		box-shadow: 0 0 0 0.5px var(--color-border-default);
+	.label {
+		opacity: 0;
+		filter: blur(4px);
+		translate: var(--drift) -50%;
+		transition:
+			opacity 120ms ease-in,
+			filter 120ms ease-in,
+			translate 120ms ease-in;
+	}
+
+	.label.shown {
+		opacity: 1;
+		filter: blur(0);
+		translate: 0 -50%;
+		transition-duration: 220ms;
+		transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
 	}
 
 	@media (prefers-reduced-motion: reduce) {
 		.zoom.glide {
 			transition: none;
+		}
+
+		.label {
+			filter: none;
+			translate: 0 -50%;
 		}
 	}
 </style>
