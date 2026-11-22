@@ -439,7 +439,7 @@ describe('malini MCP server', () => {
 				id: { type: 'string', description: expect.any(String) },
 				name: { type: 'string', description: expect.any(String) },
 				instructions: { type: 'string', description: expect.any(String) },
-				model: { enum: ['opus', 'sonnet', 'haiku'], description: expect.any(String) },
+				model: { enum: ['opus', 'fable', 'sonnet', 'haiku'], description: expect.any(String) },
 				effort: {
 					enum: ['low', 'medium', 'high', 'xhigh', 'max'],
 					description: expect.any(String),

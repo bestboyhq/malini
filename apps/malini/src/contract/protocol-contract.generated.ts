@@ -1,7 +1,7 @@
 // Generated from packages/agent-bridge/protocol/bridge-protocol.json. Do not edit.
 
 export const BRIDGE_CONTRACT_NAME = 'malini.agent-bridge' as const;
-export const BRIDGE_PROTOCOL_VERSION = 60 as const;
+export const BRIDGE_PROTOCOL_VERSION = 61 as const;
 export const BRIDGE_READY_TIMEOUT_MS = 10000 as const;
 export const BRIDGE_HEARTBEAT_INTERVAL_MS = 1000 as const;
 export const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5000 as const;
@@ -11,7 +11,7 @@ export const BRIDGE_MAX_DIAGNOSTIC_BYTES = 16384 as const;
 export const BRIDGE_AGENT_ATTACHMENTS_PATH = '.malini/agent-attachments' as const;
 export const BRIDGE_SANDBOX_SCRATCH_PATH = '.malini/sandbox' as const;
 export const BRIDGE_AGENT_CONTEXT_PATH = '.context' as const;
-export const BRIDGE_MODELS = ['opus', 'sonnet', 'haiku'] as const;
+export const BRIDGE_MODELS = ['opus', 'fable', 'sonnet', 'haiku'] as const;
 export const BRIDGE_DEFAULT_MODEL = 'opus' as const;
 export const BRIDGE_COMMAND_NAMES = [
 	'start_session',
