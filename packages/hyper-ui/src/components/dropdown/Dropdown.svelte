@@ -31,6 +31,7 @@
 		owner?: string;
 		role?: AriaRole | null;
 		nested?: boolean;
+		well?: boolean;
 	}
 
 	let {
@@ -54,6 +55,7 @@
 		owner,
 		role = 'menu',
 		nested = false,
+		well = false,
 	}: Props = $props();
 
 	let triggerWrapper: HTMLDivElement | null = $state(null);
@@ -125,7 +127,8 @@
 	{keyboardNavigation}
 	{closeOnEscape}
 	panelClass={[
-		'overflow-hidden rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated',
+		'border-surface-elevated-border overflow-hidden border-[0.5px]',
+		well ? 'bg-surface-root rounded-[18px]' : 'bg-surface-elevated rounded-xl',
 		panelClass,
 	]}
 	{testId}

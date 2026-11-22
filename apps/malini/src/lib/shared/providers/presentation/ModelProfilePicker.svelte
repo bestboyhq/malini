@@ -232,8 +232,9 @@
 		side="top"
 		align="start"
 		{onOpenChange}
+		well
 		panelClass="w-80"
-		contentClass="flex max-h-[min(30rem,60vh)] flex-col overflow-hidden"
+		contentClass="flex max-h-[min(30rem,60vh)] flex-col gap-1.5 overflow-hidden p-1.5"
 		testId="chat-model-picker"
 		owner="chat-composer"
 	>
@@ -265,192 +266,198 @@
 		{/snippet}
 
 		{#snippet content()}
-			<label
-				class="border-surface-elevated-border text-fg-tertiary flex shrink-0 items-center gap-2 border-b-[0.5px] px-4"
-			>
-				<Icon name="search" class="shrink-0" size={13} />
-				<TextInput
-					bare
-					autocomplete="off"
-					placeholder="Find models"
-					ariaLabel="Find models"
-					class="h-9 min-w-0 flex-1 text-[13px]"
-					bind:value={query}
-					bind:element={filterInput}
-					onkeydown={onFilterKeydown}
-				/>
-			</label>
 			<div
-				bind:this={list}
-				class="min-h-0 overflow-x-hidden overflow-y-auto p-1.5"
-				role="listbox"
-				aria-label="Models"
-				tabindex="-1"
-				onscroll={() => (flyout = null)}
-				onfocusin={onListFocus}
+				class="border-surface-50-border bg-surface-50 divide-surface-50-border flex min-h-0 flex-col divide-y-[0.5px] overflow-hidden rounded-xl border-[0.5px]"
 			>
-				<div role="group" aria-label="Models">
-					{#each rows as row (row.family)}
-						{@const runner = rowRunner(row, selection, ready)}
-						{@const selected = rowRuns(row, selection)}
-						{@const multiple = row.runners.length > 1}
-						<DropdownItem
-							role="option"
-							aria-selected={selected}
-							aria-haspopup={multiple ? 'listbox' : undefined}
-							aria-expanded={multiple ? flyout?.row.family === row.family : undefined}
-							checked={selected}
-							class="gap-2.5 py-2"
-							data-testid="chat-model-option"
-							data-provider={runner.group.id}
-							data-model={runner.model.id}
-							onmouseenter={(event) => hover(row, event.currentTarget)}
-							onkeydown={(event) => onRowKeydown(event, row)}
-							onSelect={() => select(runner)}
-						>
-							<span class="flex min-w-0 flex-1 flex-col">
-								<span class="truncate text-[13px] leading-5">{row.label}</span>
-								{#if row.description}
-									<span class="text-fg-tertiary text-2xs truncate leading-4">
-										{row.description}
-									</span>
-								{/if}
-							</span>
-							<ProviderIcon
-								providerId={runner.group.id}
-								ariaLabel={runner.group.name}
-								class="text-fg-secondary shrink-0"
-								size={13}
-							/>
-							<span class="flex w-3.5 shrink-0 justify-center">
-								{#if selected}
-									<Icon name="check" class="text-fg-default" size={14} />
-								{:else if multiple}
-									<Icon name="chevron-right" class="text-fg-tertiary" size={12} />
-								{/if}
-							</span>
-						</DropdownItem>
-					{/each}
-				</div>
-				{#if versions.length > 0}
-					<div role="group" aria-label="Earlier versions">
-						<p
-							class={[
-								'text-2xs text-fg-tertiary px-2.5 pb-0.5 font-medium',
-								rows.length > 0 ? 'pt-2.5' : 'pt-1',
-							]}
-						>
-							Earlier versions
-						</p>
-						{#each versions as version (version.group.id + version.model.id)}
-							<DropdownItem
-								role="option"
-								aria-selected={false}
-								class="gap-2.5 py-1.5"
-								data-testid="chat-model-version"
-								data-provider={version.group.id}
-								data-model={version.model.id}
-								onmouseenter={closeFlyout}
-								onSelect={() => select(version)}
-							>
-								<span class="min-w-0 flex-1 truncate text-[13px] leading-5">
-									{version.model.label}
-								</span>
-								<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
-									{releaseMonth(version.model.released ?? '')}
-								</span>
-								<ProviderIcon
-									providerId={version.group.id}
-									ariaLabel={version.group.name}
-									class="text-fg-secondary shrink-0"
-									size={13}
-								/>
-								<span class="w-3.5 shrink-0"></span>
-							</DropdownItem>
-						{/each}
-					</div>
-				{:else if rows.length === 0}
-					<p class="text-fg-tertiary px-2.5 py-1.5 text-xs leading-5">No models match</p>
-				{/if}
-			</div>
-			{#if presets.length > 0 || !currentSaved}
+				<label class="text-fg-tertiary flex shrink-0 items-center gap-2 px-3.5">
+					<Icon name="search" class="shrink-0" size={13} />
+					<TextInput
+						bare
+						autocomplete="off"
+						placeholder="Find models"
+						ariaLabel="Find models"
+						class="h-9 min-w-0 flex-1 text-[13px]"
+						bind:value={query}
+						bind:element={filterInput}
+						onkeydown={onFilterKeydown}
+					/>
+				</label>
 				<div
-					class="border-surface-elevated-border shrink-0 border-t-[0.5px] p-1.5"
+					bind:this={list}
+					class="min-h-0 overflow-x-hidden overflow-y-auto p-1"
 					role="listbox"
-					aria-label="Presets"
+					aria-label="Models"
 					tabindex="-1"
+					onscroll={() => (flyout = null)}
+					onfocusin={onListFocus}
 				>
-					<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
-					{#each presets as preset (presetName(preset) + preset.selection.provider)}
-						{@const current = sameModelPreset(preset, currentPreset)}
-						<div class="group/preset relative">
+					<div role="group" aria-label="Models">
+						{#each rows as row (row.family)}
+							{@const runner = rowRunner(row, selection, ready)}
+							{@const selected = rowRuns(row, selection)}
+							{@const multiple = row.runners.length > 1}
 							<DropdownItem
 								role="option"
-								aria-selected={current}
-								aria-label={presetName(preset)}
-								checked={current}
-								class="group-hover/preset:bg-surface-elevated-hover group-hover/preset:text-fg-default gap-2.5"
-								data-testid="chat-model-preset"
-								onmouseenter={closeFlyout}
-								onSelect={() => applyPreset(preset)}
+								aria-selected={selected}
+								aria-haspopup={multiple ? 'listbox' : undefined}
+								aria-expanded={multiple ? flyout?.row.family === row.family : undefined}
+								checked={selected}
+								class="gap-2.5 py-2"
+								data-testid="chat-model-option"
+								data-provider={runner.group.id}
+								data-model={runner.model.id}
+								onmouseenter={(event) => hover(row, event.currentTarget)}
+								onkeydown={(event) => onRowKeydown(event, row)}
+								onSelect={() => select(runner)}
 							>
-								<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
-									<span class="truncate leading-5">{selectionLabel(groups, preset.selection)}</span>
-									{#if preset.effort}
-										<span class="text-fg-tertiary shrink-0 text-xs">
-											{reasoningEffortLabel(preset.effort)}
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span class="truncate text-[13px] leading-5">{row.label}</span>
+									{#if row.description}
+										<span class="text-fg-tertiary text-2xs truncate leading-4">
+											{row.description}
 										</span>
 									{/if}
 								</span>
 								<ProviderIcon
-									providerId={preset.selection.provider}
+									providerId={runner.group.id}
+									ariaLabel={runner.group.name}
 									class="text-fg-secondary shrink-0"
 									size={13}
 								/>
 								<span class="flex w-3.5 shrink-0 justify-center">
-									{#if current}
-										<Icon
-											name="check"
-											class="text-fg-default group-hover/preset:opacity-0 group-has-focus-visible/preset:opacity-0"
-											size={14}
-										/>
+									{#if selected}
+										<Icon name="check" class="text-fg-default" size={14} />
+									{:else if multiple}
+										<Icon name="chevron-right" class="text-fg-tertiary" size={12} />
 									{/if}
 								</span>
 							</DropdownItem>
-							<IconButton
-								variant="ghost"
-								size="auto"
-								radius="none"
-								class="absolute top-1 right-[5px] size-6 rounded-md opacity-0 group-hover/preset:opacity-100 group-has-focus-visible/preset:opacity-100"
-								ariaLabel={`Remove ${presetName(preset)}`}
-								data-testid="chat-model-preset-remove"
-								onclick={() => toggleModelPresetCommand(preset)}
+						{/each}
+					</div>
+					{#if versions.length > 0}
+						<div role="group" aria-label="Earlier versions">
+							<p
+								class={[
+									'text-2xs text-fg-tertiary px-2.5 pb-0.5 font-medium',
+									rows.length > 0 ? 'pt-2.5' : 'pt-1',
+								]}
 							>
-								<Icon name="close" size={12} />
-							</IconButton>
+								Earlier versions
+							</p>
+							{#each versions as version (version.group.id + version.model.id)}
+								<DropdownItem
+									role="option"
+									aria-selected={false}
+									class="gap-2.5 py-1.5"
+									data-testid="chat-model-version"
+									data-provider={version.group.id}
+									data-model={version.model.id}
+									onmouseenter={closeFlyout}
+									onSelect={() => select(version)}
+								>
+									<span class="min-w-0 flex-1 truncate text-[13px] leading-5">
+										{version.model.label}
+									</span>
+									<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
+										{releaseMonth(version.model.released ?? '')}
+									</span>
+									<ProviderIcon
+										providerId={version.group.id}
+										ariaLabel={version.group.name}
+										class="text-fg-secondary shrink-0"
+										size={13}
+									/>
+									<span class="w-3.5 shrink-0"></span>
+								</DropdownItem>
+							{/each}
 						</div>
-					{/each}
-					{#if !currentSaved}
-						<DropdownItem
-							closeOnSelect={false}
-							class="gap-2"
-							aria-label={`Save ${presetName(currentPreset)} as a preset`}
-							data-testid="chat-model-preset-save"
-							onmouseenter={closeFlyout}
-							onSelect={() => toggleModelPresetCommand(currentPreset)}
-						>
-							<Icon name="plus" class="-ml-px shrink-0" size={14} />
-							<span class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
-								<span>Save</span>
-								<span class="truncate">{presetName(currentPreset)}</span>
-								<span>as a preset</span>
-							</span>
-						</DropdownItem>
+					{:else if rows.length === 0}
+						<p class="text-fg-tertiary px-2.5 py-1.5 text-xs leading-5">No models match</p>
 					{/if}
 				</div>
+			</div>
+			{#if presets.length > 0 || !currentSaved}
+				<section class="flex shrink-0 flex-col gap-1">
+					<h3 class="text-fg-default flex h-8 items-center pl-3 text-xs font-medium">Presets</h3>
+					<div
+						class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] p-1"
+						role="listbox"
+						aria-label="Presets"
+						tabindex="-1"
+					>
+						{#each presets as preset (presetName(preset) + preset.selection.provider)}
+							{@const current = sameModelPreset(preset, currentPreset)}
+							<div class="group/preset relative">
+								<DropdownItem
+									role="option"
+									aria-selected={current}
+									aria-label={presetName(preset)}
+									checked={current}
+									class="group-hover/preset:bg-surface-elevated-hover group-hover/preset:text-fg-default gap-2.5"
+									data-testid="chat-model-preset"
+									onmouseenter={closeFlyout}
+									onSelect={() => applyPreset(preset)}
+								>
+									<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
+										<span class="truncate leading-5">
+											{selectionLabel(groups, preset.selection)}
+										</span>
+										{#if preset.effort}
+											<span class="text-fg-tertiary shrink-0 text-xs">
+												{reasoningEffortLabel(preset.effort)}
+											</span>
+										{/if}
+									</span>
+									<ProviderIcon
+										providerId={preset.selection.provider}
+										class="text-fg-secondary shrink-0"
+										size={13}
+									/>
+									<span class="flex w-3.5 shrink-0 justify-center">
+										{#if current}
+											<Icon
+												name="check"
+												class="text-fg-default group-hover/preset:opacity-0 group-has-focus-visible/preset:opacity-0"
+												size={14}
+											/>
+										{/if}
+									</span>
+								</DropdownItem>
+								<IconButton
+									variant="ghost"
+									size="auto"
+									radius="none"
+									class="absolute top-1 right-[5px] size-6 rounded-md opacity-0 group-hover/preset:opacity-100 group-has-focus-visible/preset:opacity-100"
+									ariaLabel={`Remove ${presetName(preset)}`}
+									data-testid="chat-model-preset-remove"
+									onclick={() => toggleModelPresetCommand(preset)}
+								>
+									<Icon name="close" size={12} />
+								</IconButton>
+							</div>
+						{/each}
+						{#if !currentSaved}
+							<DropdownItem
+								closeOnSelect={false}
+								class="gap-2"
+								aria-label={`Save ${presetName(currentPreset)} as a preset`}
+								data-testid="chat-model-preset-save"
+								onmouseenter={closeFlyout}
+								onSelect={() => toggleModelPresetCommand(currentPreset)}
+							>
+								<Icon name="plus" class="-ml-px shrink-0" size={14} />
+								<span class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+									<span>Save</span>
+									<span class="truncate">{presetName(currentPreset)}</span>
+									<span>as a preset</span>
+								</span>
+							</DropdownItem>
+						{/if}
+					</div>
+				</section>
 			{/if}
 			{#if failedUpdate}
-				<div class="border-surface-elevated-border shrink-0 border-t-[0.5px] p-1.5">
+				<div class="border-surface-50-border bg-surface-50 shrink-0 rounded-xl border-[0.5px] p-1">
 					<DropdownItem
 						class="gap-2.5 py-2"
 						data-testid="chat-model-claude-update"
@@ -481,15 +488,16 @@
 				positionAnchor={flyout?.anchor ?? null}
 				side="right"
 				align="start"
-				sideOffset={12}
+				sideOffset={16}
 				alignOffset={-6}
 				keyboardNavigation={false}
 				closeOnEscape={false}
 				onOpenChange={(next) => {
 					if (!next) closeFlyout();
 				}}
+				well
 				panelClass="w-56"
-				contentClass=""
+				contentClass="p-1.5"
 				testId="chat-model-runners"
 				owner="chat-composer"
 				role={null}
@@ -500,43 +508,45 @@
 						{@const current = rowRunner(flyout.row, selection, ready)}
 						<div
 							bind:this={flyoutContent}
-							class="p-1.5"
+							class="flex flex-col gap-1"
 							role="listbox"
 							tabindex="-1"
 							aria-label={`${flyout.row.label} runs on`}
 							onmouseenter={() => clearTimeout(hoverTimer)}
 							onkeydown={onFlyoutKeydown}
 						>
-							<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">
+							<p class="text-fg-default flex h-8 items-center truncate pl-3 text-xs font-medium">
 								{flyout.row.label} runs on
 							</p>
-							{#each flyout.row.runners as runner (runner.group.id)}
-								{@const chosen = runner === current}
-								<DropdownItem
-									role="option"
-									aria-selected={chosen}
-									checked={chosen}
-									class="gap-2.5 py-1.5"
-									data-testid="chat-model-runner"
-									data-provider={runner.group.id}
-									onSelect={() => select(runner)}
-								>
-									<ProviderIcon
-										providerId={runner.group.id}
-										class={['shrink-0', ready(runner) ? 'text-fg-secondary' : 'text-fg-tertiary']}
-										size={14}
-									/>
-									<span class="flex min-w-0 flex-1 flex-col">
-										<span class="truncate text-[13px] leading-5">{runner.group.name}</span>
-										<span class="text-fg-tertiary text-2xs truncate leading-4">
-											{runnerNote(runner)}
+							<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] p-1">
+								{#each flyout.row.runners as runner (runner.group.id)}
+									{@const chosen = runner === current}
+									<DropdownItem
+										role="option"
+										aria-selected={chosen}
+										checked={chosen}
+										class="gap-2.5 py-1.5"
+										data-testid="chat-model-runner"
+										data-provider={runner.group.id}
+										onSelect={() => select(runner)}
+									>
+										<ProviderIcon
+											providerId={runner.group.id}
+											class={['shrink-0', ready(runner) ? 'text-fg-secondary' : 'text-fg-tertiary']}
+											size={14}
+										/>
+										<span class="flex min-w-0 flex-1 flex-col">
+											<span class="truncate text-[13px] leading-5">{runner.group.name}</span>
+											<span class="text-fg-tertiary text-2xs truncate leading-4">
+												{runnerNote(runner)}
+											</span>
 										</span>
-									</span>
-									{#if chosen}
-										<Icon name="check" class="text-fg-default shrink-0" size={14} />
-									{/if}
-								</DropdownItem>
-							{/each}
+										{#if chosen}
+											<Icon name="check" class="text-fg-default shrink-0" size={14} />
+										{/if}
+									</DropdownItem>
+								{/each}
+							</div>
 						</div>
 					{/if}
 				{/snippet}
