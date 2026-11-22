@@ -119,9 +119,9 @@ The row names the model the provider you picked runs, so a family two providers 
 Type in it to filter by model or provider, and press Enter to pick the first match.
 Typing also finds earlier versions of the Claude models Claude Code offers, under **Earlier versions** with the month each came out, so `opus` finds Opus 4.8 and Opus 4.5.
 An earlier version you pick runs through Claude Code like the newest one, and stays in the list right under its family.
-**Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
+**Save Opus 5.5 · Max as a preset** under **Presets**, at the bottom of the model menu below the models, keeps the model with its effort, and the preset shows there as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
-Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
+Hover a preset and click the **×** at the end of its row to remove it.
 Every chat keeps its own model, effort, access and report, so what you pick in one chat never changes another.
 A new chat starts with the model, effort, plan mode and report you picked last, in any chat, and with the access you last picked in its workstream.
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.

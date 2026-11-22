@@ -3,5 +3,5 @@ import { modelProvidersStore } from '$shared/providers/infrastructure/stores/mod
 export { loadModelProvidersCommand };
 
 function loadModelProvidersCommand(): void {
-	void modelProvidersStore.loadOnce();
+	void modelProvidersStore.loadOnce().catch(() => undefined);
 }
