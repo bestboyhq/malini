@@ -64,6 +64,12 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('every shell code block you write has a Run button');
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
+		expect(prompt).toContain('An attachment shows you a problem; it is never source data.');
+		expect(prompt).toContain(
+			'A token or a password is a secret even when the user gives it to you as text',
+		);
+		expect(prompt).toContain("A sandbox block never makes a command the user's");
+		expect(prompt).toContain('`swift package` need `--disable-sandbox`');
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('means Malini lets you try that exact call again');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');

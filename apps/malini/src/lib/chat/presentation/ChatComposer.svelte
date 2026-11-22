@@ -25,6 +25,10 @@
 	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
 	import { submitComposerPromptCommand } from '$lib/chat/application/commands/submit-composer-prompt.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
+	import { keepPastedSecretsCommand } from '$lib/chat/application/commands/keep-pasted-secrets.command';
+	import { landSecretPasteCommand } from '$lib/chat/application/commands/land-secret-paste.command';
+	import { pastedSecretsQuery } from '$lib/chat/application/queries/pasted-secrets.query.svelte';
+	import { secretPasteLandingsQuery } from '$lib/chat/application/queries/secret-paste-landings.query.svelte';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
 	import { composerDraftRestorationQuery } from '$lib/chat/application/queries/composer-draft-restoration.query.svelte';
 	import { composerPendingSubmissionsQuery } from '$lib/chat/application/queries/composer-pending-submissions.query.svelte';
@@ -72,6 +76,7 @@
 	import { AutomationPicker } from '$lib/automations/automations.api';
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
+	import type { SecretMark } from './prompt-editor/secret-marks';
 	import ImageGallery from './ImageGallery.svelte';
 	import { attachmentGalleryImage, isGalleryAttachment } from './transcript-gallery';
 	import { arrivalMotion } from '$shared/motion/arrival-motion';
@@ -122,6 +127,7 @@
 		focusNow(options?: { atEnd?: boolean }): void;
 		insertChip(chip: PromptChipDescriptor): void;
 		insertText(text: string): void;
+		landSecretPaste(key: string, text: string): boolean;
 		paste(event: ClipboardEvent): void;
 		beginTrigger(char: string): void;
 		endTrigger(): void;
@@ -193,9 +199,45 @@
 			(request) => request.draftScope === draftScope && request.adopting.length === 0,
 		),
 	);
-	const canSend = $derived(
-		prompt.trim() !== '' && !disabled && !todoContextResolving && !attachmentsStaging,
+	let secretPastes = $state<readonly SecretPasteHold[]>([]);
+	const secretPasteLandings = $derived(secretPasteLandingsQuery.data);
+	const stagingSecretPastes = $derived(
+		secretPastes.filter((hold) => hold.draftScope === draftScope).map((hold) => hold.key),
 	);
+	const canSend = $derived(
+		prompt.trim() !== '' &&
+			!disabled &&
+			!todoContextResolving &&
+			!attachmentsStaging &&
+			stagingSecretPastes.length === 0,
+	);
+
+	function holdSecretPaste(text: string): string | null {
+		if (!workstreamId) return null;
+		const key = crypto.randomUUID();
+		secretPastes = [...secretPastes, { key, draftScope }];
+		keepPastedSecretsCommand({ key, draftScope, workstreamId, text });
+		return key;
+	}
+
+	$effect(() => {
+		const landings = secretPasteLandings;
+		const settled = secretPastes.flatMap((hold) => {
+			const landing = landings[hold.key];
+			return landing ? [{ hold, landing }] : [];
+		});
+		if (settled.length === 0) return;
+		untrack(() => {
+			for (const { hold, landing } of settled) {
+				const inEditor =
+					hold.draftScope === draftScope &&
+					(promptEditor?.landSecretPaste(hold.key, landing.text) ?? false);
+				landSecretPasteCommand(hold.key, inEditor);
+			}
+			const landed = new Set(settled.map(({ hold }) => hold.key));
+			secretPastes = secretPastes.filter((hold) => !landed.has(hold.key));
+		});
+	});
 	const transcriptFactsProjector = new TranscriptFactsProjector();
 	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
 
@@ -267,6 +309,8 @@
 		adopting: readonly string[];
 	}>;
 
+	type SecretPasteHold = Readonly<{ key: string; draftScope: string }>;
+
 	function trackAttachmentRequest(request: AttachmentRequest): void {
 		attachmentError = null;
 		attachmentRequests = [...attachmentRequests, request];
@@ -336,6 +380,14 @@
 		contextLoadError ? describeFailure(contextLoadError, { subject: 'Workstream files' }) : null,
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
+	const pastedSecrets = $derived(pastedSecretsQuery.data(draftScope));
+	const secretMarks = $derived<SecretMark[]>(
+		pastedSecrets.map((pasted) =>
+			pasted.state === 'shown'
+				? { text: pasted.value, kept: false }
+				: { text: `$${pasted.name}`, kept: true },
+		),
+	);
 	const automationChatSessionId = $derived(forceFreshSession ? null : sessionId);
 	const slashCommands = $derived(
 		automationQuery !== null && automationChatSessionId ? CLAUDE_CODE_COMMANDS : [],
@@ -1196,8 +1248,10 @@
 				{chipOpener}
 				onvaluechange={onPromptValueChange}
 				onchipremove={onChipRemove}
-				staging={stagingAttachments}
+				staging={[...stagingAttachments, ...stagingSecretPastes]}
 				onattachfiles={attachClipboardFiles}
+				onpastesecrets={holdSecretPaste}
+				{secretMarks}
 				ariaActiveDescendant={automationQuery === null
 					? undefined
 					: automationPicker?.activeOptionId()}

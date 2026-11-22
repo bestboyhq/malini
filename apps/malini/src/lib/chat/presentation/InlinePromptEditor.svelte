@@ -2,8 +2,10 @@
 	import { Editor } from '@tiptap/core';
 	import { closeHistory } from '@tiptap/pm/history';
 	import { Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model';
-	import type { EditorState, Transaction } from '@tiptap/pm/state';
+	import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+	import type { EditorView } from '@tiptap/pm/view';
 	import { onDestroy, onMount, untrack } from 'svelte';
+	import { secretsIn } from '$lib/chat/domain/pasted-secrets';
 	import { isPromptChipKind, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { sensitiveMasking } from '$hyper-ui/components/sensitive';
@@ -19,6 +21,7 @@
 	import { PROMPT_CHIP_NODE_NAME, type PromptChipOpener } from './prompt-editor/prompt-chip-node';
 	import type { PromptChipPreview } from './prompt-editor/prompt-chip-preview';
 	import PromptChipPreviewCard from './prompt-editor/PromptChipPreviewCard.svelte';
+	import { secretMarksKey, type SecretMark } from './prompt-editor/secret-marks';
 	import { sensitiveMaskKey } from './prompt-editor/sensitive-mask';
 	import {
 		markdownToPromptDoc,
@@ -48,6 +51,8 @@
 		onchipremove: (ref: PromptChipRef) => void | Promise<void>;
 		staging?: readonly string[];
 		onattachfiles: (candidates: readonly ClipboardAttachmentCandidate[]) => string | null;
+		onpastesecrets?: (text: string) => string | null;
+		secretMarks?: readonly SecretMark[];
 		onkeydown: (event: KeyboardEvent) => void;
 		ontriggerquery?: (query: string | null) => void;
 	}
@@ -68,6 +73,8 @@
 		onchipremove,
 		staging = [],
 		onattachfiles,
+		onpastesecrets,
+		secretMarks = [],
 		onkeydown,
 		ontriggerquery,
 	}: Props = $props();
@@ -142,7 +149,9 @@
 		});
 		if (missing.length === 0) return;
 
-		const landing = pendingChipsOf(editor.state).find((pending) => !staging.includes(pending.key));
+		const landing = pendingChipsOf(editor.state).find(
+			(pending) => !pending.secret && !staging.includes(pending.key),
+		);
 		if (landing) {
 			landChips(landing, missing);
 			return;
@@ -201,6 +210,29 @@
 		editor.view.dispatch(
 			addPendingChip(editor.state.tr, { key, pos, labels }).setMeta('addToHistory', false),
 		);
+	}
+
+	function holdSecretPaste(view: EditorView, text: string): boolean {
+		const labels = secretsIn(text).map((found) => found.label);
+		if (labels.length === 0 || !onpastesecrets) return false;
+		const key = onpastesecrets(text);
+		if (key === null) return false;
+		const transaction = view.state.tr.deleteSelection();
+		const pos = transaction.selection.from;
+		view.dispatch(addPendingChip(transaction, { key, pos, labels, secret: true }));
+		return true;
+	}
+
+	function landSecretPaste(key: string, text: string): boolean {
+		if (!editor) return false;
+		const held = pendingChipsOf(editor.state).find((pending) => pending.key === key);
+		if (!held) return false;
+		const transaction = editor.state.tr.setSelection(
+			TextSelection.create(editor.state.doc, held.pos),
+		);
+		editor.view.dispatch(dropPendingChips(transaction, [key]).setMeta('addToHistory', false));
+		editor.view.pasteText(text);
+		return true;
 	}
 
 	function syncLabels(): void {
@@ -353,6 +385,7 @@
 		focusNow,
 		insertChip,
 		insertText,
+		landSecretPaste,
 		paste,
 		removeTrigger,
 	};
@@ -392,9 +425,15 @@
 						event.clipboardData,
 						String(chips.length),
 					);
-					if (candidates.length === 0) return false;
+					if (candidates.length > 0) {
+						event.preventDefault();
+						showPendingChips(view.state.selection.from, candidates);
+						return true;
+					}
+					if (!holdSecretPaste(view, event.clipboardData?.getData('text/plain') ?? '')) {
+						return false;
+					}
 					event.preventDefault();
-					showPendingChips(view.state.selection.from, candidates);
 					return true;
 				},
 				handleDrop: (view, event, _slice, _moved) => {
@@ -477,6 +516,14 @@
 		if (!editor) return;
 		editor.view.dispatch(
 			editor.state.tr.setMeta(sensitiveMaskKey, masked).setMeta('addToHistory', false),
+		);
+	});
+
+	$effect(() => {
+		const marks = secretMarks;
+		if (!editor) return;
+		editor.view.dispatch(
+			editor.state.tr.setMeta(secretMarksKey, marks).setMeta('addToHistory', false),
 		);
 	});
 

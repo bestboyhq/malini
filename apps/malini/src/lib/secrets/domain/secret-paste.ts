@@ -1,14 +1,21 @@
 const PAIR = /^\s*(?:export\s+)?["']?([A-Za-z_][A-Za-z0-9_]*)["']?\s*[=:]\s*(.*)$/u;
 
+export type PastedPair = Readonly<{ name: string; value: string }>;
+
 export function pastedSecrets(text: string, names: readonly string[]): Record<string, string> {
 	const found: Record<string, string> = {};
 	for (const line of text.split(/\r?\n/u)) {
-		const [, name, raw] = PAIR.exec(line) ?? [];
-		if (name === undefined || raw === undefined || !names.includes(name)) continue;
-		const value = pairedValue(raw.trim());
-		if (value) found[name] = value;
+		const pair = pastedPair(line);
+		if (pair && names.includes(pair.name)) found[pair.name] = pair.value;
 	}
 	return found;
+}
+
+export function pastedPair(line: string): PastedPair | null {
+	const [, name, raw] = PAIR.exec(line) ?? [];
+	if (name === undefined || raw === undefined) return null;
+	const value = pairedValue(raw.trim());
+	return value ? { name, value } : null;
 }
 
 function pairedValue(raw: string): string | null {

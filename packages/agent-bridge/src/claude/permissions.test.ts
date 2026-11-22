@@ -16,6 +16,7 @@ import {
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
+	sandboxBlockedContext,
 	steerToMalini,
 } from './permissions.js';
 
@@ -510,5 +511,43 @@ describe('steerToMalini', () => {
 		]) {
 			expect(await steer(command)).toBeUndefined();
 		}
+	});
+});
+
+describe('the report of what the sandbox blocked', () => {
+	const blocked = (process: string, operation: string, target: string) => ({
+		tag: 'malini-sandbox-test',
+		process,
+		operation,
+		target,
+	});
+
+	it('says nothing when only a browser engine looked up a service or a call had no address', () => {
+		expect(
+			sandboxBlockedContext([
+				blocked('node', 'network-outbound', ''),
+				blocked('Electron Helper', 'mach-lookup', 'com.apple.storekitagent'),
+			]),
+		).toBeNull();
+	});
+
+	it('names only the blocks that can break a command, and tells Claude how to leave', () => {
+		const report = sandboxBlockedContext([
+			blocked('node', 'network-outbound', ''),
+			blocked('ffmpeg', 'mach-lookup', 'com.apple.coremedia.videoencoder'),
+		]);
+
+		expect(report).toContain('- ffmpeg: mach-lookup com.apple.coremedia.videoencoder');
+		expect(report).not.toContain('- node');
+		expect(report).toContain('dangerouslyDisableSandbox: true');
+	});
+
+	it('tells Claude how to run Chrome even when its blocks never reach the report', () => {
+		const report = sandboxBlockedContext([
+			blocked('Google Chrome for Testing', 'mach-lookup', 'com.apple.storekitagent'),
+		]);
+
+		expect(report).toContain('--no-sandbox');
+		expect(report).not.toContain('dangerouslyDisableSandbox');
 	});
 });

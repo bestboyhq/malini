@@ -13,7 +13,12 @@ import type {
 	PermissionResourceDescriptor,
 	ProviderPermissionDescriptor,
 } from '../interaction-types.js';
-import { claudeChatRecords, type SandboxDenial, type SandboxGrant } from '../sandbox.js';
+import {
+	claudeChatRecords,
+	isHarmlessDenial,
+	type SandboxDenial,
+	type SandboxGrant,
+} from '../sandbox.js';
 import { isRecord } from '../type-guards.js';
 import { BROWSER_TOOL_HINT } from './browser-mcp.js';
 import { MALINI_MCP_SERVER } from './browser-tools.js';
@@ -322,15 +327,17 @@ export function sandboxPermission(grants: readonly SandboxGrant[]): ProviderPerm
 }
 
 export function sandboxBlockedContext(denials: readonly SandboxDenial[]): string | null {
-	if (denials.length === 0) return null;
-	const more = denials.length - MAX_REPORTED_BLOCKS;
+	const chrome = denials.some(({ process }) => CHROMIUM.test(process)) ? [CHROME_INSIDE] : [];
+	const reported = denials.filter((denial) => !isHarmlessDenial(denial));
+	if (reported.length === 0) return chrome[0] ?? null;
+	const more = reported.length - MAX_REPORTED_BLOCKS;
 	return [
 		"Malini's sandbox blocked this while the command ran:",
-		...denials
+		...reported
 			.slice(0, MAX_REPORTED_BLOCKS)
 			.map(({ process, operation, target }) => `- ${process}: ${operation} ${target}`.trimEnd()),
 		...(more > 0 ? [`- and ${more} more`] : []),
-		...(denials.some(({ process }) => CHROMIUM.test(process)) ? [CHROME_INSIDE] : []),
+		...chrome,
 		'When the command failed because of it, run it again with `dangerouslyDisableSandbox: true`: Malini asks the user to allow what it blocked inside the sandbox.',
 	].join('\n');
 }
