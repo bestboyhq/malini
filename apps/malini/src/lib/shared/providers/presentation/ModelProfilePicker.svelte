@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { Badge } from '$hyper-ui/components/badge';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -242,12 +241,13 @@
 			<Button
 				variant="ghost"
 				size="auto"
+				radius="none"
 				active={open}
 				ariaLabel={`Model: ${selectedLabel}`}
 				ariaHasPopup="listbox"
 				ariaExpanded={open}
 				{disabled}
-				class="text-fg-secondary hover:bg-surface-50 h-6 max-w-[min(10rem,100%)] min-w-0 gap-1.5 overflow-hidden rounded-md px-2 text-xs font-normal"
+				class="text-fg-secondary hover:bg-surface-50 h-6 max-w-[min(10rem,100%)] min-w-0 gap-1.5 overflow-hidden rounded-[10px] pr-1.5 pl-2 text-xs font-normal"
 				data-testid="chat-composer-model"
 			>
 				<ProviderIcon
@@ -282,74 +282,14 @@
 			</label>
 			<div
 				bind:this={list}
-				class="min-h-0 overflow-x-hidden overflow-y-auto px-1.5 pt-1.5"
+				class="min-h-0 overflow-x-hidden overflow-y-auto p-1.5"
 				role="listbox"
 				aria-label="Models"
 				tabindex="-1"
 				onscroll={() => (flyout = null)}
 				onfocusin={onListFocus}
 			>
-				{#if presets.length > 0}
-					<div role="group" aria-label="Presets">
-						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
-						{#each presets as preset (presetName(preset) + preset.selection.provider)}
-							{@const current = sameModelPreset(preset, currentPreset)}
-							<div class="group/preset flex items-center">
-								<DropdownItem
-									role="option"
-									aria-selected={current}
-									aria-label={presetName(preset)}
-									checked={current}
-									class="min-w-0 flex-1 gap-2.5"
-									data-testid="chat-model-preset"
-									onmouseenter={closeFlyout}
-									onSelect={() => applyPreset(preset)}
-								>
-									<ProviderIcon
-										providerId={preset.selection.provider}
-										class="text-fg-secondary shrink-0"
-										size={13}
-									/>
-									<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
-										<span class="truncate leading-5">
-											{selectionLabel(groups, preset.selection)}
-										</span>
-										{#if preset.effort}
-											<span class="text-fg-tertiary shrink-0 text-xs">
-												{reasoningEffortLabel(preset.effort)}
-											</span>
-										{/if}
-									</span>
-									<Icon
-										name={current ? 'check' : 'arrow-right'}
-										class={['shrink-0', current ? 'text-fg-default' : 'text-fg-tertiary']}
-										size={14}
-									/>
-								</DropdownItem>
-								<span
-									class="flex w-0 shrink-0 translate-x-3 justify-end overflow-hidden opacity-0 transition-[width,opacity,translate] duration-200 ease-out group-hover/preset:w-8.5 group-hover/preset:translate-x-0 group-hover/preset:opacity-100 group-has-focus-visible/preset:w-8.5 group-has-focus-visible/preset:translate-x-0 group-has-focus-visible/preset:opacity-100 motion-reduce:transition-none"
-								>
-									<IconButton
-										variant="ghost"
-										size="auto"
-										radius="none"
-										class="size-8 rounded-lg"
-										ariaLabel={`Remove ${presetName(preset)}`}
-										data-testid="chat-model-preset-remove"
-										onclick={() => toggleModelPresetCommand(preset)}
-									>
-										<Icon name="close" size={12} />
-									</IconButton>
-								</span>
-							</div>
-						{/each}
-					</div>
-					<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
-				{/if}
 				<div role="group" aria-label="Models">
-					{#if presets.length > 0}
-						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Models</p>
-					{/if}
 					{#each rows as row (row.family)}
 						{@const runner = rowRunner(row, selection, ready)}
 						{@const selected = rowRuns(row, selection)}
@@ -393,11 +333,15 @@
 					{/each}
 				</div>
 				{#if versions.length > 0}
-					{#if rows.length > 0}
-						<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
-					{/if}
 					<div role="group" aria-label="Earlier versions">
-						<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Earlier versions</p>
+						<p
+							class={[
+								'text-2xs text-fg-tertiary px-2.5 pb-0.5 font-medium',
+								rows.length > 0 ? 'pt-2.5' : 'pt-1',
+							]}
+						>
+							Earlier versions
+						</p>
 						{#each versions as version (version.group.id + version.model.id)}
 							<DropdownItem
 								role="option"
@@ -426,54 +370,110 @@
 						{/each}
 					</div>
 				{:else if rows.length === 0}
-					<p class="text-fg-tertiary px-2 py-1.5 text-xs leading-5">No models match</p>
+					<p class="text-fg-tertiary px-2.5 py-1.5 text-xs leading-5">No models match</p>
 				{/if}
 			</div>
-			<div class="px-1.5 pb-1.5">
-				<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
-				{#if failedUpdate}
+			{#if presets.length > 0 || !currentSaved}
+				<div
+					class="border-surface-elevated-border shrink-0 border-t-[0.5px] p-1.5"
+					role="listbox"
+					aria-label="Presets"
+					tabindex="-1"
+				>
+					<p class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium">Presets</p>
+					{#each presets as preset (presetName(preset) + preset.selection.provider)}
+						{@const current = sameModelPreset(preset, currentPreset)}
+						<div class="group/preset relative">
+							<DropdownItem
+								role="option"
+								aria-selected={current}
+								aria-label={presetName(preset)}
+								checked={current}
+								class="group-hover/preset:bg-surface-elevated-hover group-hover/preset:text-fg-default gap-2.5"
+								data-testid="chat-model-preset"
+								onmouseenter={closeFlyout}
+								onSelect={() => applyPreset(preset)}
+							>
+								<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
+									<span class="truncate leading-5">{selectionLabel(groups, preset.selection)}</span>
+									{#if preset.effort}
+										<span class="text-fg-tertiary shrink-0 text-xs">
+											{reasoningEffortLabel(preset.effort)}
+										</span>
+									{/if}
+								</span>
+								<ProviderIcon
+									providerId={preset.selection.provider}
+									class="text-fg-secondary shrink-0"
+									size={13}
+								/>
+								<span class="flex w-3.5 shrink-0 justify-center">
+									{#if current}
+										<Icon
+											name="check"
+											class="text-fg-default group-hover/preset:opacity-0 group-has-focus-visible/preset:opacity-0"
+											size={14}
+										/>
+									{/if}
+								</span>
+							</DropdownItem>
+							<IconButton
+								variant="ghost"
+								size="auto"
+								radius="none"
+								class="absolute top-1 right-[5px] size-6 rounded-md opacity-0 group-hover/preset:opacity-100 group-has-focus-visible/preset:opacity-100"
+								ariaLabel={`Remove ${presetName(preset)}`}
+								data-testid="chat-model-preset-remove"
+								onclick={() => toggleModelPresetCommand(preset)}
+							>
+								<Icon name="close" size={12} />
+							</IconButton>
+						</div>
+					{/each}
+					{#if !currentSaved}
+						<DropdownItem
+							closeOnSelect={false}
+							class="gap-2"
+							aria-label={`Save ${presetName(currentPreset)} as a preset`}
+							data-testid="chat-model-preset-save"
+							onmouseenter={closeFlyout}
+							onSelect={() => toggleModelPresetCommand(currentPreset)}
+						>
+							<Icon name="plus" class="-ml-px shrink-0" size={14} />
+							<span class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+								<span>Save</span>
+								<span class="truncate">{presetName(currentPreset)}</span>
+								<span>as a preset</span>
+							</span>
+						</DropdownItem>
+					{/if}
+				</div>
+			{/if}
+			{#if failedUpdate}
+				<div class="border-surface-elevated-border shrink-0 border-t-[0.5px] p-1.5">
 					<DropdownItem
 						class="gap-2.5 py-2"
 						data-testid="chat-model-claude-update"
 						onmouseenter={closeFlyout}
 						onSelect={() => void goto(PROVIDER_SETTINGS_HREF)}
 					>
-						<ProviderIcon
-							providerId={CLAUDE_PROVIDER_ID}
-							class="text-fg-secondary shrink-0"
-							size={13}
-						/>
 						<span class="flex min-w-0 flex-1 flex-col">
 							<span class="truncate text-[13px] leading-5">{failedUpdateLabel(failedUpdate)}</span>
 							<span class="text-fg-tertiary text-2xs truncate leading-4">
 								Malini could not update it
 							</span>
 						</span>
-						<Icon name="arrow-right" class="text-fg-tertiary shrink-0" size={14} />
+						<ProviderIcon
+							providerId={CLAUDE_PROVIDER_ID}
+							class="text-fg-secondary shrink-0"
+							size={13}
+						/>
+						<span class="flex w-3.5 shrink-0 justify-center">
+							<Icon name="arrow-right" class="text-fg-tertiary" size={14} />
+						</span>
 					</DropdownItem>
-					<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
-				{/if}
-				<DropdownItem
-					closeOnSelect={false}
-					class="gap-2.5"
-					aria-label={currentSaved
-						? `Remove ${presetName(currentPreset)} preset`
-						: `Save ${presetName(currentPreset)} as a preset`}
-					data-testid="chat-model-preset-toggle"
-					onmouseenter={closeFlyout}
-					onSelect={() => toggleModelPresetCommand(currentPreset)}
-				>
-					<Icon name={currentSaved ? 'minus' : 'plus'} class="shrink-0" size={14} />
-					<span class="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-						<span>{currentSaved ? 'Remove' : 'Save'}</span>
-						<Badge class="min-w-0 gap-1">
-							<ProviderIcon providerId={selection.provider} class="shrink-0" size={11} />
-							<span class="truncate">{presetName(currentPreset)}</span>
-						</Badge>
-						<span>{currentSaved ? 'preset' : 'as a preset'}</span>
-					</span>
-				</DropdownItem>
-			</div>
+				</div>
+			{/if}
 			<Dropdown
 				nested
 				interactiveTrigger={false}
