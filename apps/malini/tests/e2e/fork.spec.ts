@@ -452,6 +452,9 @@ test('a finished run forks while a later run of the same chat is still running, 
 		if (!parent) throw new Error('the first chat did not commit a session id');
 		await sendPrompt(page, 'HANG');
 		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Stop current run');
+		const parentStatus = async () =>
+			(await listSessions(page, workstreamId)).find((session) => session.id === parent)?.status;
+		await expect.poll(parentStatus, { timeout: 20_000 }).toBe('running');
 
 		const fork = page.getByRole('button', { name: 'Slice and fork' });
 		await expect(fork).toHaveCount(1);
@@ -486,9 +489,7 @@ test('a finished run forks while a later run of the same chat is still running, 
 				'[Result: done]',
 			].join('\n\n') + '\n',
 		);
-		expect(
-			(await listSessions(page, workstreamId)).find((session) => session.id === parent)?.status,
-		).toBe('running');
+		expect(await parentStatus()).toBe('running');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
