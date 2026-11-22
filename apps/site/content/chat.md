@@ -112,7 +112,7 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 ## Model and effort per prompt
 
 Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, a model from OpenCode, on whichever OpenCode plan your key is on, or a GPT model on [your ChatGPT plan](#chatgpt-plan), and an effort from Low to Max, for every prompt.
-The picker lists models, not providers: each model once, the newest of its family, so Opus 5.5 shows and Opus 4.8 does not, and everyone sees the same list whatever they connected.
+The picker lists models, not providers: each model once, at its newest version, so Opus 5.5 shows and Opus 4.8 does not, while Gemini 4 Neon and Gemini 4 Argon both show, and everyone sees the same list whatever they connected.
 Each row shows the icon of the provider that runs it.
 A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, or ChatGPT and OpenCode for GPT-6 Luna, with what each one needs, and pick one.
 The row names the model the provider you picked runs, so a family two providers sell at different versions shows the one you will get.

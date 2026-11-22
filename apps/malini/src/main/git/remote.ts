@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { hostname, userInfo } from 'node:os';
+import { join } from 'node:path';
 import {
 	GH_CREDENTIAL_HELPER_CONFIG,
 	noPromptCredentialEnv,
@@ -24,6 +26,7 @@ import {
 	MAX_GIT_STDOUT_BYTES,
 	REQUIRE_TLS_VERIFICATION_CONFIG,
 	runGit,
+	runGitAllowingExit,
 	runGitBoundedStdout,
 	runGitWithInput,
 } from './run';
@@ -376,6 +379,34 @@ export async function commitPaths(
 		...paths,
 	]);
 	return true;
+}
+
+const FIRST_COMMIT_PATHSPECS = [
+	WORKTREE_CONTENT_PATHSPEC,
+	':(exclude,glob)**/node_modules/**',
+	':(exclude,glob)**/.venv/**',
+	':(exclude,glob)**/.env',
+	':(exclude,glob)**/.env.*',
+	':(exclude,glob)**/.DS_Store',
+] as const;
+
+export async function startHistory(folder: string): Promise<void> {
+	if (!existsSync(join(folder, '.git'))) await runGit(['-C', folder, 'init', '-q']);
+	const unborn = await runGitAllowingExit(['-C', folder, 'rev-parse', '--verify', '-q', 'HEAD'], 1);
+	if (!unborn.allowed) return;
+	await runGit(['-C', folder, 'add', '-A', '--', ...FIRST_COMMIT_PATHSPECS]);
+	await runGit([
+		'-C',
+		folder,
+		...(await commitConfig(AGENT_IDENTITY)),
+		'-c',
+		DISABLED_GIT_HOOKS_CONFIG,
+		'commit',
+		'-q',
+		'--allow-empty',
+		'-m',
+		'Initial commit',
+	]);
 }
 
 export const MAIN_DIVERGED =

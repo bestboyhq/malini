@@ -19,7 +19,7 @@ const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	'claude-opus': 'Does the real work. Usually right',
 	'claude-sonnet': 'Routine work, no drama, less usage',
 	'claude-haiku': "Fast. Don't ask it to ponder",
-	'deepseek-thinking': 'Thinks hard. Text only',
+	'deepseek-pro': 'Thinks hard. Text only',
 	'deepseek-flash': 'Quick, and it can see',
 };
 

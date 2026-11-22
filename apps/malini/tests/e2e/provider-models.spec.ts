@@ -323,7 +323,12 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 			id: 'opencode',
 			models: {
 				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
-				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
+				'kimi-k4': { ...catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'), family: 'kimi' },
+				'kimi-k4-code': {
+					...catalogModel('kimi-k4-code', 'Kimi K4 Code', '2026-10-12'),
+					family: 'kimi',
+				},
+				'kimi-k3': { ...catalogModel('kimi-k3', 'Kimi K3', '2026-07-16'), family: 'kimi' },
 				'kimi-k4-free': {
 					...catalogModel('kimi-k4-free', 'Kimi K4 Free', '2026-10-20'),
 					cost: { input: 0, output: 0 },
@@ -357,7 +362,11 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		});
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'opencode')).toHaveText([/^GLM-6/u, /^Kimi K4/u]);
+		await expect(modelOptions(page, 'opencode')).toHaveText([
+			/^GLM-6/u,
+			/^Kimi K4(?! Code)/u,
+			/^Kimi K4 Code/u,
+		]);
 		const filter = page.getByRole('textbox', { name: 'Find models' });
 		await expect(filter).toBeFocused();
 		await filter.fill('glm opencode');
