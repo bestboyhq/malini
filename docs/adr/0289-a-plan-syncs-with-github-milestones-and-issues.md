@@ -1,4 +1,4 @@
-# 0287 - A plan syncs with GitHub milestones and issues
+# 0289 - A plan syncs with GitHub milestones and issues
 
 Status: accepted
 

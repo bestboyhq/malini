@@ -11,7 +11,7 @@
 	"sandboxScratchPath": ".malini/sandbox",
 	"agentContextPath": ".context",
 	"defaultModel": "opus",
-	"models": ["opus", "sonnet", "haiku"],
+	"models": ["opus", "fable", "sonnet", "haiku"],
 	"commands": [
 		"start_session",
 		"send_prompt",

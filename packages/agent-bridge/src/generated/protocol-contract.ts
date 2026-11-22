@@ -11,7 +11,7 @@ export const BRIDGE_MAX_DIAGNOSTIC_BYTES = 16384 as const;
 export const BRIDGE_AGENT_ATTACHMENTS_PATH = '.malini/agent-attachments' as const;
 export const BRIDGE_SANDBOX_SCRATCH_PATH = '.malini/sandbox' as const;
 export const BRIDGE_AGENT_CONTEXT_PATH = '.context' as const;
-export const BRIDGE_MODELS = ['opus', 'sonnet', 'haiku'] as const;
+export const BRIDGE_MODELS = ['opus', 'fable', 'sonnet', 'haiku'] as const;
 export const BRIDGE_DEFAULT_MODEL = 'opus' as const;
 export const BRIDGE_COMMAND_NAMES = [
 	'start_session',

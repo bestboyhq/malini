@@ -1,6 +1,6 @@
 # 0277 - The scratchpad opens as Notes beside every chat
 
-Status: superseded by 0286
+Status: superseded by 0288
 
 ## Context
 

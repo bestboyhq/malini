@@ -11,6 +11,7 @@ const MAX_MODELS = 200;
 const MAX_LABEL_LENGTH = 80;
 const MAX_FAMILY_LENGTH = 64;
 const RELEASE_DATE = /^\d{4}-\d{2}-\d{2}$/u;
+const RELEASE_STAGES = new Set(['preview', 'beta', 'alpha', 'exp', 'experimental', 'latest']);
 
 interface CatalogModel {
 	readonly info: AgentModelInfo;
@@ -72,7 +73,7 @@ function catalogModel(model: unknown): CatalogModel | null {
 				isRecord(model['limit']) ? model['limit']['context'] : undefined,
 			),
 			efforts: model['reasoning'] === true ? efforts(model['reasoning_options']) : [],
-			...(isFamily(family) ? { family } : {}),
+			...(isFamily(family) ? { family: modelLine(family, label) } : {}),
 		},
 		released: typeof model['release_date'] === 'string' ? model['release_date'] : '',
 	};
@@ -85,6 +86,15 @@ function shortName(name: string): string {
 		.replace(/ \(latest\)$/u, '')
 		.replace(/ \d{4}$/u, '');
 	return short.length > 0 ? short : trimmed;
+}
+
+function modelLine(family: string, label: string): string {
+	const known = new Set(family.toLowerCase().split('-'));
+	const words = label
+		.toLowerCase()
+		.split(/[^\p{L}\p{N}]+/u)
+		.filter((word) => /^\p{L}+$/u.test(word) && !RELEASE_STAGES.has(word) && !known.has(word));
+	return [family, ...new Set(words)].join('-');
 }
 
 function isFamily(value: unknown): value is string {

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, join, relative } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
 import { WorkstreamError } from './checkout-resolver';
 import { getProject, type Project } from './projects.repository';
@@ -9,7 +10,8 @@ import {
 	type ConnectedRepository,
 } from './connected-repositories.repository';
 import { deriveProjectId, localProjectId, repositoryBaseDir } from '$main/git/paths';
-import { runGit } from '$main/git/run';
+import { startHistory } from '$main/git/remote';
+import { runGit, runGitAllowingExit } from '$main/git/run';
 import type { ImportSource } from '$contract/repositories';
 import { repositoryFullNameFromRemoteUrl } from '$shared/repositories/domain/repository-context';
 
@@ -84,11 +86,37 @@ export function isGitCheckout(path: string): boolean {
 	return existsSync(join(path, '.git'));
 }
 
-export function cloneSeedFolder(db: MaliniDatabase, repoUrl: string): string | null {
-	const folder = listConnectedRepositories(db).find(
+export async function prepareSeedFolder(
+	db: MaliniDatabase,
+	repoUrl: string,
+): Promise<string | null> {
+	const repository = listConnectedRepositories(db).find(
 		({ localPath, remoteUrl }) => localPath !== null && (remoteUrl ?? localPath) === repoUrl,
-	)?.localPath;
-	return folder && isGitCheckout(folder) ? folder : null;
+	);
+	const folder = repository?.localPath;
+	if (!folder) return null;
+	if (repository.remoteUrl === null && existsSync(folder)) await startFolderHistory(folder);
+	return isGitCheckout(folder) ? folder : null;
+}
+
+async function startFolderHistory(folder: string): Promise<void> {
+	if (!isGitCheckout(folder)) {
+		const enclosing = await runGitAllowingExit(['-C', folder, 'rev-parse', '--show-toplevel'], 128);
+		if (!enclosing.allowed) {
+			const name = basename(enclosing.stdout.trim());
+			throw new WorkstreamError(
+				'unsafe-folder',
+				`This folder is inside the git repository ${name}. Open ${name} instead.`,
+			);
+		}
+		if (!relative(folder, homedir()).startsWith('..')) {
+			throw new WorkstreamError(
+				'unsafe-folder',
+				'Pick the folder of one project, not your home folder or a folder above it.',
+			);
+		}
+	}
+	await startHistory(folder);
 }
 
 export function resolveRepositoryCheckout(

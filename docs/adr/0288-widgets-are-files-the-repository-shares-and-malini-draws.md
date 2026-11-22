@@ -1,4 +1,4 @@
-# 0286 - Widgets are files the repository shares, and Malini draws them
+# 0288 - Widgets are files the repository shares, and Malini draws them
 
 Status: accepted
 
