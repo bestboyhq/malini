@@ -106,7 +106,7 @@
 {:else}
 	<div
 		bind:this={triggerWrapper}
-		class="pointer-events-none flex size-0 overflow-hidden"
+		class="pointer-events-none absolute size-0 overflow-hidden"
 		aria-hidden="true"
 	>
 		{@render trigger()}
