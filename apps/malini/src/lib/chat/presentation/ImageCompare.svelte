@@ -227,7 +227,7 @@
 						style:top="{area.y * 100}%"
 						style:width="{area.w * 100}%"
 						style:height="{area.h * 100}%"
-						style:--stroke="{1.5 / view.scale}px"
+						style:--stroke="{1 / view.scale}px"
 					></span>
 				{/each}
 				{#each areas as area, index (index)}
@@ -242,7 +242,7 @@
 						>
 							<Button
 								bare
-								class="bg-brand text-brand-content outline-surface-elevated-border grid size-3 cursor-pointer place-items-center rounded-full font-mono text-[8px] leading-none font-medium tabular-nums shadow-sm outline-1"
+								class="bg-brand text-brand-content outline-surface-elevated-border grid size-3 cursor-pointer place-items-center rounded-[3px] font-mono text-[8px] leading-none font-medium tabular-nums shadow-sm outline-1"
 								ariaLabel={`Change ${index + 1}`}
 								ariaPressed={selected === index}
 								onclick={() => focusOn(selected === index ? null : index)}
