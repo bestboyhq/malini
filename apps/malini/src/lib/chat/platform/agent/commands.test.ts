@@ -392,6 +392,22 @@ describe('prompt round trips', () => {
 		expect(getSession(test.db, sessionId)?.status).toBe('completed');
 	});
 
+	it('answers a request it already accepted with the same run, once a reload sends it again', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const send = { sessionId, prompt: 'Start the billing page', clientRequestId: 'req-again' };
+		const runId = await invokeString('chat.send-prompt', send);
+		await waitFor(() => turnLanded(runId));
+		await service.runtime.settlePump();
+
+		expect(await invokeString('chat.send-prompt', send)).toBe(runId);
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs')).toBe(1);
+		expect(
+			listEventRowsForSession(test.db, sessionId, 0).filter((row) => row.kind === 'user.message'),
+		).toHaveLength(1);
+	});
+
 	it('refuses a second prompt while a run is open, then cancels it as a durable barrier', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
