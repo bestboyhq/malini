@@ -175,9 +175,9 @@ export async function commitByHand(worktree: string, file: string): Promise<void
 	await git(worktree, ['add', file]);
 	await git(worktree, [
 		'-c',
-		'user.email=e2e@example.com',
+		'user.email=teammate@example.com',
 		'-c',
-		'user.name=e2e',
+		'user.name=Teammate',
 		'commit',
 		'-qm',
 		`Commit ${file} by hand`,
