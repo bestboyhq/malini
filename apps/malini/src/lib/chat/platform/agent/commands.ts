@@ -49,6 +49,7 @@ import { isMaliniError } from '$main/errors';
 import {
 	activeRunWorkstreamIdentity,
 	continuableRun,
+	getRun,
 	listPausedRuns,
 	sessionHasOpenRun,
 	workstreamHasOpenRun,
@@ -703,6 +704,8 @@ export async function sendAgentPrompt(
 	ensureBridgeReady(supervisor);
 	if (!queuedByTheRenderer(input)) await leases.runChangeCaptureSettled(input.workstreamId);
 	await leases.checkoutSettled(input.workstreamId);
+	const accepted = runIdForPromptRequest(input.clientRequestId);
+	if (accepted !== null && getRun(db, accepted)?.sessionId === input.sessionId) return accepted;
 	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId, input.steer === true);
 	try {
 		return await sendAgentPromptLeased(db, supervisor, input, hooks, emit, ids, leases, lease, log);
