@@ -30,7 +30,7 @@ const BRIDGE_FOLDER = new RegExp(`^${SECRETS_FOLDER_PREFIX}(\\d+)-`, 'u');
 const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
 const REWRITE_SECONDS = 2;
-const LEFTOVER_GRACE_TENTHS = 30;
+const LEFTOVER_GRACE_SECONDS = 3;
 const COMPACT_OUTPUT_DATA = join(tmpdir(), 'malini-rtk');
 const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 	.map(([name, value]) => `${name}=${value}`)
@@ -87,18 +87,19 @@ compact() {
 [ -r "$folder/compact.sh" ] && . "$folder/compact.sh" && [ -x "$rtk" ] && compact
 run=("\${confine[@]}" "$shell" -c "$command")
 stop_leftovers() {
-	local pid left tenths=0
+	local pid left signal=TERM
+	SECONDS=0
 	while :; do
 		left=
 		for pid in $(/usr/bin/pgrep -g $$ 2>/dev/null); do [ "$pid" = $$ ] || left="$left $pid"; done
 		[ -n "$left" ] || return 0
-		if [ "$tenths" -ge ${LEFTOVER_GRACE_TENTHS} ]; then
+		if [ "$SECONDS" -gt ${LEFTOVER_GRACE_SECONDS} ]; then
 			/bin/kill -KILL $left 2>/dev/null
 			return 0
 		fi
-		[ "$tenths" -gt 0 ] || /bin/kill -TERM $left 2>/dev/null
+		[ -z "$signal" ] || /bin/kill -$signal $left 2>/dev/null
+		signal=
 		/bin/sleep 0.1
-		tenths=$((tenths + 1))
 	done
 }
 mask() {

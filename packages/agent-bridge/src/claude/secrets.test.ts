@@ -267,7 +267,8 @@ describe.skipIf(WINDOWS)('SessionSecrets leftovers', () => {
 
 		expect(alive(ran.pid)).toBe(false);
 		expect(Date.now() - started).toBeGreaterThanOrEqual(2_900);
-	});
+		expect(Date.now() - started).toBeLessThan(4_800);
+	}, 10_000);
 
 	it('stops leftovers when the command output is masked too', async () => {
 		const secrets = session();
