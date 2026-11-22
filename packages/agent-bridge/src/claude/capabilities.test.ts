@@ -30,18 +30,28 @@ const RECORDED_MODELS: ModelInfo[] = [
 		supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
 	},
 	{
+		value: 'fable',
+		resolvedModel: 'claude-fable-5-2',
+		displayName: 'Fable',
+		description: 'Fable 5.2 · Most capable for your hardest and longest-running tasks',
+		supportsEffort: true,
+		supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+	},
+	{
 		value: 'sonnet',
 		resolvedModel: 'claude-sonnet-5-5',
 		displayName: 'Sonnet',
 		description: 'Sonnet 5.5 · Efficient for routine tasks',
 		supportsEffort: true,
-		supportedEffortLevels: ['low', 'medium', 'high', 'max'],
+		supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
 	},
 	{
 		value: 'haiku',
 		resolvedModel: 'claude-haiku-5-5',
 		displayName: 'Haiku',
 		description: 'Haiku 5.5 · Fastest for quick answers',
+		supportsEffort: true,
+		supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
 	},
 ];
 
@@ -60,7 +70,7 @@ function installed(
 		claude,
 		options: {
 			findExecutable: () => EXECUTABLE,
-			version: async () => '2.1.196',
+			version: async () => '2.1.330',
 			authStatus: async () => auth,
 			query: claude.query,
 		},
@@ -97,7 +107,7 @@ describe('probeClaudeCode', () => {
 			state: 'needs_auth',
 			installed: true,
 			authenticated: false,
-			version: '2.1.196',
+			version: '2.1.330',
 			account: null,
 			models: expect.arrayContaining([expect.objectContaining({ id: 'opus' })]),
 			message: 'Sign in to Claude Code to start',
@@ -111,7 +121,7 @@ describe('probeClaudeCode', () => {
 			state: 'ready',
 			installed: true,
 			authenticated: true,
-			version: '2.1.196',
+			version: '2.1.330',
 			account: { email: 'ada@example.com', plan: 'Claude Max' },
 			models: [
 				{
@@ -121,16 +131,22 @@ describe('probeClaudeCode', () => {
 					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 				},
 				{
+					id: 'fable',
+					label: 'Fable 5.2',
+					description: 'Most capable for your hardest and longest-running tasks',
+					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+				},
+				{
 					id: 'sonnet',
 					label: 'Sonnet 5.5',
 					description: 'Efficient for routine tasks',
-					efforts: ['low', 'medium', 'high', 'max'],
+					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 				},
 				{
 					id: 'haiku',
 					label: 'Haiku 5.5',
 					description: 'Fastest for quick answers',
-					efforts: [],
+					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 				},
 			],
 			defaultModel: 'opus',
@@ -160,7 +176,7 @@ describe('probeClaudeCode', () => {
 		const authStatus = vi.fn<NonNullable<CapabilityProbeOptions['authStatus']>>(
 			async () => SIGNED_IN,
 		);
-		const version = vi.fn<NonNullable<CapabilityProbeOptions['version']>>(async () => '2.1.196');
+		const version = vi.fn<NonNullable<CapabilityProbeOptions['version']>>(async () => '2.1.330');
 		await probeClaudeCode({ ...installed(SIGNED_IN).options, authStatus, version });
 
 		for (const [, env] of [...authStatus.mock.calls, ...version.mock.calls]) {
@@ -193,7 +209,7 @@ describe('probeClaudeCode', () => {
 		);
 
 		const { models } = await probeClaudeCode(options);
-		expect(models.map(({ id }) => id)).toEqual(['opus', 'sonnet', 'haiku']);
+		expect(models.map(({ id }) => id)).toEqual(['opus', 'fable', 'sonnet', 'haiku']);
 	});
 
 	it.each([

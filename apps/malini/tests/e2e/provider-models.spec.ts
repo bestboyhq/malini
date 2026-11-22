@@ -326,7 +326,12 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 			id: 'opencode',
 			models: {
 				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
-				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
+				'kimi-k4': { ...catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'), family: 'kimi' },
+				'kimi-k4-code': {
+					...catalogModel('kimi-k4-code', 'Kimi K4 Code', '2026-10-12'),
+					family: 'kimi',
+				},
+				'kimi-k3': { ...catalogModel('kimi-k3', 'Kimi K3', '2026-07-16'), family: 'kimi' },
 				'kimi-k4-free': {
 					...catalogModel('kimi-k4-free', 'Kimi K4 Free', '2026-10-20'),
 					cost: { input: 0, output: 0 },
@@ -360,7 +365,11 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		});
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'opencode')).toHaveText([/^GLM-6/u, /^Kimi K4/u]);
+		await expect(modelOptions(page, 'opencode')).toHaveText([
+			/^GLM-6/u,
+			/^Kimi K4(?! Code)/u,
+			/^Kimi K4 Code/u,
+		]);
 		const filter = page.getByRole('textbox', { name: 'Find models' });
 		await expect(filter).toBeFocused();
 		await filter.fill('glm opencode');
@@ -421,6 +430,90 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		await app.close();
 		await catalog.close();
 		await probe.close();
+	}
+});
+
+test('typing in the picker finds an earlier Claude version, and a run uses it', async () => {
+	test.setTimeout(180_000);
+	const catalog = await serveModelsDev({
+		anthropic: {
+			id: 'anthropic',
+			models: {
+				'claude-opus-4-8': {
+					...catalogModel('claude-opus-4-8', 'Claude Opus 4.8', '2026-05-28'),
+					family: 'claude-opus',
+				},
+				'claude-opus-4-5': {
+					...catalogModel('claude-opus-4-5', 'Claude Opus 4.5 (latest)', '2025-11-24'),
+					family: 'claude-opus',
+				},
+				'claude-sonnet-4-6': {
+					...catalogModel('claude-sonnet-4-6', 'Claude Sonnet 4.6', '2026-02-17'),
+					family: 'claude-sonnet',
+				},
+				'claude-haiku-4-5': {
+					...catalogModel('claude-haiku-4-5', 'Claude Haiku 4.5', '2025-10-15'),
+					family: 'claude-haiku',
+				},
+			},
+		},
+	});
+	const app = await launchMalini({ env: { MALINI_MODELS_DEV_URL: catalog.url } });
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-provider-claude-versions-ws',
+			'Earlier Claude versions',
+		);
+		await openWorkstream(page, workstreamId);
+		const picker = page.getByRole('button', { name: /^Model: / });
+		await expect(picker).toHaveCount(1, { timeout: 20_000 });
+
+		await picker.click();
+		const models = page.getByRole('listbox', { name: 'Models' });
+		const earlier = models.getByRole('group', { name: 'Earlier versions' });
+		await expect(models.getByTestId('chat-model-option').first()).toBeVisible();
+		await expect(earlier).toHaveCount(0);
+
+		const filter = page.getByRole('textbox', { name: 'Find models' });
+		await filter.fill('opus');
+		await expect(earlier.getByTestId('chat-model-version')).toHaveText([
+			/^Opus 4\.8\s*May 2026/u,
+			/^Opus 4\.5\s*Nov 2025/u,
+		]);
+		await expect(models.getByTestId('chat-model-option')).toHaveText([/^Opus/u]);
+		await captureFlow(app, 'provider-models-claude-versions');
+
+		await filter.fill('4.5');
+		await expect(models.getByTestId('chat-model-option')).toHaveCount(0);
+		await expect(earlier.getByTestId('chat-model-version')).toHaveText([/^Opus 4\.5/u]);
+		await expect(models.getByText('No models match')).toHaveCount(0);
+		await filter.press('Enter');
+		await expect(models).toBeHidden();
+		await expect(picker).toHaveAccessibleName('Model: Opus 4.5');
+
+		await sendPrompt(page, 'SEARCH the fixture repo');
+		await expect
+			.poll(
+				() => sessionEnvironments(app.home).some((entry) => entry.model === 'claude-opus-4-5'),
+				{
+					timeout: 30_000,
+				},
+			)
+			.toBe(true);
+		await expectAssistantReply(page);
+
+		await picker.click();
+		await expect(models.getByRole('option', { name: /^Opus 4\.5/u, selected: true })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(models).toBeHidden();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		await catalog.close();
 	}
 });
 

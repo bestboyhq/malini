@@ -8,12 +8,18 @@ export type { AgentModelInfo };
 
 const CLAUDE_FAMILIES = ['claude-opus', 'claude-fable', 'claude-sonnet', 'claude-haiku'];
 
+const RELEASE_MONTH = new Intl.DateTimeFormat('en-US', {
+	month: 'short',
+	year: 'numeric',
+	timeZone: 'UTC',
+});
+
 const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
 	'claude-fable': 'For problems that fight back',
 	'claude-opus': 'Does the real work. Usually right',
 	'claude-sonnet': 'Routine work, no drama, less usage',
 	'claude-haiku': "Fast. Don't ask it to ponder",
-	'deepseek-thinking': 'Thinks hard. Text only',
+	'deepseek-pro': 'Thinks hard. Text only',
 	'deepseek-flash': 'Quick, and it can see',
 };
 
@@ -103,10 +109,20 @@ export function pickerGroups(
 }
 
 export function modelFamily(group: ProviderGroup, model: AgentModelInfo): string {
-	if (model.family) return model.family;
-	if (group.kind !== 'claude') return model.id;
-	const [name] = model.id.replace(/^claude-/u, '').split(/[-[]/u);
-	return `claude-${name ?? model.id}`;
+	return model.family || group.kind === 'claude' ? claudeFamily(model) : model.id;
+}
+
+export function withEarlierVersions(
+	models: readonly AgentModelInfo[],
+	versions: readonly AgentModelInfo[],
+): readonly AgentModelInfo[] {
+	const families = new Set(models.map(claudeFamily));
+	const earlier = versions.filter(
+		(version) =>
+			families.has(claudeFamily(version)) &&
+			!models.some((model) => model.id === version.id || model.label === version.label),
+	);
+	return [...models, ...earlier];
 }
 
 export function pickerRows(
@@ -154,13 +170,33 @@ export function rowRunner(
 }
 
 export function filterPickerRows(rows: readonly PickerRow[], query: string): readonly PickerRow[] {
-	const terms = query.toLowerCase().split(/\s+/u).filter(Boolean);
+	const terms = searchTerms(query);
 	if (terms.length === 0) return rows;
-	return rows.filter((row) => {
-		const runners = row.runners.map((runner) => `${runner.model.id} ${runner.group.name}`);
-		const text = `${row.label} ${runners.join(' ')}`.toLowerCase();
-		return terms.every((term) => text.includes(term));
-	});
+	return rows.filter((row) =>
+		matchesAll(`${row.label} ${row.runners.map(runnerText).join(' ')}`, terms),
+	);
+}
+
+export function earlierVersions(
+	groups: readonly ProviderGroup[],
+	rows: readonly PickerRow[],
+	query: string,
+): readonly PickerRunner[] {
+	const terms = searchTerms(query);
+	if (terms.length === 0) return [];
+	const shown = new Set(rows.flatMap((row) => row.runners.map(runnerKey)));
+	return groups.flatMap((group) =>
+		group.models.flatMap((model) => {
+			const runner = { group, model };
+			const match = matchesAll(`${model.label} ${runnerText(runner)}`, terms);
+			return model.released && match && !shown.has(runnerKey(runner)) ? [runner] : [];
+		}),
+	);
+}
+
+export function releaseMonth(released: string): string {
+	const date = new Date(released);
+	return Number.isNaN(date.getTime()) ? '' : RELEASE_MONTH.format(date);
 }
 
 export function effortsForModel(
@@ -244,6 +280,29 @@ function unknownGroup(provider: string): ProviderGroup {
 		account: null,
 		plan: null,
 	};
+}
+
+function claudeFamily(model: AgentModelInfo): string {
+	if (model.family) return model.family;
+	const [name] = model.id.replace(/^claude-/u, '').split(/[-[]/u);
+	return `claude-${name ?? model.id}`;
+}
+
+function searchTerms(query: string): readonly string[] {
+	return query.toLowerCase().split(/\s+/u).filter(Boolean);
+}
+
+function matchesAll(text: string, terms: readonly string[]): boolean {
+	const lower = text.toLowerCase();
+	return terms.every((term) => lower.includes(term));
+}
+
+function runnerText(runner: PickerRunner): string {
+	return `${runner.model.id} ${runner.group.name}`;
+}
+
+function runnerKey(runner: PickerRunner): string {
+	return `${runner.group.id}:${runner.model.id}`;
 }
 
 function claudeRank(family: string): number {

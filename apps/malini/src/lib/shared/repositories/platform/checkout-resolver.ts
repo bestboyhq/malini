@@ -34,6 +34,7 @@ const WORKSTREAM_ERROR_VERDICTS = {
 	'image-unreadable': 'bug',
 	'open-failed': 'bug',
 	'empty-repository': 'expected',
+	'unsafe-folder': 'expected',
 	'no-default-branch': 'expected',
 	'checkout-broken': 'expected',
 	'no-checkout': 'expected',

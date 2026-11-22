@@ -12,6 +12,7 @@ import {
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+	fakeGithubAccount,
 	initRealRepo,
 	readCheckedOutText,
 	realGit,
@@ -114,9 +115,10 @@ describe('addWorktree', () => {
 		);
 	});
 
-	it('t10 invokes git with the right argv and creates a real checkout', async () => {
+	it('t10 invokes git with the right argv and creates a real checkout that commits as your GitHub noreply address', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
+		const you = await fakeGithubAccount(dir);
 		const base = join(dir, 'base');
 		await initRealRepo(base);
 		const wt = join(dir, 'workstreams', 'ws-abc');
@@ -125,6 +127,7 @@ describe('addWorktree', () => {
 		await addWorktree(base, wt, workstreamBranchName('ws-abc'), trunk);
 		expect(existsSync(join(wt, 'seed.txt'))).toBe(true);
 		expect((await realGit(wt, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe('malini/ws-abc');
+		expect((await realGit(wt, ['var', 'GIT_AUTHOR_IDENT'])).replace(/>.*$/su, '>')).toBe(you);
 	});
 
 	it('t7 reports a branch clash as branch-exists', async () => {

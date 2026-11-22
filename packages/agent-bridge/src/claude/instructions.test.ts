@@ -64,6 +64,12 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('every shell code block you write has a Run button');
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
+		expect(prompt).toContain('An attachment shows you a problem; it is never source data.');
+		expect(prompt).toContain(
+			'A token or a password is a secret even when the user gives it to you as text',
+		);
+		expect(prompt).toContain("A sandbox block never makes a command the user's");
+		expect(prompt).toContain('`swift package` need `--disable-sandbox`');
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('means Malini lets you try that exact call again');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
@@ -74,6 +80,18 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('ask for it with `secrets_request`');
 		expect(prompt).toContain('Never ask the user to paste a secret into the chat');
 		expect(prompt).toContain('one-line bullet that starts with `Next:`');
+		expect(prompt).toContain('one short action you settled yourself, naming what it changes');
+		expect(prompt).toContain('Ask it with `AskUserQuestion`, which Malini shows in its own panel');
+		expect(prompt).toContain('the one you recommend first with "(Recommended)"');
+		expect(prompt).toContain('the question is one short sentence that names what it is about');
+		expect(prompt).toContain(
+			"A question that needs more than that to answer is not the user's: decide it yourself.",
+		);
+		expect(prompt).toContain('Never ask a question in your report, in `Next:` or in `Needs:`');
+		expect(prompt).toContain(
+			'a small model reads each final reply and sends one that asks the user anything back to you once',
+		);
+		expect(prompt).toContain('what only the user can do and that no question asks');
 		expect(prompt).toContain(
 			'`![Before: what it shows](path)` and `![After: what it shows](path)`',
 		);

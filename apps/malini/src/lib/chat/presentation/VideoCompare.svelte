@@ -111,7 +111,7 @@
 </script>
 
 {#snippet player(src: string | null, state: 'Before' | 'After')}
-	<div class="media bg-surface-root relative overflow-hidden rounded-md">
+	<div class="media bg-surface-root overflow-hidden rounded-md">
 		{#if state === 'Before'}
 			<video
 				bind:this={before}
@@ -139,14 +139,16 @@
 				{onseeked}
 			></video>
 		{/if}
-		<span
-			class={[
-				'outline-border-subtle pointer-events-none absolute top-2 left-2 rounded-full px-1.5 text-[11px] leading-[18px] font-medium shadow-sm outline-[0.5px]',
-				state === 'Before' ? 'bg-surface-invert text-fg-invert' : 'bg-brand text-brand-content',
-			]}
-		>
-			{state}
-		</span>
+		<div class="flex p-2">
+			<span
+				class={[
+					'outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium shadow-sm outline-[0.5px]',
+					state === 'Before' ? 'bg-surface-invert text-fg-invert' : 'bg-brand text-brand-content',
+				]}
+			>
+				{state}
+			</span>
+		</div>
 	</div>
 {/snippet}
 

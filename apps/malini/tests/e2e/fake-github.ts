@@ -403,7 +403,7 @@ if (command === 'auth' && sub === 'status') {
 	};
 	waitForApproval();
 } else if (command === 'api' && sub === 'user') {
-	out('e2e-user\\n');
+	out(args.some((arg) => arg.startsWith('[.id')) ? '4242\\te2e-user\\tE2E Chef\\n' : 'e2e-user\\n');
 } else if (command === 'api' && sub.startsWith('user/repos')) {
 	out('[]');
 } else if (command === 'api' && sub === 'graphql') {

@@ -18,23 +18,19 @@ import { claudeEnvironment, type QueryFunction } from './session.js';
 
 const MODEL_PROBE_TIMEOUT_MS = 15_000;
 
-const FALLBACK_MODEL_DETAILS: Readonly<Record<string, Omit<AgentModelInfo, 'id'>>> = {
-	opus: {
-		label: 'Opus',
-		description: 'Best for complex, multi-step work',
-		efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
-	},
-	sonnet: {
-		label: 'Sonnet',
-		description: 'Efficient for routine tasks',
-		efforts: ['low', 'medium', 'high', 'max'],
-	},
-	haiku: { label: 'Haiku', description: 'Fastest for quick answers', efforts: [] },
+const FALLBACK_MODEL_DETAILS: Readonly<
+	Record<string, Pick<AgentModelInfo, 'label' | 'description'>>
+> = {
+	opus: { label: 'Opus', description: 'Best for everyday, complex tasks' },
+	fable: { label: 'Fable', description: 'Most capable for your hardest and longest-running tasks' },
+	sonnet: { label: 'Sonnet', description: 'Efficient for routine tasks' },
+	haiku: { label: 'Haiku', description: 'Fastest for quick answers' },
 };
 
 export const FALLBACK_MODELS: readonly AgentModelInfo[] = BRIDGE_MODELS.map((id) => ({
 	id,
-	...(FALLBACK_MODEL_DETAILS[id] ?? { label: id, description: '', efforts: [] }),
+	...(FALLBACK_MODEL_DETAILS[id] ?? { label: id, description: '' }),
+	efforts: [...AGENT_REASONING_EFFORTS],
 }));
 
 export interface CapabilityProbeOptions {

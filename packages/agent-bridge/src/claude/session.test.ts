@@ -32,6 +32,17 @@ const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
 const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
 const SLEEP_TOOL = 'toolu_steered_sleep';
 const STEER = [undefined, undefined, undefined, true] as const;
+function withStopReply(script: readonly ScriptStep[], reply: string): ScriptStep[] {
+	return script.map((step) =>
+		typeof step === 'object' &&
+		'hook' in step &&
+		step.hook.hook_event_name === 'Stop' &&
+		!step.hook.stop_hook_active
+			? { hook: { ...step.hook, last_assistant_message: reply } }
+			: step,
+	);
+}
+
 const STE_REPLIES = [
 	undefined,
 	undefined,
@@ -731,7 +742,7 @@ describe('ClaudeSession', () => {
 				: [],
 		);
 		expect(checkReply).toHaveBeenCalledExactlyOnceWith(
-			{ request: 'What is a git tag?', reply: rejected, terse: true },
+			{ request: 'What is a git tag?', reply: rejected, ste: true, terse: true },
 			expect.any(AbortSignal),
 		);
 		expect(claude.runs[0]?.hookOutputs).toEqual([
@@ -759,22 +770,42 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 	});
 
-	it('checks replies only once the user turns plain replies on, in a fresh Claude Code', async () => {
+	it('writes in STE only once the user turns plain replies on, in a fresh Claude Code', async () => {
 		const script = recordedScript('readAndBash');
 		const warm = [...script, 'wait-for-prompt' as const, ...script];
-		const checkReply = vi.fn<ReplyChecker>(async () => null);
-		const { session, claude } = harness([warm, warm], { checkReply });
+		const { session, claude } = harness([warm, warm]);
 
 		await session.sendPrompt('Hello', 'run-1', profile());
 		await session.sendPrompt('Still plain', 'run-2', profile());
 		await session.sendPrompt('Now in STE', 'run-3', profile(), ...STE_REPLIES);
 
-		expect(claude.runs.map(({ options }) => Boolean(options.hooks?.Stop))).toEqual([false, true]);
+		expect(claude.runs).toHaveLength(2);
 		expect(claude.runs[0]?.followUps).toContain('Still plain');
-		expect(claude.runs[0]?.options.systemPrompt).toEqual(
+		expect(claude.runs.map(({ options }) => options.systemPrompt)).toEqual([
 			expect.objectContaining({ append: expect.not.stringContaining('ASD-STE100') }),
+			expect.objectContaining({ append: expect.stringContaining('ASD-STE100') }),
+		]);
+	});
+
+	it('checks a plain reply only when it may ask the user something, and sends one that asks back', async () => {
+		const asking = 'A git tag names one commit. Say go and I tag this release.';
+		const checkReply = vi.fn<ReplyChecker>(async ({ reply }) =>
+			reply === asking ? '"Say go and I tag this release."' : null,
 		);
-		expect(checkReply).toHaveBeenCalledTimes(0);
+		const plain = harness([recordedScript('steRewrite')], { checkReply });
+		const asks = harness([withStopReply(recordedScript('steRewrite'), asking)], { checkReply });
+
+		await plain.session.sendPrompt('What is a git tag?', 'run-1', profile());
+		await asks.session.sendPrompt('What is a git tag?', 'run-1', profile());
+
+		expect(plain.claude.runs[0]?.hookOutputs).toEqual([]);
+		expect(checkReply).toHaveBeenCalledExactlyOnceWith(
+			{ request: 'What is a git tag?', reply: asking, ste: false, terse: true },
+			expect.any(AbortSignal),
+		);
+		expect(asks.claude.runs[0]?.hookOutputs).toEqual([
+			{ decision: 'block', reason: sentBack('"Say go and I tag this release."') },
+		]);
 	});
 
 	it('resumes the persisted Claude session, rewound to the requested message', async () => {

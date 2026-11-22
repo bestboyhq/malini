@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modelsDevModels } from './models-dev';
+import { modelsDevModels, modelsDevVersions } from './models-dev';
 
 function model(id: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -79,7 +79,7 @@ describe('models.dev catalog', () => {
 		]);
 	});
 
-	it('keeps the newest model of each family under the name people use', () => {
+	it('keeps the newest version of each model under the name people use', () => {
 		const families = {
 			opencode: {
 				models: {
@@ -111,6 +111,86 @@ describe('models.dev catalog', () => {
 		).toEqual([
 			{ id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash', family: 'deepseek-flash' },
 			{ id: 'claude-opus-5-5', label: 'Opus 5.5', family: 'claude-opus' },
+		]);
+	});
+
+	it('keeps each model line of a family, so a newer line never hides another', () => {
+		const lines = {
+			opencode: {
+				models: {
+					'nova-4-ember': model('nova-4-ember', {
+						name: 'Nova 4 Ember',
+						family: 'nova',
+						release_date: '2026-11-18',
+					}),
+					'nova-4-frost': model('nova-4-frost', {
+						name: 'Nova 4 Frost',
+						family: 'nova',
+						release_date: '2026-11-12',
+					}),
+					'nova-3.9-frost': model('nova-3.9-frost', {
+						name: 'Nova 3.9 Frost',
+						family: 'nova',
+						release_date: '2026-09-01',
+					}),
+					'nova-4-flash': model('nova-4-flash', {
+						name: 'Nova 4 Flash',
+						family: 'nova-flash',
+						release_date: '2026-11-10',
+					}),
+					'zen5-preview': model('zen5-preview', {
+						name: 'Zen5 Preview',
+						family: 'zen',
+						release_date: '2026-11-20',
+					}),
+					zen4: model('zen4', { name: 'Zen4', family: 'zen', release_date: '2026-10-01' }),
+				},
+			},
+		};
+		expect(
+			modelsDevModels(lines, 'opencode').map(({ id, label, family }) => ({ id, label, family })),
+		).toEqual([
+			{ id: 'zen5-preview', label: 'Zen5 Preview', family: 'zen' },
+			{ id: 'nova-4-ember', label: 'Nova 4 Ember', family: 'nova-ember' },
+			{ id: 'nova-4-frost', label: 'Nova 4 Frost', family: 'nova-frost' },
+			{ id: 'nova-4-flash', label: 'Nova 4 Flash', family: 'nova-flash' },
+		]);
+	});
+
+	it('keeps every dated version once, newest first, under its undated alias', () => {
+		const anthropic = {
+			anthropic: {
+				models: {
+					'claude-opus-4-5-20251101': model('claude-opus-4-5-20251101', {
+						name: 'Claude Opus 4.5',
+						family: 'claude-opus',
+						release_date: '2025-11-24',
+					}),
+					'claude-opus-4-5': model('claude-opus-4-5', {
+						name: 'Claude Opus 4.5 (latest)',
+						family: 'claude-opus',
+						release_date: '2025-11-24',
+					}),
+					'claude-opus-4-8': model('claude-opus-4-8', {
+						name: 'Claude Opus 4.8',
+						family: 'claude-opus',
+						release_date: '2026-05-28',
+					}),
+					'claude-sonnet-4-5': model('claude-sonnet-4-5', { status: 'deprecated' }),
+					'claude-undated': model('claude-undated', { release_date: undefined }),
+				},
+			},
+		};
+		expect(
+			modelsDevVersions(anthropic, 'anthropic').map(({ id, label, family, released }) => ({
+				id,
+				label,
+				family,
+				released,
+			})),
+		).toEqual([
+			{ id: 'claude-opus-4-8', label: 'Opus 4.8', family: 'claude-opus', released: '2026-05-28' },
+			{ id: 'claude-opus-4-5', label: 'Opus 4.5', family: 'claude-opus', released: '2025-11-24' },
 		]);
 	});
 

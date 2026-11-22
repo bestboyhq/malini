@@ -120,12 +120,12 @@ const CLAUDE: ProviderCapability = {
 	version: '2.4.0',
 	account: { plan: 'Max' },
 	models: [
-		{ id: 'claude-fable-5-1', label: 'Fable 5.1', description: '', efforts: EFFORTS },
-		{ id: 'claude-opus-5-5', label: 'Opus 5.5', description: '', efforts: EFFORTS },
-		{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', description: '', efforts: EFFORTS },
-		{ id: 'claude-haiku-5-5', label: 'Haiku 5.5', description: '', efforts: EFFORTS },
+		{ id: 'opus', label: 'Opus 5.5', description: '', efforts: EFFORTS },
+		{ id: 'fable', label: 'Fable 5.2', description: '', efforts: EFFORTS },
+		{ id: 'sonnet', label: 'Sonnet 5.5', description: '', efforts: EFFORTS },
+		{ id: 'haiku', label: 'Haiku 5.5', description: '', efforts: EFFORTS },
 	],
-	defaultModel: 'claude-opus-5-5',
+	defaultModel: 'opus',
 	message: '',
 };
 

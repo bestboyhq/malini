@@ -132,23 +132,23 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		const picker = page.getByRole('button', { name: /^Model: / });
 		const effort = page.getByRole('button', { name: 'Reasoning effort' });
 		const models = page.getByRole('listbox', { name: 'Models' });
-		const presets = models.getByRole('group', { name: 'Presets' });
+		const presets = page.getByRole('listbox', { name: 'Presets' });
 		const opusMax = presets.getByRole('option', { name: 'Opus 5.5 · Max' });
 		const sonnetLow = presets.getByRole('option', { name: 'Sonnet 5.5 · Low' });
 
 		await pickEffort(page, 'Max');
 		await picker.click();
-		await expect(presets).toHaveCount(0);
-		await page.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }).click();
+		await expect(presets.getByRole('option')).toHaveCount(0);
+		await presets.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }).click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'true');
-		await expect(page.getByRole('button', { name: 'Remove Opus 5.5 · Max preset' })).toBeVisible();
+		await expect(presets.getByRole('button', { name: /as a preset$/u })).toHaveCount(0);
 		await page.keyboard.press('Escape');
 
 		await pickModel(page, 'Sonnet 5.5');
 		await pickEffort(page, 'Low');
 		await picker.click();
 		await expect(opusMax).toHaveAttribute('aria-selected', 'false');
-		await page.getByRole('button', { name: 'Save Sonnet 5.5 · Low as a preset' }).click();
+		await presets.getByRole('button', { name: 'Save Sonnet 5.5 · Low as a preset' }).click();
 		await expect(sonnetLow).toHaveAttribute('aria-selected', 'true');
 		await captureFlow(app, 'model-presets-menu');
 		await opusMax.click();
@@ -170,10 +170,10 @@ test('a preset saves a model with its effort, and picking it sets both until you
 		await opusMax.focus();
 		await page.keyboard.press('ArrowDown');
 		await expect(presets.getByRole('button', { name: 'Remove Opus 5.5 · Max' })).toBeFocused();
-		await page.getByRole('button', { name: 'Remove Opus 5.5 · Max preset' }).click();
-		await expect(presets).toHaveCount(0);
+		await page.keyboard.press('Enter');
+		await expect(presets.getByRole('option')).toHaveCount(0);
 		await expect(
-			page.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }),
+			presets.getByRole('button', { name: 'Save Opus 5.5 · Max as a preset' }),
 		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

@@ -211,3 +211,71 @@ test('a card the agent already asked again over gives way to the newer ask when 
 		await app.close();
 	}
 });
+
+const PASTED_TOKEN = `ghp_${'E2eFakeToken0'.padEnd(36, 'x')}`;
+
+test('a token pasted into the composer goes to the keychain, the agent gets its name, and Undo puts it back', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-paste-ws', 'Paste workstream');
+		await openWorkstream(page, seeded.workstreamId);
+		const input = page.getByTestId('chat-composer-input');
+		await expect(input).toBeVisible({ timeout: 20_000 });
+
+		await pasteInto(
+			page,
+			'[data-testid="chat-composer-input"]',
+			`Call the API with ${PASTED_TOKEN} and report back`,
+		);
+		const row = page.getByTestId('pasted-secret');
+		await expect(row).toHaveText(
+			'GitHub token moved to your keychain. Claude gets $PASTED_GITHUB_TOKEN Undo',
+			{ timeout: 20_000 },
+		);
+		await expect(input).toHaveText('Call the API with $PASTED_GITHUB_TOKEN and report back');
+		const names = async (): Promise<string[]> =>
+			(await invoke<SavedSecret[]>(page, 'secrets.list', undefined)).map(({ name }) => name);
+		expect(await names()).toEqual(['PASTED_GITHUB_TOKEN']);
+		expect(filesHolding(app.userDataDir, PASTED_TOKEN)).toEqual([]);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'paste-secret-1-kept');
+
+		await row.getByRole('button', { name: 'Undo' }).click();
+		await expect(input).toHaveText(`Call the API with ${PASTED_TOKEN} and report back`);
+		await expect(row).toHaveText('Claude reads this GitHub token as typed Hide it');
+		await expect.poll(names, { timeout: 20_000 }).toEqual([]);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'paste-secret-2-shown');
+
+		await row.getByRole('button', { name: 'Hide it' }).click();
+		await expect(input).toHaveText('Call the API with $PASTED_GITHUB_TOKEN and report back', {
+			timeout: 20_000,
+		});
+		expect(await names()).toEqual(['PASTED_GITHUB_TOKEN']);
+
+		const submit = page.getByTestId('chat-composer-submit');
+		await expect(submit).toBeEnabled();
+		await submit.click();
+		await expect(row).toBeHidden({ timeout: 20_000 });
+		const sessionId = currentSessionId(page);
+		if (!sessionId) throw new Error('the chat has no session id');
+		const sent = async (): Promise<string> =>
+			(await listEvents(page, sessionId))
+				.filter(({ event }) => event.type === 'user.message')
+				.map(({ event }) => String(event['text'] ?? ''))
+				.join('\n');
+		await expect
+			.poll(sent, { timeout: 20_000 })
+			.toContain('Call the API with $PASTED_GITHUB_TOKEN and report back');
+		expect(JSON.stringify(await listEvents(page, sessionId))).not.toContain(PASTED_TOKEN);
+		await expect
+			.poll(() => secretsSeenByTheBridge(app), { timeout: 20_000 })
+			.toContain(PASTED_TOKEN);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

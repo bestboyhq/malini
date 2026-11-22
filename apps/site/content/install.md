@@ -70,6 +70,8 @@ Malini opens on **What are we working on?**, with three rows and nothing to set 
   If GitHub does not answer in 15 seconds, the card says so and offers **Try again**.
 - **A folder on this Mac** (**⌘O**, or **Ctrl+O**) starts a workstream in a repository already on your computer.
   On Windows it reads **A folder on this PC**, and on Linux **A folder on this computer**.
+  A folder with no git history gets one first: Malini runs `git init` in it and commits its files as **Initial commit**, leaving out `node_modules`, `.venv`, env files and `.DS_Store`, which stay in the folder.
+  Malini starts no git in your home folder, a folder above it, or a folder inside another repository, and names that repository so you can open it instead.
 - **New repository** makes one on GitHub under you or one of your organizations, private unless you untick it, and starts a workstream in it.
 - **Send while it copies.** A prompt you send while the first copy runs waits above the composer and runs once the copy is done.
 - **Claude Code installs itself.** If Claude Code is missing, Malini downloads the latest release from Anthropic as it opens, checks it against the checksum Anthropic publishes, and sets it up in `~/.local/bin`, the same place Anthropic's install script puts it.

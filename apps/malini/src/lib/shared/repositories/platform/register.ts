@@ -104,7 +104,7 @@ import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
 import { continueOwnPullRequest, listOwnPullRequests } from './own-pull-requests.service';
 import {
-	cloneSeedFolder,
+	prepareSeedFolder,
 	githubFullNameFromRemote,
 	managedProjectIdForRepository,
 	resolveConnectedRepository,
@@ -248,7 +248,7 @@ export function registerRepositories(
 		return connected?.remoteUrl ?? connected?.localPath ?? null;
 	};
 	const reclone = async (origin: string): Promise<string> => {
-		const seedFolder = cloneSeedFolder(db, origin);
+		const seedFolder = await prepareSeedFolder(db, origin);
 		return createRepository(workstreams, {
 			repoUrl: origin,
 			githubToken: null,
@@ -348,7 +348,7 @@ export function registerRepositories(
 
 	commands.define('repositories.create-repository', async (args: unknown) => {
 		const repoUrl = requireString(args, 'repoUrl');
-		const seedFolder = cloneSeedFolder(db, repoUrl);
+		const seedFolder = await prepareSeedFolder(db, repoUrl);
 		const repoPath = await createRepository(workstreams, {
 			repoUrl,
 			githubToken: optionalString(args, 'githubToken'),

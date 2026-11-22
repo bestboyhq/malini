@@ -202,6 +202,51 @@ describe('secrets', () => {
 		).rejects.toThrow('STRIPE_KEY is not saved for everywhere');
 	});
 
+	it('keeps a pasted value under a free name, and gives back the name that already holds it', async () => {
+		await context.commands.call('secrets.save', {
+			values: { GITHUB_TOKEN: 'ghp_other' },
+			repository: null,
+		});
+		emitted = [];
+		const keep = (value: string): Promise<unknown> =>
+			context.commands.call('secrets.keep', { workstreamId: 'w', name: 'GITHUB_TOKEN', value });
+
+		expect(await keep(' ghp_pasted ')).toEqual({
+			name: 'GITHUB_TOKEN_2',
+			repository: 'p',
+			created: true,
+		});
+		expect(await keep('ghp_pasted')).toEqual({
+			name: 'GITHUB_TOKEN_2',
+			repository: 'p',
+			created: false,
+		});
+		expect(await keep('ghp_other')).toEqual({
+			name: 'GITHUB_TOKEN',
+			repository: 'p',
+			created: false,
+		});
+		expect(secrets.valuesReaching('p')).toEqual({
+			GITHUB_TOKEN: 'ghp_other',
+			GITHUB_TOKEN_2: 'ghp_pasted',
+		});
+		expect(emitted).toEqual([
+			{
+				channel: 'secrets:saved',
+				payload: {
+					names: ['GITHUB_TOKEN_2'],
+					unsaved: [],
+					repository: 'p',
+					requestId: null,
+					sessionId: null,
+				},
+			},
+		]);
+		await expect(
+			context.commands.call('secrets.keep', { workstreamId: 'w', name: 'PATH', value: 'x' }),
+		).rejects.toThrow('PATH steers how commands run');
+	});
+
 	it('refuses to save while the keychain cannot seal, and gives commands nothing it cannot open', async () => {
 		const locked = registerSecrets(
 			{ ...context, commands: new CommandRegistry() },

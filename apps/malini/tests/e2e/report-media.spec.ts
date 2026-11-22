@@ -139,7 +139,7 @@ test('a before and after shows as one picture that wipes, flips and diffs at one
 		).toHaveAttribute('aria-pressed', 'true');
 		expect(await frameHeight(frame)).toBeCloseTo(wipeHeight, 0);
 		await diff.click();
-		await expect(frame.getByText('3 changed areas')).toBeVisible();
+		await expect(compare.getByText('3 changed areas')).toBeVisible();
 		expect(await frameHeight(frame)).toBeCloseTo(wipeHeight, 0);
 
 		await changes.nth(2).click();

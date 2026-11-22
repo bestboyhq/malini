@@ -37,6 +37,10 @@
 	const MAX_ZOOM = 8;
 	const ZOOM_FILL = 0.8;
 	const FIT: View = { scale: 1, x: 0, y: 0 };
+	const HANDLE_REACH = 14;
+	const LABEL_OFFSET = 20;
+	const LABEL_EDGE = 6;
+	const LABEL_HALF_HEIGHT = 9;
 
 	const beforePath = $derived(workstreamImagePath(comparison.before.src));
 	const afterPath = $derived(workstreamImagePath(comparison.after.src));
@@ -58,11 +62,30 @@
 	let view = $state<View>(FIT);
 	let gliding = $state(false);
 	let frame = $state<HTMLDivElement>();
+	let frameWidth = $state(0);
+	let frameHeight = $state(0);
+	let hoverX = $state<number | null>(null);
+	let hoverY = $state<number | null>(null);
+	let dragging = $state(false);
+	let keyed = $state(false);
+	let beforeWidth = $state(0);
+	let afterWidth = $state(0);
 
 	const areas = $derived(analysis.status === 'ready' ? analysis.areas : []);
 	const zoomed = $derived(view.scale > 1);
 	const showsBefore = $derived(mode === 'flip' && flipped);
 	const shownSrc = $derived(showsBefore ? beforeSrc : afterSrc);
+	const lineX = $derived((position / 100) * frameWidth);
+	const labeled = $derived(
+		dragging || keyed || (hoverX !== null && Math.abs(hoverX - lineX) <= HANDLE_REACH),
+	);
+	const labelY = $derived(
+		within(
+			hoverY ?? frameHeight / 2,
+			LABEL_HALF_HEIGHT + LABEL_EDGE,
+			frameHeight - LABEL_HALF_HEIGHT - LABEL_EDGE,
+		),
+	);
 
 	onMount(() => {
 		if (request) compareImagesCommand(request);
@@ -127,15 +150,33 @@
 		if (event.key !== 'Escape' || !zoomed) return;
 		focusOn(null);
 	}
+
+	function fits(room: number, width: number): boolean {
+		return room >= LABEL_OFFSET + width + LABEL_EDGE;
+	}
+
+	function track(event: PointerEvent): void {
+		hoverX = event.offsetX;
+		hoverY = event.offsetY;
+	}
+
+	function grab(): void {
+		dragging = true;
+		on(window, 'pointerup', () => (dragging = false), { once: true });
+	}
+
+	function labelOnKeys(event: FocusEvent): void {
+		keyed = event.currentTarget instanceof Element && event.currentTarget.matches(':focus-visible');
+		if (keyed) hoverY = null;
+	}
 </script>
 
 <svelte:window onkeydown={zoomOut} />
 
-{#snippet statePill(state: 'Before' | 'After', side: 'left' | 'right')}
+{#snippet statePill(state: 'Before' | 'After')}
 	<span
 		class={[
-			'outline-border-subtle pointer-events-none absolute bottom-2 rounded-full px-1.5 text-[11px] leading-[18px] font-medium shadow-sm outline-[0.5px]',
-			side === 'left' ? 'left-2' : 'right-2',
+			'outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium shadow-sm outline-[0.5px]',
 			state === 'Before' ? 'bg-surface-invert text-fg-invert' : 'bg-brand text-brand-content',
 		]}
 	>
@@ -171,121 +212,146 @@
 
 <div class="flex flex-col gap-1.5" data-testid="report-image-compare">
 	<div
-		class="media bg-surface-root relative mx-auto w-fit max-w-full overflow-hidden rounded-md select-none"
-		bind:this={frame}
+		class="media bg-surface-root mx-auto w-fit max-w-full overflow-hidden rounded-md select-none"
 		role="group"
 		aria-label="Before and after"
 	>
-		{#if afterSrc}
-			<img
-				src={afterSrc}
-				alt=""
-				aria-hidden="true"
-				draggable="false"
-				class="invisible block max-h-[70vh] max-w-full"
-			/>
-		{:else}
-			<div class="aspect-[16/10] max-h-[70vh] w-screen max-w-full"></div>
-		{/if}
-
-		{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}
-		{#if mode === 'wipe'}
-			<div class="absolute inset-0" style:clip-path="inset(0 0 0 {position}%)">
-				{@render layer(afterSrc, false)}
-			</div>
-			<!-- eslint-disable-next-line @malini/desktop/no-raw-form-control -- the wipe is a range slider across the picture; hyper-ui has no slider primitive, and TextInput, Checkbox and Switch cannot drag a divider. -->
-			<input
-				type="range"
-				class="wipe absolute inset-0 size-full cursor-ew-resize opacity-0"
-				min="0"
-				max="100"
-				step="0.1"
-				bind:value={position}
-				aria-label="Wipe between before and after"
-			/>
-		{:else if mode === 'flip'}
-			<Button
-				bare
-				class="absolute inset-0 size-full cursor-pointer"
-				ariaLabel={flipped
-					? 'Showing before, click to show after'
-					: 'Showing after, click to show before'}
-				ariaPressed={flipped}
-				onclick={() => (flipped = !flipped)}
-			></Button>
-		{/if}
-
 		<div
-			class={['zoom pointer-events-none absolute inset-0', gliding && 'glide']}
-			style:--zoom-x="{view.x * 100}%"
-			style:--zoom-y="{view.y * 100}%"
-			style:--zoom={view.scale}
+			class="relative overflow-hidden"
+			bind:this={frame}
+			bind:clientWidth={frameWidth}
+			bind:clientHeight={frameHeight}
 		>
-			{#each areas as area, index (index)}
-				<span
-					class={['area absolute rounded-[3px]', selected === index && 'chosen']}
-					style:left="{area.x * 100}%"
-					style:top="{area.y * 100}%"
-					style:width="{area.w * 100}%"
-					style:height="{area.h * 100}%"
-					style:--stroke="{1.5 / view.scale}px"
-				></span>
-			{/each}
-			{#each areas as area, index (index)}
-				<span
-					class="pin pointer-events-auto absolute"
-					style:--area-x="{area.x * 100}%"
-					style:--area-y="{area.y * 100}%"
-				>
-					<Tooltip
-						content={selected === index ? 'Zoom back out' : `Change ${index + 1} · zoom in`}
-						placement="top"
+			{#if afterSrc}
+				<img
+					src={afterSrc}
+					alt=""
+					aria-hidden="true"
+					draggable="false"
+					class="invisible block max-h-[70vh] max-w-full"
+				/>
+			{:else}
+				<div class="aspect-[16/10] max-h-[70vh] w-screen max-w-full"></div>
+			{/if}
+
+			{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}
+			{#if mode === 'wipe'}
+				<div class="absolute inset-0" style:clip-path="inset(0 0 0 {position}%)">
+					{@render layer(afterSrc, false)}
+				</div>
+				<!-- eslint-disable-next-line @malini/desktop/no-raw-form-control -- the wipe is a range slider across the picture; hyper-ui has no slider primitive, and TextInput, Checkbox and Switch cannot drag a divider. -->
+				<input
+					type="range"
+					class="wipe absolute inset-0 size-full cursor-ew-resize opacity-0"
+					min="0"
+					max="100"
+					step="0.1"
+					bind:value={position}
+					aria-label="Wipe between before and after"
+					onpointermove={track}
+					onpointerleave={() => (hoverX = null)}
+					onpointerdown={grab}
+					onfocus={labelOnKeys}
+					onkeydown={() => (keyed = true)}
+					onblur={() => (keyed = false)}
+				/>
+			{:else if mode === 'flip'}
+				<Button
+					bare
+					class="absolute inset-0 size-full cursor-pointer"
+					ariaLabel={flipped
+						? 'Showing before, click to show after'
+						: 'Showing after, click to show before'}
+					ariaPressed={flipped}
+					onclick={() => (flipped = !flipped)}
+				></Button>
+			{/if}
+
+			<div
+				class={['zoom pointer-events-none absolute inset-0', gliding && 'glide']}
+				style:--zoom-x="{view.x * 100}%"
+				style:--zoom-y="{view.y * 100}%"
+				style:--zoom={view.scale}
+			>
+				{#each areas as area, index (index)}
+					<span
+						class={['area absolute rounded-[3px]', selected === index && 'chosen']}
+						style:left="{area.x * 100}%"
+						style:top="{area.y * 100}%"
+						style:width="{area.w * 100}%"
+						style:height="{area.h * 100}%"
+						style:--stroke="{1 / view.scale}px"
+					></span>
+				{/each}
+				{#each areas as area, index (index)}
+					<span
+						class="pin pointer-events-auto absolute"
+						style:--area-x="{area.x * 100}%"
+						style:--area-y="{area.y * 100}%"
 					>
-						<Button
-							bare
-							class="bg-brand text-brand-content outline-surface-elevated-border grid size-4 cursor-pointer place-items-center rounded-full text-[10px] leading-none font-semibold shadow-sm outline-[1.5px]"
-							ariaLabel={`Change ${index + 1}`}
-							ariaPressed={selected === index}
-							onclick={() => focusOn(selected === index ? null : index)}
+						<Tooltip
+							content={selected === index ? 'Zoom back out' : `Change ${index + 1} · zoom in`}
+							placement="top"
 						>
-							{index + 1}
-						</Button>
-					</Tooltip>
-				</span>
-			{/each}
-		</div>
-
-		{#if mode === 'wipe'}
-			<div class="handle pointer-events-none absolute inset-y-0" style:left="{position}%">
-				<span
-					class="bg-surface-elevated text-fg-secondary absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-sm"
-				>
-					<Icon name="chevron-left" size={10} />
-					<Icon name="chevron-right" size={10} />
-				</span>
+							<Button
+								bare
+								class="bg-brand text-brand-content outline-surface-elevated-border grid size-3 cursor-pointer place-items-center rounded-[3px] font-mono text-[7px] leading-none font-bold tabular-nums shadow-sm outline-1"
+								ariaLabel={`Change ${index + 1}`}
+								ariaPressed={selected === index}
+								onclick={() => focusOn(selected === index ? null : index)}
+							>
+								{index + 1}
+							</Button>
+						</Tooltip>
+					</span>
+				{/each}
 			</div>
-			{@render statePill('Before', 'left')}
-			{@render statePill('After', 'right')}
-		{:else if mode === 'flip'}
-			{@render statePill(flipped ? 'Before' : 'After', 'left')}
-		{:else}
-			<span
-				class="bg-surface-50/85 text-fg-secondary outline-border-subtle pointer-events-none absolute bottom-2 left-2 rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px] backdrop-blur-sm"
-			>
-				{areas.length === 1 ? '1 changed area' : `${areas.length} changed areas`}
-			</span>
-		{/if}
 
-		{#if zoomed}
-			<Button
-				variant="secondary"
-				size="2xs"
-				class="absolute top-2 right-2"
-				onclick={() => focusOn(null)}
-			>
-				Show all
-			</Button>
-		{/if}
+			{#if mode === 'wipe'}
+				<div
+					class="bg-surface-invert pointer-events-none absolute inset-y-0 w-px -translate-x-1/2"
+					style:left="{position}%"
+					aria-hidden="true"
+				>
+					<span
+						class="bg-surface-invert text-fg-invert absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-sm"
+					>
+						<Icon name="chevron-left" size={10} />
+						<Icon name="chevron-right" size={10} />
+					</span>
+					<span
+						class={['label absolute right-5 flex', labeled && fits(lineX, beforeWidth) && 'shown']}
+						style:top="{labelY}px"
+						style:--drift="6px"
+						bind:offsetWidth={beforeWidth}
+					>
+						{@render statePill('Before')}
+					</span>
+					<span
+						class={[
+							'label absolute left-5 flex',
+							labeled && fits(frameWidth - lineX, afterWidth) && 'shown',
+						]}
+						style:top="{labelY}px"
+						style:--drift="-6px"
+						bind:offsetWidth={afterWidth}
+					>
+						{@render statePill('After')}
+					</span>
+				</div>
+			{/if}
+
+			{#if zoomed}
+				<Button
+					variant="secondary"
+					size="2xs"
+					class="absolute top-2 right-2"
+					onclick={() => focusOn(null)}
+				>
+					Show all
+				</Button>
+			{/if}
+		</div>
 	</div>
 
 	<div class="flex items-center justify-between gap-2">
@@ -306,6 +372,15 @@
 			{/each}
 		</div>
 		<div class="flex items-center gap-2">
+			{#if mode === 'flip'}
+				{@render statePill(flipped ? 'Before' : 'After')}
+			{:else if mode === 'diff'}
+				<span
+					class="bg-surface-50 text-fg-secondary outline-border-subtle rounded-full px-1.5 text-[11px] leading-[18px] font-medium outline-[0.5px]"
+				>
+					{areas.length === 1 ? '1 changed area' : `${areas.length} changed areas`}
+				</span>
+			{/if}
 			<span class="text-2xs text-fg-tertiary">
 				{zoomed ? `${Number(view.scale.toFixed(1))}× · scroll to pan` : HINTS[mode]}
 			</span>
@@ -348,8 +423,14 @@
 		appearance: none;
 	}
 
+	.wipe::-webkit-slider-thumb {
+		width: 0;
+		appearance: none;
+	}
+
 	.area {
 		outline: var(--stroke) dashed var(--color-brand-foreground);
+		outline-offset: calc(var(--stroke) * -1);
 	}
 
 	.area.chosen {
@@ -357,16 +438,32 @@
 		background: color-mix(in oklab, var(--color-brand-foreground) 10%, transparent);
 	}
 
-	.handle {
-		width: 1.5px;
-		margin-left: -0.75px;
-		background: var(--color-surface-elevated);
-		box-shadow: 0 0 0 0.5px var(--color-border-default);
+	.label {
+		opacity: 0;
+		filter: blur(4px);
+		translate: var(--drift) -50%;
+		transition:
+			opacity 120ms ease-in,
+			filter 120ms ease-in,
+			translate 120ms ease-in;
+	}
+
+	.label.shown {
+		opacity: 1;
+		filter: blur(0);
+		translate: 0 -50%;
+		transition-duration: 220ms;
+		transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
 	}
 
 	@media (prefers-reduced-motion: reduce) {
 		.zoom.glide {
 			transition: none;
+		}
+
+		.label {
+			filter: none;
+			translate: 0 -50%;
 		}
 	}
 </style>

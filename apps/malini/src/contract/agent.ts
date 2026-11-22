@@ -122,6 +122,7 @@ export interface AgentModelInfo {
 	description: string;
 	efforts: AgentReasoningEffort[];
 	family?: string;
+	released?: string;
 }
 
 export type ModelProviderKind = 'claude' | 'anthropic' | 'chatgpt';

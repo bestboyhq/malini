@@ -1,4 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -61,6 +64,79 @@ test('the first folder you open starts a workstream in it, and so does a later o
 		await app.close();
 	}
 });
+
+test('a folder with no git history gets a first commit of its files and opens a workstream', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await expectPicker(page);
+		const folder = join(app.root, 'pantry');
+		mkdirSync(join(folder, 'node_modules', 'jam'), { recursive: true });
+		writeFileSync(join(folder, 'recipes.md'), '# Plum jam\n');
+		writeFileSync(join(folder, 'node_modules', 'jam', 'index.js'), 'export {};\n');
+		writeFileSync(join(folder, '.env'), 'PANTRY_KEY=fig\n');
+
+		await pickFolder(app, folder);
+		await page
+			.getByRole('region', { name: 'Your repositories' })
+			.getByRole('button', { name: 'A folder on this Mac' })
+			.click();
+		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
+		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 30_000 });
+		await expect.poll(() => repositoryIds(page), { timeout: 30_000 }).toEqual(['local__pantry']);
+		await expect(setupStep(page, 'Copy failed')).toHaveCount(0);
+		expect(gitOutput(folder, ['ls-files'])).toEqual(['recipes.md']);
+		expect(gitOutput(folder, ['log', '--format=%s'])).toEqual(['Initial commit']);
+		expect(gitOutput(folder, ['status', '--porcelain', '--untracked-files=normal'])).toEqual([
+			'?? .env',
+			'?? node_modules/',
+		]);
+		await captureFlow(app, 'open-folder-without-history');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a folder inside another repository names that repository and stays as it is', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ allowedDiagnostics: [/inside the git repository meadow/u] });
+	try {
+		const { page } = app;
+		await expectPicker(page);
+		const notes = join(await createSourceRepo(app.root, 'meadow'), 'notes');
+		mkdirSync(notes);
+		writeFileSync(join(notes, 'field.md'), '# Clover\n');
+
+		await pickFolder(app, notes);
+		await page
+			.getByRole('region', { name: 'Your repositories' })
+			.getByRole('button', { name: 'A folder on this Mac' })
+			.click();
+		await expect(setupStep(page, 'Copy failed')).toContainText(
+			'This folder is inside the git repository meadow. Open meadow instead.',
+			{ timeout: 30_000 },
+		);
+		expect(existsSync(join(notes, '.git'))).toBe(false);
+		await captureFlow(app, 'open-folder-inside-repository');
+	} finally {
+		await app.close();
+	}
+});
+
+function setupStep(page: Page, label: string): Locator {
+	return page
+		.getByRole('list', { name: 'Workstream setup' })
+		.getByRole('listitem')
+		.filter({ hasText: label });
+}
+
+function gitOutput(folder: string, args: readonly string[]): string[] {
+	return execFileSync('git', ['-C', folder, ...args], { encoding: 'utf8' })
+		.split('\n')
+		.filter(Boolean);
+}
 
 async function pickFolder(app: LaunchedApp, folder: string): Promise<void> {
 	await app.electronApp.evaluate(({ dialog }, path) => {

@@ -79,6 +79,12 @@ const RUN_OUTSIDE_LATER = [
 	'.config/gh',
 	'.claude',
 	'.claude.json',
+	'.codex',
+	'.cursor',
+	'.cargo/bin',
+	'.cargo/config',
+	'.cargo/config.toml',
+	'.local/bin',
 ];
 const LINUX_CREDENTIALS = [
 	'.ssh',
@@ -246,6 +252,7 @@ const WINDOWS_CACHES = [
 
 const WINDOWS_TEMP_FOLDERS = ['C:\\Windows\\Temp'];
 
+const PROGRAMS_ON_THE_PATH = ['/opt/homebrew/bin', '/usr/local/bin'];
 const KEY_AGENTS = ['.ssh', '.gnupg', '.secrets'];
 const SHARED_FOLDERS = [
 	'/',
@@ -273,6 +280,7 @@ interface Policy {
 	readonly credentials: readonly string[];
 	readonly userData: readonly string[];
 	readonly runOutsideLater: readonly string[];
+	readonly programsOnThePath: readonly string[];
 	readonly sharedFolders: readonly string[];
 	readonly sharedHomeFolders: readonly string[];
 	readonly sharedHomeParents: readonly string[];
@@ -288,6 +296,7 @@ const POLICIES = {
 		credentials: CREDENTIALS,
 		userData: USER_DATA,
 		runOutsideLater: RUN_OUTSIDE_LATER,
+		programsOnThePath: PROGRAMS_ON_THE_PATH,
 		sharedFolders: SHARED_FOLDERS,
 		sharedHomeFolders: SHARED_HOME_FOLDERS,
 		sharedHomeParents: ['Library'],
@@ -301,6 +310,7 @@ const POLICIES = {
 		credentials: LINUX_CREDENTIALS,
 		userData: LINUX_USER_DATA,
 		runOutsideLater: LINUX_RUN_OUTSIDE_LATER,
+		programsOnThePath: [],
 		sharedFolders: LINUX_SHARED_FOLDERS,
 		sharedHomeFolders: LINUX_SHARED_HOME_FOLDERS,
 		sharedHomeParents: [],
@@ -314,6 +324,7 @@ const POLICIES = {
 		credentials: WINDOWS_CREDENTIALS,
 		userData: WINDOWS_USER_DATA,
 		runOutsideLater: WINDOWS_RUN_OUTSIDE_LATER,
+		programsOnThePath: [],
 		sharedFolders: WINDOWS_SHARED_FOLDERS,
 		sharedHomeFolders: WINDOWS_SHARED_HOME_FOLDERS,
 		sharedHomeParents: ['AppData'],
@@ -338,13 +349,19 @@ const DEVICES = [
 ];
 
 const SERVICES = [
+	'com.apple.accessibility.voices',
 	'com.apple.analyticsd',
 	'com.apple.appkit.restoration_storage',
+	'com.apple.audio.AudioComponentRegistrar',
+	'com.apple.audio.ComponentTagHelper',
+	'com.apple.audio.SandboxHelper',
 	'com.apple.backupd.sandbox.xpc',
 	'com.apple.cache_delete.public',
 	'com.apple.CARenderServer',
 	'com.apple.cfprefsd.agent',
 	'com.apple.cfprefsd.daemon',
+	'com.apple.coremedia.videodecoder',
+	'com.apple.coremedia.videoencoder',
 	'com.apple.coreservices.launchservicesd',
 	'com.apple.diagnosticd',
 	'com.apple.DiskArbitration.diskarbitrationd',
@@ -358,6 +375,7 @@ const SERVICES = [
 	'com.apple.lsd.mapdb',
 	'com.apple.lsd.modifydb',
 	'com.apple.MenuBarAgent.systemservices',
+	'com.apple.MTLCompilerService',
 	'com.apple.PowerManagement.control',
 	'com.apple.powerlog.plxpclogger.xpc',
 	'com.apple.security.syspolicy',
@@ -385,6 +403,12 @@ const DNS_SOCKET = '/private/var/run/mDNSResponder';
 const LOG_SOCKET = '/private/var/run/syslog';
 const LAUNCHD_SOCKETS = '^/private/tmp/com\\.apple\\.launchd\\.';
 const UNSANDBOXED_TOOLS = ['/bin/ps', '/usr/bin/top', '/usr/bin/log'];
+const OWN_PROCESS_SYSCTLS = [
+	'kern.tcsm_enable',
+	'kern.grade_cputype',
+	'vfs.nspace.prevent_materialization',
+];
+const BROWSER_ENGINE = /chrom(?:e|ium)|electron/iu;
 const DENIAL =
 	/^(?:\d+ duplicate reports? for )?Sandbox: (.+?)\(\d+\) deny\(\d+\) (\S+)(?: (.+))?$/u;
 
@@ -590,6 +614,11 @@ export function sandboxProfile(
 	];
 	const secret = [...CREDENTIALS.map((entry) => join(home, entry)), ...hidden];
 	const userData = USER_DATA.map((entry) => join(home, entry));
+	const runsOutsideLater = [
+		...RUN_OUTSIDE_LATER.map((entry) => join(home, entry)),
+		...PROGRAMS_ON_THE_PATH,
+	];
+	const denied = tag ? `(with message ${quoted(tag)}) ` : '';
 	return [
 		'(version 1)',
 		tag ? `(deny default (with message ${quoted(tag)}))` : '(deny default)',
@@ -598,11 +627,12 @@ export function sandboxProfile(
 		'(allow process-info* signal mach-priv-task-port (target same-sandbox))',
 		'(allow process-info*)',
 		'(allow sysctl-read system-info)',
-		'(allow sysctl-write (sysctl-name "kern.tcsm_enable"))',
+		`(allow sysctl-write ${OWN_PROCESS_SYSCTLS.map((name) => `(sysctl-name ${quoted(name)})`).join(' ')})`,
+		'(allow system-sched)',
 		'(allow file-read* file-ioctl file-map-executable)',
 		`(allow file-write* ${[...writable.map((path) => subpath(canonicalPath(path))), pnpmLinkProbes, ...DEVICES].join(' ')})`,
-		`(deny file-write* ${ranOutside(root, git, grantedPaths.map(canonicalPath)).join(' ')})`,
-		`(deny file-read* file-write* ${[...secret.map((path) => subpath(canonicalPath(path))), ...userData.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
+		`(deny file-write* ${denied}${[...ranOutside(root, git, grantedPaths.map(canonicalPath)), ...runsOutsideLater.map((path) => subpath(canonicalPath(path)))].join(' ')})`,
+		`(deny file-read* file-write* ${denied}${[...secret.map((path) => subpath(canonicalPath(path))), ...userData.map((path) => subpath(canonicalPath(path))), regex(`^${escapeRegex(canonicalPath(temp))}/${escapeRegex(SECRETS_FOLDER_PREFIX)}[0-9]+-`)].join(' ')})`,
 		`(allow mach-lookup ${[...SERVICES, ...(internet ? [KEYCHAIN_SERVICE] : [])].map(globalName).join(' ')} (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}))`,
 		`(allow mach-register (global-name-regex ${quoted(CHROMIUM_RENDEZVOUS)}) ${REGISTERED_SERVICES.flatMap((name) => [globalName(name), `(local-name ${quoted(name)})`]).join(' ')})`,
 		'(allow ipc-posix-shm ipc-posix-sem)',
@@ -613,7 +643,7 @@ export function sandboxProfile(
 		'(allow distributed-notification-post)',
 		'(allow network-bind network-inbound (local ip "localhost:*") (local unix-socket))',
 		`(allow network-outbound (remote ip "localhost:*") ${sockets.map((socket) => `(remote unix-socket ${socket})`).join(' ')})`,
-		`(deny network-outbound (remote unix-socket ${regex(LAUNCHD_SOCKETS)}))`,
+		`(deny network-outbound ${denied}(remote unix-socket ${regex(LAUNCHD_SOCKETS)}))`,
 		...(internet ? ['(allow network-outbound (remote ip "*:*"))'] : []),
 		'',
 	].join('\n');
@@ -626,6 +656,11 @@ export function sandboxDenial(message: string): SandboxDenial | null {
 	if (split < 0 || !match || !tag.startsWith(SANDBOX_TAG_PREFIX)) return null;
 	const [, process = '', operation = '', target = ''] = match;
 	return { tag, process, operation, target };
+}
+
+export function isHarmlessDenial({ process, operation, target }: SandboxDenial): boolean {
+	if (operation === 'network-outbound') return target === '';
+	return BROWSER_ENGINE.test(process) && !/^file-(?:read|write)/u.test(operation);
 }
 
 export function sandboxGrant(
@@ -738,7 +773,10 @@ function closedPlaces(
 		malini: appData && isAbsolute(appData) ? [canonicalPath(appData)] : [],
 		secret: [...inHome(policy.credentials), ...hiddenPaths],
 		userData: inHome(policy.userData),
-		runOutsideLater: inHome(policy.runOutsideLater),
+		runOutsideLater: [
+			...inHome(policy.runOutsideLater),
+			...policy.programsOnThePath.map(canonicalPath),
+		],
 		keyAgents: [
 			...inHome(KEY_AGENTS),
 			...hiddenPaths,
@@ -774,7 +812,13 @@ function refusal({ kind, path }: SandboxGrant, closed: ClosedPlaces): string | n
 	if (within(closed.malini) || holds(closed.malini)) return "holds Malini's own data";
 	if (within(closed.secret) || holds(closed.secret)) return 'holds credentials';
 	if (within(closed.userData) || holds(closed.userData)) return 'holds your files';
-	if (within(closed.runOutsideLater)) return 'runs outside the sandbox later';
+	if (
+		closed.runOutsideLater.some(
+			(root) => isWithin(root, path, separator) || path.startsWith(`${root}.`),
+		)
+	) {
+		return 'runs outside the sandbox later';
+	}
 	return null;
 }
 

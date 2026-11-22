@@ -128,6 +128,8 @@ import type {
 import type {
 	DeleteSecretArgs,
 	DismissSecretRequestArgs,
+	KeepSecretArgs,
+	KeptSecret,
 	ListSecretRequestsArgs,
 	SavedSecret,
 	SaveSecretsArgs,
@@ -726,6 +728,7 @@ export interface ContractCommands {
 	'secrets.dismiss-request': { args: DismissSecretRequestArgs; result: void };
 	'secrets.list': { args: undefined; result: SavedSecret[] };
 	'secrets.delete': { args: DeleteSecretArgs; result: void };
+	'secrets.keep': { args: KeepSecretArgs; result: KeptSecret };
 	'extensions.list-listings': { args: undefined; result: MarketplaceListings };
 	'extensions.get-listing': { args: ExtensionRefArgs; result: ExtensionDetail };
 	'extensions.list-installed': { args: undefined; result: InstalledExtension[] };
@@ -1075,6 +1078,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'secrets.dismiss-request',
 	'secrets.list',
 	'secrets.delete',
+	'secrets.keep',
 	'extensions.list-listings',
 	'extensions.get-listing',
 	'extensions.list-installed',

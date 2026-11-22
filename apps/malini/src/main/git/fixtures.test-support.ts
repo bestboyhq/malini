@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { vi } from 'vitest';
 import { AGENT_ATTACHMENTS_PATH, SANDBOX_SCRATCH_PATH, workstreamBranchName } from './paths';
 
 const execFileAsync = promisify(execFile);
@@ -26,6 +27,16 @@ export async function realGit(repo: string, args: readonly string[]): Promise<st
 		maxBuffer: 64 * 1024 * 1024,
 	});
 	return stdout;
+}
+
+export async function fakeGithubAccount(dir: string): Promise<string> {
+	const bin = join(dir, 'bin');
+	await mkdir(bin, { recursive: true });
+	await writeFile(join(bin, 'gh'), "#!/bin/sh\nprintf '583231\\toctocat\\tThe Octocat\\n'\n", {
+		mode: 0o755,
+	});
+	vi.stubEnv('MALINI_GH_PATH', `${bin}:/usr/bin:/bin`);
+	return 'The Octocat <583231+octocat@users.noreply.github.com>';
 }
 
 export async function tryRealGit(repo: string, args: readonly string[]): Promise<boolean> {

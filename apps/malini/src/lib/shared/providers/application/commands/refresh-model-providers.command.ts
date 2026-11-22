@@ -3,5 +3,5 @@ import { modelProvidersStore } from '$shared/providers/infrastructure/stores/mod
 export { refreshModelProvidersCommand };
 
 function refreshModelProvidersCommand(): void {
-	void modelProvidersStore.refreshModels();
+	void modelProvidersStore.refreshModels().catch(() => undefined);
 }

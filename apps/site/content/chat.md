@@ -112,14 +112,16 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 ## Model and effort per prompt
 
 Pick Fable, Opus, Sonnet, or Haiku from Claude, a DeepSeek model, a model from OpenCode, on whichever OpenCode plan your key is on, or a GPT model on [your ChatGPT plan](#chatgpt-plan), and an effort from Low to Max, for every prompt.
-The picker lists models, not providers: each model once, the newest of its family, so Opus 5.5 shows and Opus 4.8 does not, and everyone sees the same list whatever they connected.
+The picker lists models, not providers: each model once, at its newest version, so Opus 5.5 shows and Opus 4.8 does not, while Gemini 4 Neon and Gemini 4 Argon both show, and everyone sees the same list whatever they connected.
 Each row shows the icon of the provider that runs it.
 A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, or ChatGPT and OpenCode for GPT-6 Luna, with what each one needs, and pick one.
 The row names the model the provider you picked runs, so a family two providers sell at different versions shows the one you will get.
 Type in it to filter by model or provider, and press Enter to pick the first match.
-**Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
+Typing also finds earlier versions of the Claude models Claude Code offers, under **Earlier versions** with the month each came out, so `opus` finds Opus 4.8 and Opus 4.5.
+An earlier version you pick runs through Claude Code like the newest one, and stays in the list right under its family.
+**Save Opus 5.5 · Max as a preset** under **Presets**, at the bottom of the model menu below the models, keeps the model with its effort, and the preset shows there as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
-Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
+Hover a preset and click the **×** at the end of its row to remove it.
 Every chat keeps its own model, effort, access and report, so what you pick in one chat never changes another.
 A new chat starts with the model, effort, plan mode and report you picked last, in any chat, and with the access you last picked in its workstream.
 Picking another model in a chat that already ran sends your next prompt to a new chat with that model.
@@ -132,7 +134,7 @@ You can also save either key in **Settings → Providers**; Malini seals it with
 The key never leaves Malini: Claude Code talks to a server Malini runs on your computer that only Malini's own runs can call, and that server adds the key and talks to DeepSeek or OpenCode.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
-DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
+DeepSeek's and OpenCode's models, and Claude's earlier versions, come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
 Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools, and leaves out free ones, which OpenCode keeps to its own apps.
 
 ## ChatGPT plan
@@ -215,23 +217,24 @@ In the sandbox, a command:
 
 - writes only to the workstream, its git folders, temporary folders, package caches, and the folders you open for it;
 - cannot read or write your files in Documents, Desktop, Downloads, Pictures, Movies, Music, Mail, Messages, iCloud Drive, Photos, Safari, Calendars, Reminders, Contacts and other apps' containers;
-- never writes git hooks, the git config, the files that point git at another folder, `.claude/settings.json` or `.mcp.json`, which run outside the sandbox later;
+- never writes git hooks, the git config, the files that point git at another folder, `.claude/settings.json`, `.mcp.json`, Codex, Cursor and Cargo config, or the programs in `~/.local/bin`, `~/.cargo/bin`, `/opt/homebrew/bin` and `/usr/local/bin`, which run outside the sandbox later;
 - cannot read credentials such as `~/.ssh`, `~/.aws`, `~/.config/gcloud`, your browsers' profiles and cookies, or the secrets Malini sets in other chats;
 - cannot open or script other apps, read the clipboard, take screenshots, or stop a process an earlier command started;
 - reaches localhost, the sockets you open for it and, unless an automation has the internet off, any site and your keychain, where `gh` keeps its sign-in.
 
 Electron, Playwright with its Chromium, file watchers and terminals run inside it, so `pnpm test:e2e` does too.
-Electron and Chrome keep their own sandbox off there, since the two cannot nest.
+Electron and Chrome keep their own sandbox off there, since the two cannot nest, and `swift build` and `swift test` run with `--disable-sandbox` for the same reason.
 An agent starts a server in the background and stops it through Claude Code, since a later command cannot reach it.
 What a command leaves running, with `&`, `nohup` or `disown`, stops when that command ends, so a server that should outlive it starts in the background.
 
 Tools keep state of their own outside your files, and the sandbox opens general tool state by folder without a card: `~/Library/Logs/<tool>`, `~/.local/state/<tool>`, the caches, the temporary folders, a dot folder at the top of your home, and `~/Library/Application Support/<tool>` when the folder matches the program's name.
 Malini records each one in Settings, Agent access, and every later command keeps it.
 When a command needs anything else the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
+What Chrome and Electron look up and do without stays out of what the agent hears, so a command that worked never sends it to ask you.
 The card lists each folder or socket the sandbox blocked while that command ran, such as Docker's, and what opening it lets a command do; what other commands hit stays off it.
 **Allow once** opens it for that command, and the same card comes back the next time it asks.
 **Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.
-The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json` and `.mcp.json` closed.
+The command still runs in the sandbox, and a folder you open keeps its git hooks, git config, `.claude/settings.json`, `.mcp.json` and program folders such as `~/.cargo/bin` closed, so `brew install` and `cargo install` ask to run outside.
 Malini never offers your files in those folders, your credentials or a folder that holds them, its own data, the workstream or a folder every app shares.
 A Chrome that a command starts in the sandbox needs `--no-sandbox`, and opening folders does not change that, so the agent hears it and uses Malini's browser to look at pages.
 An agent that asks to leave before it tries a command in the sandbox goes back to try it there first, without a card, since what you opened may be all it needs.
@@ -297,6 +300,9 @@ Every turn ends in a report. Proof included
 -->
 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
+The agent decides what is not yours and asks the rest in the question panel, each option with what it leads to and its pick first, so **Waiting on you** lists only what you do, such as pick a variant or sign in.
+Before you see a reply that might ask you something in text, the provider's small model reads it.
+One that does goes back to the agent once, to ask in the panel or decide, and you see only the rewrite.
 The report shows the moment the agent writes it, and its **Outcome** and **Needs** lines never stream in as text.
 While the run still goes after it, for a background agent or a hook, the report shows a clock, **Still running**, and lists what it asks of you under **Over to you after** until the run ends.
 A run you stop, or one that fails, keeps its report, with the failure under it.
@@ -313,6 +319,7 @@ Click it to open Malini, and right-click it for its menu.
 ### Next steps
 
 What the agent left for later, or would do next, sits at the bottom of the report.
+Each one is a short action the agent already settled, never a question.
 **Ship** sends it back to the chat as the next prompt, and **Note it** saves it as an idea in the repository's scratchpad.
 Hold ⌘ and **Ship** turns into **Slice, fork, ship**: it forks the chat into a new one with the transcript so far and sends the step there, while you stay where you are.
 Ship several steps that way and each one runs in a chat of its own.
@@ -424,6 +431,10 @@ Old turns fold. Subagents get a line each. Files show their diff
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
+  Malini tells Claude that an attachment only shows the problem, so Claude makes up its own demo and test data.
+- Malini tells Claude that anything you give it can be private: a prompt, a note, an attachment, a page in Malini's browser, and what a command reads from your Mac or a device on it.
+  Claude uses it for the task, and copies none of it into your code, a commit, a pull request or another service unless you ask for exactly that.
+  A token or a password you give as text is a secret to Claude: it asks you to save it on a card, then uses its name.
 - Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
   Pinch or Ctrl-scroll to zoom and drag to pan, and click the picture or press Escape to close it.
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.

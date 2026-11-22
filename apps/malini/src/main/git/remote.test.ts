@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { noPromptCredentialEnv, type GitCredentialEnv } from './credentials';
 import {
+	fakeGithubAccount,
 	initRealRepo,
 	realGit,
 	removeDir,
@@ -93,21 +94,26 @@ describe('commitWorkstreamBranch', () => {
 		expect(calls).toHaveLength(1);
 	});
 
-	it('commits on the workstream branch as you, credits Malini only when signed, and reports the short sha', async () => {
+	it('commits on the workstream branch as your GitHub noreply address, credits Malini only when signed, and reports the short sha', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
+		const you = await fakeGithubAccount(dir);
 		const { checkout } = await workstreamFixture(dir, 'ws-1');
 		const lastCommit = async () =>
 			(
-				await realGit(checkout, ['log', '-1', '--format=%s|%an|%cn|%(trailers:only,unfold)'])
+				await realGit(checkout, [
+					'log',
+					'-1',
+					'--format=%s|%an <%ae>|%cn <%ce>|%(trailers:only,unfold)',
+				])
 			).trim();
 		await writeFile(join(checkout, 'work.txt'), 'work\n');
 		const sha = await commitWorkstreamBranch(checkout, 'malini/ws-1', 'did work');
 		expect((await realGit(checkout, ['rev-parse', '--short', 'HEAD'])).trim()).toBe(sha);
-		expect(await lastCommit()).toBe('did work|t|t|');
+		expect(await lastCommit()).toBe(`did work|${you}|${you}|`);
 		await writeFile(join(checkout, 'more.txt'), 'more\n');
 		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'did more', true);
-		expect(await lastCommit()).toBe(`did more|t|t|${MALINI_CO_AUTHOR}`);
+		expect(await lastCommit()).toBe(`did more|${you}|${you}|${MALINI_CO_AUTHOR}`);
 		expect(MALINI_CO_AUTHOR).toBe(
 			'Co-authored-by: malini-agent[bot] <338999285+malini-agent[bot]@users.noreply.github.com>',
 		);
@@ -220,6 +226,7 @@ describe('pushWorkstreamBranch', () => {
 	it('merges commits GitHub added to the branch, then pushes both', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
+		await fakeGithubAccount(dir);
 		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
 		await realGit(checkout, ['push', '-q', 'origin', 'malini/ws-1']);
 		await commitOnRemoteBranch(dir, remote, 'remote.txt', 'remote\n');
@@ -241,6 +248,7 @@ describe('pushWorkstreamBranch', () => {
 	it('says plainly when commits GitHub added do not merge, and leaves no merge behind', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
+		await fakeGithubAccount(dir);
 		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
 		await realGit(checkout, ['push', '-q', 'origin', 'malini/ws-1']);
 		await commitOnRemoteBranch(dir, remote, 'shared.txt', 'theirs\n');
@@ -252,6 +260,68 @@ describe('pushWorkstreamBranch', () => {
 			'GitHub has commits on malini/ws-1 that do not merge cleanly with this workstream',
 		);
 		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(head);
+		expect((await realGit(checkout, ['status', '--porcelain'])).trim()).toBe('');
+	});
+
+	it('puts your noreply address on every commit it pushes that carries your email, and leaves pushed commits, other people and the files alone', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const you = await fakeGithubAccount(dir);
+		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
+		const commit = async (file: string, ...args: string[]) => {
+			await writeFile(join(checkout, file), `${file}\n`);
+			await realGit(checkout, ['add', file]);
+			await realGit(checkout, ['commit', '-q', '-m', file, ...args]);
+		};
+		await commit('pushed.txt');
+		await realGit(checkout, ['push', '-q', 'origin', 'malini/ws-1']);
+		const pushed = (await realGit(checkout, ['rev-parse', 'HEAD'])).trim();
+		await commit('terminal.txt');
+		await realGit(checkout, ['switch', '-q', '-c', 'side', 'HEAD~1']);
+		await commit('side.txt', '--author=Colleague <colleague@example.com>');
+		await realGit(checkout, ['switch', '-q', 'malini/ws-1']);
+		await realGit(checkout, ['merge', '-q', '--no-ff', '-m', 'merge side', 'side']);
+		await writeFile(join(checkout, 'local.txt'), 'local\n');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'local work');
+		const signed = (await realGit(checkout, ['cat-file', 'commit', 'HEAD'])).replace(
+			/^(committer .*)$/mu,
+			'$1\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n abc\n -----END PGP SIGNATURE-----',
+		);
+		await writeFile(join(dir, 'signed'), signed);
+		const head = (
+			await realGit(checkout, ['hash-object', '-t', 'commit', '-w', join(dir, 'signed')])
+		).trim();
+		await realGit(checkout, ['update-ref', 'HEAD', head]);
+		const people = async (repo: string, format: string) =>
+			Object.fromEntries(
+				(await realGit(repo, ['log', `--format=%s|${format}`, 'malini/ws-1']))
+					.trim()
+					.split('\n')
+					.map((line) => line.split('|')),
+			);
+		const datesBefore = await people(checkout, '%at %ct');
+		const treeBefore = await realGit(checkout, ['rev-parse', 'HEAD^{tree}']);
+
+		await pushThroughLocalRemote(checkout, remote);
+
+		const yours = 't <t@example.com>';
+		expect(await people(remote, '%an <%ae> / %cn <%ce>')).toEqual({
+			'local work': `${you} / ${you}`,
+			'merge side': `${you} / ${you}`,
+			'side.txt': `Colleague <colleague@example.com> / ${you}`,
+			'terminal.txt': `${you} / ${you}`,
+			'pushed.txt': `${yours} / ${yours}`,
+			seed: `${yours} / ${yours}`,
+		});
+		expect(await people(remote, '%at %ct')).toEqual(datesBefore);
+		expect(await realGit(remote, ['cat-file', 'commit', 'malini/ws-1'])).not.toContain('gpgsig');
+		expect(await tryRealGit(remote, ['merge-base', '--is-ancestor', pushed, 'malini/ws-1'])).toBe(
+			true,
+		);
+		expect((await realGit(remote, ['rev-parse', 'malini/ws-1'])).trim()).toBe(
+			(await realGit(checkout, ['rev-parse', 'HEAD'])).trim(),
+		);
+		expect(await realGit(checkout, ['rev-parse', 'HEAD^{tree}'])).toBe(treeBefore);
 		expect((await realGit(checkout, ['status', '--porcelain'])).trim()).toBe('');
 	});
 
@@ -285,6 +355,7 @@ describe('pushHeadToGithubMain', () => {
 	it('rebases again over a push that lands between its clean rebase and its push', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
+		await fakeGithubAccount(dir);
 		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
 		await writeFile(join(checkout, 'here.txt'), 'here\n');
 		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'here');
