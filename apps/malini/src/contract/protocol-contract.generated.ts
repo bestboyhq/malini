@@ -99,4 +99,5 @@ export const BRIDGE_PLATFORM_TOOLS = [
 	'workstreams_archive',
 	'files_open',
 	'secrets_request',
+	'widgets_save',
 ] as const;

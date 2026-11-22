@@ -33,6 +33,7 @@ import { registerScratchpad } from '$lib/scratchpad/platform/register';
 import { registerSecrets } from '$lib/secrets/platform/register';
 import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
 import { registerSkills } from '$lib/skills/platform/register';
+import { registerWidgets } from '$lib/widgets/platform/register';
 import { registerStats } from '$lib/stats/platform/register';
 
 const OVERLAPS_SETTLE_BUDGET_MS = 5_000;
@@ -120,7 +121,7 @@ export async function registerModules(
 	});
 
 	registerScratchpad(context);
-	registerInitiatives(context);
+	registerInitiatives(context, { gh: repositories.gh, log });
 
 	registerSounds(context, {
 		askForMicrophone,
@@ -136,6 +137,15 @@ export async function registerModules(
 
 	const secrets = registerSecrets(context, { sealer: shellHost });
 
+	const widgets = registerWidgets(context, {
+		checkouts: repositories.checkouts,
+		gh: repositories.gh,
+		runner: processRunner,
+		environment: () => buildSpawnEnvironment(),
+		secrets,
+		log,
+	});
+
 	const extensions = registerExtensions(context, {
 		resolver: repositories.checkouts,
 		readCheckout: repositories.readCheckout,
@@ -146,6 +156,7 @@ export async function registerModules(
 		resolver: repositories.checkouts,
 		leases: agentRunLeases,
 		secrets,
+		widgets,
 		extensions,
 		resolveWorkstreamCheckout: (workstreamId) =>
 			repositories.checkouts.resolveCheckout(workstreamId),
@@ -238,6 +249,7 @@ export async function registerModules(
 			pullRequests.dispose();
 			automations.dispose();
 			brain.dispose();
+			widgets.dispose();
 			repositories.watchers.dispose();
 			repositories.checkoutHealth.dispose();
 			const overlapsSettled = repositories.overlaps.dispose();

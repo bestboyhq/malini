@@ -910,6 +910,7 @@ describe('protocol: parseCommandLine', () => {
 				'workstreams_archive',
 				'files_open',
 				'secrets_request',
+				'widgets_save',
 			]);
 		});
 

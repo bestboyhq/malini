@@ -163,6 +163,7 @@ export { installGithubCliCommand } from './application/commands/install-github-c
 export { dismissDependencyInstallCommand } from './application/commands/dismiss-dependency-install.command';
 export { ensureWorkstreamChangeTotalsCommand } from './application/commands/ensure-workstream-change-totals.command';
 export { loadGithubAuthCommand } from './application/commands/load-github-auth.command';
+export { loadGithubUserAvatarCommand } from './application/commands/load-github-user-avatar.command';
 export { loadRepositoryAvatarCommand } from './application/commands/load-repository-avatar.command';
 export { moveInSidebarCommand } from './application/commands/move-in-sidebar.command';
 export { loadWorkstreamDiffCommand } from './application/commands/load-workstream-diff.command';
@@ -231,6 +232,7 @@ export { repositoriesScopeErrorQuery } from './application/queries/repositories-
 export { repositoriesScopeLoadedQuery } from './application/queries/repositories-scope-loaded.query.svelte';
 export { repositoriesScopeReadyQuery } from './application/queries/repositories-scope-ready.query.svelte';
 export { repositoriesScopeRetryingQuery } from './application/queries/repositories-scope-retrying.query.svelte';
+export { githubUserAvatarQuery } from './application/queries/github-user-avatar.query.svelte';
 export { repositoryAvatarQuery } from './application/queries/repository-avatar.query.svelte';
 export { repositoryConnectErrorQuery } from './application/queries/repository-connect-error.query.svelte';
 export { repositoryConnectingQuery } from './application/queries/repository-connecting.query.svelte';
@@ -264,6 +266,7 @@ export {
 export { default as GitHubDeviceCode } from './presentation/GitHubDeviceCode.svelte';
 export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
+export { default as GitHubUserAvatar } from './presentation/GitHubUserAvatar.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export {
 	default as RepositoryContextMenu,

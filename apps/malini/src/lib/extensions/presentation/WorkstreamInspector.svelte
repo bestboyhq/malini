@@ -26,6 +26,7 @@
 		builtInPanels?: readonly ExtensionPanelRegistration[];
 		panelActions?: readonly InspectorPanelAction[];
 		belowGutter?: Snippet | undefined;
+		board?: Snippet | undefined;
 	}
 
 	let {
@@ -39,6 +40,7 @@
 		builtInPanels = [],
 		panelActions = [],
 		belowGutter,
+		board,
 	}: Props = $props();
 
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
@@ -89,6 +91,7 @@
 	onruntimeretry={onRuntimeRetry}
 	{panelActions}
 	{belowGutter}
+	{board}
 	{workstreamPanelIds}
 	requestedPanelId={routePanelId}
 />

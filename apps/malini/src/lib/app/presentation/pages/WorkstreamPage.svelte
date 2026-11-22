@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
+	import type { WidgetSize } from '$contract/widgets';
 	import { worktreePageUrl } from '$contract/browser';
 	import { workstreamLiveAutomationsQuery } from '$lib/automations/application/queries/workstream-live-automations.query.svelte';
 	import { AutomationGutterRows } from '$lib/automations/automations.api';
@@ -9,8 +10,10 @@
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
-	import { startWorkstreamFromNoteCommand } from '$lib/app/application/commands/start-workstream-from-note.command';
+	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
+	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
 	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
+	import { fillWorkstreamComposerCommand } from '$lib/chat/application/commands/fill-workstream-composer.command';
 	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
@@ -18,13 +21,15 @@
 	import { contextMediaCountQuery } from '$lib/chat/application/queries/context-media-count.query.svelte';
 	import { MediaGallery, WorkstreamChatBridge } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
+	import { openRequestedFileCommand } from '$lib/extensions/application/commands/open-requested-file.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
 	import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/extension-runtime-ready.query.svelte';
 	import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
 	import { inspectorPanelsQuery } from '$lib/extensions/application/queries/inspector-panels.query.svelte';
 	import { WorkstreamInspector } from '$lib/extensions/extensions.api';
+	import { PlanWidget } from '$lib/initiatives/initiatives.api';
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
-	import { scratchpadPanel } from '$lib/scratchpad/scratchpad.api';
+	import { WidgetBoard } from '$lib/widgets/widgets.api';
 	import {
 		archiveWorkstreamCommand,
 		changeTotalsQuery,
@@ -52,18 +57,13 @@
 		workstreamsLoadedQuery,
 		worktreePendingQuery,
 	} from '$shared/repositories/repositories.api';
+	import { goto } from '$shared/router/navigation';
+	import { repositoryHref } from '$shared/router/routes-hrefs';
 	import { page } from '$shared/router/state';
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
-	const notesPanel = scratchpadPanel((id, start) => {
-		const repository = repositoryContextQuery.data(id)?.repo;
-		if (repository) startWorkstreamFromNoteCommand(repository, start);
-	});
-	const builtInPanels = $derived([
-		notesPanel,
-		...browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery),
-	]);
+	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery));
 	let mediaOpen = $state(false);
 	const panelActions = $derived([
 		{
@@ -194,10 +194,36 @@
 	{builtInPanels}
 	{panelActions}
 	belowGutter={automations.length > 0 ? automationsHere : undefined}
+	board={checkoutReady ? widgetsHere : undefined}
 />
 
 {#snippet automationsHere()}
 	<AutomationGutterRows entries={automations} {workstreamId} />
+{/snippet}
+
+{#snippet widgetsHere()}
+	<WidgetBoard
+		{workstreamId}
+		onopen={(url) => openBrowserUrlCommand(workstreamId, url)}
+		onask={(prompt) => fillWorkstreamComposerCommand(workstreamId, prompt)}
+		onopenfile={(path) => openRequestedFileCommand({ workstreamId, path, line: null })}
+		plan={repositoryContext ? planHere : undefined}
+	/>
+{/snippet}
+
+{#snippet planHere(size: WidgetSize)}
+	{#if repositoryContext}
+		{@const repository = repositoryContext.repo}
+		<PlanWidget
+			{repository}
+			standingOf={workstreamStandingQuery.of}
+			{size}
+			currentWorkstreamId={workstreamId}
+			onstart={(initiative, dependency) =>
+				startDependencyWorkstreamCommand(initiative, dependency, repository)}
+			onopen={() => goto(repositoryHref(repository.id))}
+		/>
+	{/if}
 {/snippet}
 
 <WorkstreamPathContextMenu {workstreamId} />

@@ -15,6 +15,7 @@ const PROMPT_PX = 74;
 const CARD_PX = 80;
 const WORKSTREAMS_HEAD_PX = 34;
 const WORKSTREAM_LINE_PX = 40;
+const WIDGET_CARD_PX = 400;
 const ANCHOR_ROWS_BEFORE = 3;
 
 type TranscriptMeasure = Pick<TranscriptWindow, 'heightOf' | 'textWidth'>;
@@ -29,6 +30,8 @@ export function estimateRowHeight(item: GroupedRunTimelineItem, textWidth: numbe
 			return CARD_PX;
 		case 'workstreams':
 			return WORKSTREAMS_HEAD_PX + item.workstreamIds.length * WORKSTREAM_LINE_PX;
+		case 'widget':
+			return WIDGET_CARD_PX;
 		default:
 			return ROW_PX;
 	}

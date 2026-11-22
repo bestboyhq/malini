@@ -21,7 +21,7 @@ beforeEach(() => {
 		isDev: false,
 		appVersion: '0.0.0',
 	};
-	registerInitiatives(context);
+	registerInitiatives(context, { gh: () => Promise.reject(new Error('no gh here')) });
 });
 
 afterEach(() => context.db.close());
@@ -70,6 +70,8 @@ describe('initiatives', () => {
 			done: true,
 			note: null,
 			workstreams: [{ workstreamId: 'ws-checkout', needs: null }],
+			githubIssue: null,
+			assignee: null,
 		});
 
 		const note = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] });

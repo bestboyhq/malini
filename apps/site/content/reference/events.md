@@ -1730,3 +1730,93 @@ type ExtensionPublishedEvent = Readonly<{
 	repository: string;
 }>;
 ```
+
+## `widgets:board-changed`
+
+Fires when a widget board changes: a widget file under `.malini/widgets` is added, changed or removed in a checkout, or you place, resize, remove or hide a widget, with the `board` it belongs to. Malini does not keep it in its event log.
+
+An automation sees: `board`
+
+Payload: `WidgetBoardChangedEvent`
+
+```ts
+type WidgetBoardChangedEvent = Readonly<{ board: string }>;
+```
+
+## `widgets:reading-changed`
+
+Fires when a widget reads its source, starts a read or a read fails, with the board, the widget, when it last read and the error of a failed read. Malini does not keep it in its event log.
+
+An automation sees: `board`, `widgetId`, `readAt`, `error`, `reading`
+
+Payload: `WidgetReading`
+
+```ts
+const WIDGET_STATES = ['success', 'failure', 'running', 'idle'] as const;
+
+type WidgetState = (typeof WIDGET_STATES)[number];
+
+type WidgetRow = Readonly<{
+	label: string;
+	value: number | string | null;
+	max: number | null;
+	detail: string | null;
+	state: WidgetState | null;
+	url: string | null;
+}>;
+
+type WidgetData = Readonly<{
+	value: number | string | null;
+	unit: string | null;
+	caption: string | null;
+	delta: string | null;
+	percent: number | null;
+	state: WidgetState | null;
+	history: readonly WidgetState[];
+	rows: readonly WidgetRow[];
+	url: string | null;
+}>;
+
+type WidgetReading = Readonly<{
+	board: string;
+	widgetId: string;
+	fingerprint: string;
+	data: WidgetData | null;
+	readAt: string | null;
+	error: string | null;
+	attemptedAt: string | null;
+	reading: boolean;
+}>;
+```
+
+## `initiatives:synced`
+
+Fires when a repository's plan syncs with its GitHub milestones and issues and someone else changed it there, with the repository and each change: who made it, what kind and the title it touched.
+
+An automation sees: `repositoryFullName`, `changes`
+
+Payload: `PlanSyncedEvent`
+
+```ts
+const PLAN_REMOTE_CHANGE_KINDS = [
+	'added',
+	'renamed',
+	'closed',
+	'reopened',
+	'dated',
+	'removed',
+] as const;
+
+type PlanRemoteChangeKind = (typeof PLAN_REMOTE_CHANGE_KINDS)[number];
+
+type PlanRemoteChange = Readonly<{
+	actor: string | null;
+	kind: PlanRemoteChangeKind;
+	title: string;
+}>;
+
+type PlanSyncedEvent = Readonly<{
+	repositoryFullName: string;
+	changes: readonly PlanRemoteChange[];
+}>;
+```

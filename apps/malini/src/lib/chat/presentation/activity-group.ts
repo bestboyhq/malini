@@ -37,6 +37,14 @@ export type StartedWorkstreams = {
 	workstreamIds: readonly string[];
 };
 
+export type SavedWidgetCard = {
+	kind: 'widget';
+	key: string;
+	input: Readonly<Record<string, unknown>>;
+	output: string | null;
+	status: 'running' | 'completed' | 'failed';
+};
+
 export type SubagentGroup = {
 	kind: 'subagent-group';
 	key: string;
@@ -53,9 +61,13 @@ export type WorkFold = {
 };
 
 export type GroupedRunTimelineItem =
-	RunTimelineItem | ActivityGroup | StartedWorkstreams | SubagentGroup | WorkFold;
+	RunTimelineItem | ActivityGroup | StartedWorkstreams | SavedWidgetCard | SubagentGroup | WorkFold;
+
+type FoldedTimelineItem = RunTimelineItem | StartedWorkstreams | SavedWidgetCard;
 
 const START_WORKSTREAM_TOOL = 'mcp__malini__workstreams_create';
+
+const SAVE_WIDGET_TOOL = 'mcp__malini__widgets_save';
 
 export const ACTIVITY_GROUP_MIN_ITEMS = 2;
 
@@ -103,8 +115,8 @@ export function groupRunTimeline(
 		burst = [];
 	}
 
-	for (const item of withoutAskedActions(foldStartedWorkstreams(items))) {
-		if (item.kind !== 'workstreams' && isBurstItem(item)) {
+	for (const item of withoutAskedActions(foldSavedWidgets(foldStartedWorkstreams(items)))) {
+		if (!isCard(item) && isBurstItem(item)) {
 			burst.push(item);
 			continue;
 		}
@@ -150,7 +162,7 @@ export function foldRunWork(
 		(row) =>
 			row !== answer &&
 			row.kind !== 'user' &&
-			row.kind !== 'workstreams' &&
+			!isCard(row) &&
 			row.kind !== 'work-fold' &&
 			!namesMaliniAction(row),
 	);
@@ -185,7 +197,11 @@ function timelineItems(row: GroupedRunTimelineItem): readonly RunTimelineItem[] 
 	if (row.kind === 'activity-group') return row.items;
 	if (row.kind === 'subagent-group') return row.agents;
 	if (row.kind === 'work-fold') return row.rows;
-	return row.kind === 'workstreams' ? [] : [row];
+	return isCard(row) ? [] : [row];
+}
+
+function isCard(row: GroupedRunTimelineItem): row is StartedWorkstreams | SavedWidgetCard {
+	return row.kind === 'workstreams' || row.kind === 'widget';
 }
 
 export function foldStartedWorkstreams(
@@ -202,9 +218,23 @@ export function foldStartedWorkstreams(
 	});
 }
 
-function withoutAskedActions<Row extends RunTimelineItem | StartedWorkstreams>(
-	rows: readonly Row[],
-): readonly Row[] {
+function foldSavedWidgets(
+	items: readonly (RunTimelineItem | StartedWorkstreams)[],
+): readonly FoldedTimelineItem[] {
+	return items.map((item): FoldedTimelineItem =>
+		item.kind === 'tool' && item.tool.name === SAVE_WIDGET_TOOL
+			? {
+					kind: 'widget',
+					key: `widget-${item.key}`,
+					input: isRecord(item.tool.input) ? item.tool.input : {},
+					output: typeof item.tool.output === 'string' ? item.tool.output : null,
+					status: item.tool.status,
+				}
+			: item,
+	);
+}
+
+function withoutAskedActions<Row extends FoldedTimelineItem>(rows: readonly Row[]): readonly Row[] {
 	const asked = new Set(
 		rows.flatMap((row) =>
 			row.kind === 'approval' && isMaliniAction(row.toolName)

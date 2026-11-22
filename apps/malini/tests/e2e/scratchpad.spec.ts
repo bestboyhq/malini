@@ -8,7 +8,6 @@ import {
 	holdCheckouts,
 	launchMalini,
 	listProjects,
-	openWorkstream,
 	seedWorkstream,
 } from './harness';
 
@@ -80,60 +79,6 @@ test('a repository page keeps its scratchpad beside its plan, resizes it with a 
 		await workstreams.filter({ hasNotText: 'Alpha work' }).first().click();
 		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 		await expectAssistantReply(page);
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('Notes in the inspector keeps the repository scratchpad in every workstream and moves an idea into a new one', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini();
-	try {
-		const { page } = app;
-		const alpha = await createSourceRepo(app.root, 'alpha');
-		await seedWorkstream(page, alpha, 'e2e-notes-one', 'First work');
-		await seedWorkstream(page, alpha, 'e2e-notes-two', 'Second work');
-		await openWorkstream(page, 'e2e-notes-one');
-
-		const inspector = page.getByRole('region', { name: 'Inspector' });
-		const notesRow = page
-			.getByTestId('extension-inspector-gutter')
-			.getByRole('button', { name: /^Notes/u });
-		await notesRow.click({ timeout: 20_000 });
-		await expect(inspector.getByRole('tab', { name: 'Notes', selected: true })).toBeVisible();
-		await expect(inspector.getByRole('tab')).toHaveCount(1);
-		const pad = inspector.getByRole('textbox', { name: 'Scratchpad for alpha' });
-		await pad.click();
-		await page.keyboard.type('Say hello to the fake bridge');
-		await captureFlow(app, 'scratchpad-notes-tab');
-
-		await openWorkstream(page, 'e2e-notes-two');
-		await notesRow.click({ timeout: 20_000 });
-		await expect(pad).toHaveText('Say hello to the fake bridge');
-		await pad.click();
-		const firstIdea = await pad.getByText('Say hello to the fake bridge').boundingBox();
-		if (!firstIdea) throw new Error('the first idea has no box');
-		await page.mouse.click(firstIdea.x + firstIdea.width - 2, firstIdea.y + firstIdea.height / 2);
-		await page.keyboard.press('Enter');
-		await page.keyboard.type('Then say goodbye');
-
-		await openWorkstream(page, 'e2e-notes-one');
-		await expect(pad).toContainText('Then say goodbye', { timeout: 20_000 });
-		const workstreams = page
-			.getByRole('navigation', { name: 'Connected repositories' })
-			.getByTestId('sidebar-workstream');
-		await pad.getByText('Say hello to the fake bridge').click();
-		await page.keyboard.press('Meta+Enter');
-		await expect(pad).toHaveText('Then say goodbye');
-		await expect(workstreams).toHaveCount(3);
-		await expect(page).toHaveURL(/#\/workstreams\/e2e-notes-one/u);
-
-		await page.getByRole('link', { name: 'Open alpha' }).click();
-		await expect(page.getByRole('textbox', { name: 'Scratchpad for alpha' })).toHaveText(
-			'Then say goodbye',
-			{ timeout: 20_000 },
-		);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

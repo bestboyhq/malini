@@ -809,5 +809,31 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload:
 				'type ExtensionPublishedEvent = Readonly<{\n\tpublisher: string;\n\tname: string;\n\tversion: string;\n\trepository: string;\n}>;',
 		},
+		{
+			channel: 'widgets:board-changed',
+			description:
+				'Fires when a widget board changes: a widget file under `.malini/widgets` is added, changed or removed in a checkout, or you place, resize, remove or hide a widget, with the `board` it belongs to. Malini does not keep it in its event log.',
+			facts: ['board'],
+			payloadType: 'WidgetBoardChangedEvent',
+			payload: 'type WidgetBoardChangedEvent = Readonly<{ board: string }>;',
+		},
+		{
+			channel: 'widgets:reading-changed',
+			description:
+				'Fires when a widget reads its source, starts a read or a read fails, with the board, the widget, when it last read and the error of a failed read. Malini does not keep it in its event log.',
+			facts: ['board', 'widgetId', 'readAt', 'error', 'reading'],
+			payloadType: 'WidgetReading',
+			payload:
+				"const WIDGET_STATES = ['success', 'failure', 'running', 'idle'] as const;\n\ntype WidgetState = (typeof WIDGET_STATES)[number];\n\ntype WidgetRow = Readonly<{\n\tlabel: string;\n\tvalue: number | string | null;\n\tmax: number | null;\n\tdetail: string | null;\n\tstate: WidgetState | null;\n\turl: string | null;\n}>;\n\ntype WidgetData = Readonly<{\n\tvalue: number | string | null;\n\tunit: string | null;\n\tcaption: string | null;\n\tdelta: string | null;\n\tpercent: number | null;\n\tstate: WidgetState | null;\n\thistory: readonly WidgetState[];\n\trows: readonly WidgetRow[];\n\turl: string | null;\n}>;\n\ntype WidgetReading = Readonly<{\n\tboard: string;\n\twidgetId: string;\n\tfingerprint: string;\n\tdata: WidgetData | null;\n\treadAt: string | null;\n\terror: string | null;\n\tattemptedAt: string | null;\n\treading: boolean;\n}>;",
+		},
+		{
+			channel: 'initiatives:synced',
+			description:
+				"Fires when a repository's plan syncs with its GitHub milestones and issues and someone else changed it there, with the repository and each change: who made it, what kind and the title it touched.",
+			facts: ['repositoryFullName', 'changes'],
+			payloadType: 'PlanSyncedEvent',
+			payload:
+				"const PLAN_REMOTE_CHANGE_KINDS = [\n\t'added',\n\t'renamed',\n\t'closed',\n\t'reopened',\n\t'dated',\n\t'removed',\n] as const;\n\ntype PlanRemoteChangeKind = (typeof PLAN_REMOTE_CHANGE_KINDS)[number];\n\ntype PlanRemoteChange = Readonly<{\n\tactor: string | null;\n\tkind: PlanRemoteChangeKind;\n\ttitle: string;\n}>;\n\ntype PlanSyncedEvent = Readonly<{\n\trepositoryFullName: string;\n\tchanges: readonly PlanRemoteChange[];\n}>;",
+		},
 	],
 };

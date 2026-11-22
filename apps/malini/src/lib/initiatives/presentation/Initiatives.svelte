@@ -6,6 +6,7 @@
 	import { createInitiativeCommand } from '$lib/initiatives/application/commands/create-initiative.command';
 	import { loadInitiativesCommand } from '$lib/initiatives/application/commands/load-initiatives.command';
 	import { updateInitiativeCommand } from '$lib/initiatives/application/commands/update-initiative.command';
+	import { keepPlanSyncedHook } from '$lib/initiatives/application/hooks/keep-plan-synced.hook';
 	import { initiativesQuery } from '$lib/initiatives/application/queries/initiatives.query.svelte';
 	import {
 		addDays,
@@ -19,8 +20,9 @@
 	} from '$lib/initiatives/domain/initiative';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure } from '$shared/errors/failure-copy';
-	import type { Repository } from '$shared/repositories/repositories.api';
+	import { repositoryWebUrl, type Repository } from '$shared/repositories/repositories.api';
 	import InitiativeItem from './InitiativeItem.svelte';
+	import PlanSyncSwitch from './PlanSyncSwitch.svelte';
 	import QuietField from './QuietField.svelte';
 	import RailDay from './RailDay.svelte';
 	import { dayName } from './rail-labels';
@@ -50,6 +52,7 @@
 	const folded = new SvelteSet<string>();
 
 	const plan = $derived(rail(today, initiatives, standingOf));
+	const onGithub = $derived(repositoryWebUrl(repository.remoteUrl) !== null);
 	const failure = $derived(
 		error === null ? null : describeFailure(error, { subject: 'Initiatives' }),
 	);
@@ -66,6 +69,8 @@
 	let seenDots: string | null = null;
 
 	onMount(() => loadInitiativesCommand());
+
+	$effect(() => (onGithub ? keepPlanSyncedHook(repository.fullName) : undefined));
 
 	$effect(() => {
 		if (linkedDots === null) return;
@@ -129,6 +134,9 @@
 	/>
 {/snippet}
 
+{#if onGithub && loaded && failure === null}
+	<PlanSyncSwitch repositoryFullName={repository.fullName} compact={false} />
+{/if}
 <section aria-label="Initiatives" class="pb-20">
 	{#if failure}
 		<StateBlock

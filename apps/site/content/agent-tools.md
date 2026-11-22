@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, MCP servers it adds, your repositories and workstreams, your automations and events - how often they ask, and where you see every call.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, secrets it asks you for by name, files it opens for you to fill in, widgets it makes for your board, MCP servers it adds, your repositories and workstreams, your automations and events - how often they ask, and where you see every call.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -138,6 +138,20 @@ The agent never reads or writes those, so it opens the file for you instead.
 - A tab can read and save a file outside the worktree only after an agent opened that file in that workstream, and it keeps that access after you quit and reopen Malini.
 - While streamer mode hides personal data, a secrets file or a file from outside the worktree stays hidden behind a **Show** button that names it.
 
+## Widgets
+
+The agent makes a [widget](/malini/docs/widgets.md) for your board when you ask for one, or for numbers you want to keep an eye on.
+
+| Tool           | What it does                                                                                         |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| `widgets_save` | Writes a widget file in the worktree, `.malini/widgets/<id>.json`, with your GitHub login as author. |
+
+- The widget names a `github` source, a `gh api` path with an optional jq `select`, or a `command` that prints JSON.
+- The agent gets back the file's path, the widget and, for a `github` source, its first reading.
+- It never runs a `command`: the agent runs the command itself and passes what it printed as a `sample`, which the chat shows until you pin the widget.
+- The chat shows the widget as a card in its three sizes, with **Pin to my panel**.
+- The file reaches your team through the pull request, as a suggestion on their boards.
+
 ## MCP servers
 
 The sandbox keeps `~/.claude.json` closed, so `claude mcp add` fails in a chat.
@@ -252,7 +266,7 @@ Merge still waits for checks, fixes what fails and resolves conflicts first, and
 
 ## You decide how often it asks
 
-- The read tools, `automations_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `secrets_request`, which only asks you, `workstreams_create` and `workstreams_send`.
+- The read tools, `automations_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so do `files_open`, which only opens a file for you, `widgets_save`, which only writes a file in the worktree, `secrets_request`, which only asks you, `workstreams_create` and `workstreams_send`.
 - Nothing inside the chat's own work asks: archiving a workstream it started, or one those started in turn, and running an automation in its own workstream or in one it started go through without asking.
 - **Merge**, **Open draft** that opens a pull request, and any automation whose Thens reach either always ask, since [shipping is your call](#shipping-is-your-call).
   **Open draft** that pushes to the open draft of a workstream in the chat's own work runs without asking.

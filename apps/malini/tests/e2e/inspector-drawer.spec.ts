@@ -120,8 +120,8 @@ test('the inspector starts closed, its Changes row opens Files on the changed fi
 		await expect(page.getByRole('region', { name: 'Inspector' }).getByRole('tab')).toHaveCount(0);
 		const changesRow = gutter(page).getByRole('button', { name: /^Changes/u });
 		await expect(changesRow).toHaveCount(1);
-		await expect(gutter(page).getByRole('button', { name: /^Notes/u })).toBeVisible();
-		await expect(gutter(page).getByRole('button')).toHaveCount(3);
+		await expect(gutter(page).getByRole('button', { name: /^Notes/u })).toHaveCount(0);
+		await expect(gutter(page).getByRole('button')).toHaveCount(2);
 		await expect(gutter(page).getByRole('button', { name: /^Files/u })).toHaveCount(0);
 		await expect(changesRow.getByLabel('1 additions, 0 deletions')).toBeVisible({
 			timeout: 20_000,
