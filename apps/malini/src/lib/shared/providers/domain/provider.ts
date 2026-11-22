@@ -7,7 +7,7 @@ import type {
 	ProviderPlan,
 } from '$contract/agent';
 import type { ClaudeCodeStatus } from './claude-code-status';
-import { fallbackModelCatalog } from './model-catalog';
+import { fallbackModelCatalog, withEarlierVersions } from './model-catalog';
 import type { ModelSelection } from './model-preferences';
 
 export const CLAUDE_PROVIDER_ID = 'claude';
@@ -96,12 +96,13 @@ export function providerGroups(
 	providers: readonly ModelProviderRecord[],
 ): readonly ProviderGroup[] {
 	const claudeModels = capability?.models ?? fallbackModelCatalog();
+	const versions = providers.find((provider) => provider.id === CLAUDE_PROVIDER_ID)?.models ?? [];
 	const claude: ProviderGroup = {
 		id: CLAUDE_PROVIDER_ID,
 		name: 'Claude',
 		kind: 'claude',
 		baseUrl: null,
-		models: claudeModels,
+		models: withEarlierVersions(claudeModels, versions),
 		ready: capability?.state === 'ready',
 		message: capability?.message ?? 'Claude Code needs setup',
 		account: null,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { modelsDevModels } from './models-dev';
+import { modelsDevModels, modelsDevVersions } from './models-dev';
 
 function model(id: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -111,6 +111,43 @@ describe('models.dev catalog', () => {
 		).toEqual([
 			{ id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash', family: 'deepseek-flash' },
 			{ id: 'claude-opus-5-5', label: 'Opus 5.5', family: 'claude-opus' },
+		]);
+	});
+
+	it('keeps every dated version once, newest first, under its undated alias', () => {
+		const anthropic = {
+			anthropic: {
+				models: {
+					'claude-opus-4-5-20251101': model('claude-opus-4-5-20251101', {
+						name: 'Claude Opus 4.5',
+						family: 'claude-opus',
+						release_date: '2025-11-24',
+					}),
+					'claude-opus-4-5': model('claude-opus-4-5', {
+						name: 'Claude Opus 4.5 (latest)',
+						family: 'claude-opus',
+						release_date: '2025-11-24',
+					}),
+					'claude-opus-4-8': model('claude-opus-4-8', {
+						name: 'Claude Opus 4.8',
+						family: 'claude-opus',
+						release_date: '2026-05-28',
+					}),
+					'claude-sonnet-4-5': model('claude-sonnet-4-5', { status: 'deprecated' }),
+					'claude-undated': model('claude-undated', { release_date: undefined }),
+				},
+			},
+		};
+		expect(
+			modelsDevVersions(anthropic, 'anthropic').map(({ id, label, family, released }) => ({
+				id,
+				label,
+				family,
+				released,
+			})),
+		).toEqual([
+			{ id: 'claude-opus-4-8', label: 'Opus 4.8', family: 'claude-opus', released: '2026-05-28' },
+			{ id: 'claude-opus-4-5', label: 'Opus 4.5', family: 'claude-opus', released: '2025-11-24' },
 		]);
 	});
 

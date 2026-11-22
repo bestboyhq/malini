@@ -18,6 +18,7 @@ import type { KeyUpstream } from './key-proxy';
 import type { ProxyAddress } from './local-endpoint';
 import { ProviderError } from './provider-error';
 import {
+	claudeVersions,
 	clearProviderKey,
 	getStoredProvider,
 	listStoredProviders,
@@ -94,7 +95,7 @@ export class ProviderKeys {
 					plan: provider.plan,
 				};
 			});
-		return [CLAUDE_PROVIDER, ...providers];
+		return [{ ...CLAUDE_PROVIDER, models: claudeVersions(this.#db) }, ...providers];
 	}
 
 	async save(providerId: string, apiKey: string): Promise<void> {

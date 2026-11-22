@@ -117,6 +117,8 @@ Each row shows the icon of the provider that runs it.
 A model that more than one provider runs has a chevron: point at it, or press →, to see who runs it, such as Claude and OpenCode for Opus 5.5, or ChatGPT and OpenCode for GPT-6 Luna, with what each one needs, and pick one.
 The row names the model the provider you picked runs, so a family two providers sell at different versions shows the one you will get.
 Type in it to filter by model or provider, and press Enter to pick the first match.
+Typing also finds earlier versions of the Claude models Claude Code offers, under **Earlier versions** with the month each came out, so `opus` finds Opus 4.8 and Opus 4.5.
+An earlier version you pick runs through Claude Code like the newest one, and stays in the list right under its family.
 **Save Opus 5.5 · Max as a preset** at the bottom of the model menu keeps the model with its effort, and the preset shows at the top of the menu as **Opus 5.5 Max**.
 Picking a preset sets both its model and its effort in the chat, and you can still change the effort afterwards.
 Hover a preset and click the **×** that slides in beside it to remove it, or use the same menu item once that model and effort are what the chat shows.
@@ -132,7 +134,7 @@ You can also save either key in **Settings → Providers**; Malini seals it with
 The key never leaves Malini: Claude Code talks to a server Malini runs on your Mac that only Malini's own runs can call, and that server adds the key and talks to DeepSeek or OpenCode.
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console, and Malini lists only that plan's models.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
-DeepSeek's and OpenCode's models come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
+DeepSeek's and OpenCode's models, and Claude's earlier versions, come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
 Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools, and leaves out free ones, which OpenCode keeps to its own apps.
 
 ## ChatGPT plan

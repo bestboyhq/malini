@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { openMigratedDatabase } from '$main/db/open';
-import { listStoredProviders } from './provider.repository';
+import { claudeVersions, listStoredProviders } from './provider.repository';
 import { ModelsDevCatalog, type CatalogFetch } from './models-dev.service';
 
 const HOUR = 60 * 60 * 1000;
@@ -54,6 +54,39 @@ describe('ModelsDevCatalog', () => {
 		await models.refresh();
 		expect(modelIds('opencode')).toEqual(['glm-9']);
 		expect(modelIds('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-pro']);
+	});
+
+	it('keeps the earlier Claude versions models.dev lists, and the last ones when it lists none', async () => {
+		const opus = {
+			id: 'claude-opus-4-5',
+			name: 'Claude Opus 4.5',
+			family: 'claude-opus',
+			tool_call: true,
+			modalities: { input: ['text', 'image'], output: ['text'] },
+			limit: { context: 200_000 },
+			cost: { input: 5, output: 25 },
+			release_date: '2025-11-24',
+		};
+		const db = openMigratedDatabase(':memory:');
+		const replies = [{ anthropic: { models: { opus } } }, catalog];
+		const fetch: CatalogFetch = async () => Response.json(replies.shift());
+		let clock = 0;
+		const models = new ModelsDevCatalog({ db, fetch, url: 'http://models.test', now: () => clock });
+		await models.refresh();
+		const kept = [
+			{
+				id: 'claude-opus-4-5',
+				label: 'Opus 4.5',
+				description: 'Text and images, 200K context',
+				efforts: [],
+				family: 'claude-opus',
+				released: '2025-11-24',
+			},
+		];
+		expect(claudeVersions(db)).toEqual(kept);
+		clock += HOUR;
+		await models.refresh();
+		expect(claudeVersions(db)).toEqual(kept);
 	});
 
 	it('asks once an hour and sends the ETag it got last', async () => {
