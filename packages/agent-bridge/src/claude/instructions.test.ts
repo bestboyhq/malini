@@ -88,6 +88,9 @@ describe('systemPromptAppend', () => {
 			"A question that needs more than that to answer is not the user's: decide it yourself.",
 		);
 		expect(prompt).toContain('Never ask a question in your report, in `Next:` or in `Needs:`');
+		expect(prompt).toContain(
+			'a small model reads each final reply and sends one that asks the user anything back to you once',
+		);
 		expect(prompt).toContain('what only the user can do and that no question asks');
 		expect(prompt).toContain(
 			'`![Before: what it shows](path)` and `![After: what it shows](path)`',

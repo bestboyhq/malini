@@ -254,6 +254,8 @@ Every turn ends in a report. Proof included
 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 The agent decides what is not yours and asks the rest in the question panel, each option with what it leads to and its pick first, so **Waiting on you** lists only what you do, such as pick a variant or sign in.
+Before you see a reply that might ask you something in text, the provider's small model reads it.
+One that does goes back to the agent once, to ask in the panel or decide, and you see only the rewrite.
 The report shows the moment the agent writes it, and its **Outcome** and **Needs** lines never stream in as text.
 While the run still goes after it, for a background agent or a hook, the report shows a clock, **Still running**, and lists what it asks of you under **Over to you after** until the run ends.
 A run you stop, or one that fails, keeps its report, with the failure under it.

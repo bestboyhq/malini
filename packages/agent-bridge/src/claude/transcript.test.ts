@@ -1,4 +1,4 @@
-import { describe, expect, it, onTestFinished, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent } from '../types.js';
 import { recordedMessages, type RecordedScenario } from './fixtures/fake-claude.js';
@@ -33,15 +33,12 @@ const BACKGROUND_COMMAND = {
 	startedAt: expect.any(Number),
 };
 
-function replay(
-	messages: readonly SDKMessage[],
-	holdsReplies = false,
-): {
+function replay(messages: readonly SDKMessage[]): {
 	events: AgentEvent[];
 	transcript: ClaudeTranscript;
 } {
 	const events: AgentEvent[] = [];
-	const transcript = new ClaudeTranscript('run-1', (event) => events.push(event), holdsReplies);
+	const transcript = new ClaudeTranscript('run-1', (event) => events.push(event));
 	for (const message of messages) transcript.accept(message);
 	return { events, transcript };
 }
@@ -207,33 +204,20 @@ describe('ClaudeTranscript', () => {
 	});
 
 	it('shows only the rewrite of a reply the reply check sent back', () => {
-		const { events } = replay(recordedMessages('steRewrite'), true);
+		const { events } = replayRecorded('steRewrite');
 
-		const [rejected, rewrite] = ofType(replayRecorded('steRewrite').events, 'assistant.message');
-		expect(ofType(events, 'assistant.message')).toEqual([rewrite]);
+		const streamed = new Set(ofType(events, 'assistant.delta').map(({ contentId }) => contentId));
+		const [rejected, rewrite] = streamed;
+		expect(ofType(events, 'assistant.message').map(({ contentId }) => contentId)).toEqual([
+			rewrite,
+		]);
 		expect(ofType(events, 'stream.discarded')).toEqual([
-			{
-				type: 'stream.discarded',
-				runId: 'run-1',
-				contentIds: [rejected?.contentId],
-				toolCallIds: [],
-			},
+			{ type: 'stream.discarded', runId: 'run-1', contentIds: [rejected], toolCallIds: [] },
 		]);
 		for (const [id, endings] of streamEndings(events)) {
 			expect({ id, endings: endings.length }).toEqual({ id, endings: 1 });
 		}
 	});
-
-	it.each(RECORDED_SCENARIOS.filter((scenario) => scenario !== 'steRewrite'))(
-		'keeps every reply of %s, in order, when it holds replies for the reply check',
-		(scenario) => {
-			vi.useFakeTimers({ toFake: ['Date'] });
-			onTestFinished(() => void vi.useRealTimers());
-			const held = replay(recordedMessages(scenario), true).events;
-
-			expect(held).toEqual(replayRecorded(scenario).events);
-		},
-	);
 
 	it.each(RECORDED_SCENARIOS)('ends every block streamed in %s exactly once', (scenario) => {
 		const { events } = replayRecorded(scenario);
