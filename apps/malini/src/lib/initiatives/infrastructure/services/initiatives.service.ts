@@ -1,9 +1,13 @@
 import type {
 	CreateInitiativeArgs,
 	Initiative,
+	PlanSync,
+	PlanSyncedEvent,
+	SetPlanSyncArgs,
 	UpdateInitiativeArgs,
 	UpdateInitiativeDependencyArgs,
 } from '$contract/initiatives';
+import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
 class InitiativesService {
@@ -37,6 +41,22 @@ class InitiativesService {
 
 	linkWorkstream(dependencyId: string, workstreamId: string): Promise<Initiative[]> {
 		return invoke('initiatives.link-workstream', { dependencyId, workstreamId });
+	}
+
+	syncState(repositoryFullName: string): Promise<PlanSync> {
+		return invoke('initiatives.sync-state', { repositoryFullName });
+	}
+
+	setSync(args: SetPlanSyncArgs): Promise<PlanSync> {
+		return invoke('initiatives.set-sync', args);
+	}
+
+	sync(repositoryFullName: string): Promise<Initiative[]> {
+		return invoke('initiatives.sync', { repositoryFullName });
+	}
+
+	onSynced(listener: (event: PlanSyncedEvent) => void): () => void {
+		return onPlatformEvent('initiatives:synced', listener);
 	}
 }
 

@@ -2,9 +2,10 @@
 	interface Props {
 		done: number;
 		total: number;
+		size?: number;
 	}
 
-	let { done, total }: Props = $props();
+	let { done, total, size = 16 }: Props = $props();
 
 	const PIE_RADIUS = 2.1;
 	const PIE_CIRCUMFERENCE = 2 * Math.PI * PIE_RADIUS;
@@ -14,8 +15,8 @@
 </script>
 
 <svg
-	width="16"
-	height="16"
+	width={size}
+	height={size}
 	viewBox="0 0 16 16"
 	fill="none"
 	aria-hidden="true"

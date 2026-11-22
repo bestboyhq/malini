@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { GitHubUserAvatar } from '$shared/repositories/repositories.api';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
@@ -139,6 +140,15 @@
 						</span>
 					</Tooltip>
 				{/each}
+				{#if dependency.assignee}
+					{#key dependency.assignee}
+						<GitHubUserAvatar
+							login={dependency.assignee}
+							label={`Assigned to ${dependency.assignee}`}
+							class="mr-1.5"
+						/>
+					{/key}
+				{/if}
 				{#if status === 'todo'}
 					<Tooltip content="Start workstream" placement="top">
 						<IconButton

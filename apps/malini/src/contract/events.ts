@@ -19,6 +19,8 @@ import type {
 	TimeReachedEvent,
 } from './automations';
 import type { McpServerListing, McpServerReport } from './mcp-servers';
+import type { PlanSyncedEvent } from './initiatives';
+import type { WidgetBoardChangedEvent, WidgetReading } from './widgets';
 import type {
 	PullRequestChangedEvent,
 	ShipButtonClickedEvent,
@@ -295,6 +297,9 @@ export interface ContractEvents {
 	'secrets:deleted': SecretDeletedEvent;
 	'extensions:changed': ExtensionChangedEvent;
 	'extensions:published': ExtensionPublishedEvent;
+	'widgets:board-changed': WidgetBoardChangedEvent;
+	'widgets:reading-changed': WidgetReading;
+	'initiatives:synced': PlanSyncedEvent;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -368,6 +373,9 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'secrets:deleted': null,
 	'extensions:changed': null,
 	'extensions:published': null,
+	'widgets:board-changed': null,
+	'widgets:reading-changed': null,
+	'initiatives:synced': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {

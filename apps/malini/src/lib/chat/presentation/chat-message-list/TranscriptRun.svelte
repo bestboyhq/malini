@@ -21,6 +21,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { withoutStreamingFooter } from '$lib/chat/domain/turn-report';
+	import { WidgetCard } from '$lib/widgets/widgets.api';
 	import { withPendingRows, type GroupedRunTimelineItem } from '../activity-group';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import { runLastSeq, type RunGroup } from '../render-state';
@@ -152,6 +153,15 @@
 	{:else if item.kind === 'workstreams'}
 		<div class="w-full" use:stageEnter={timelineKey(run, item.key)} data-message-kind="workstreams">
 			{@render transcript.workstreamsCard(item.workstreamIds)}
+		</div>
+	{:else if item.kind === 'widget'}
+		<div class="w-full" use:stageEnter={timelineKey(run, item.key)} data-message-kind="widget">
+			<WidgetCard
+				workstreamId={transcript.workstreamId}
+				input={item.input}
+				output={item.output}
+				status={item.status}
+			/>
 		</div>
 	{:else if item.kind === 'work-fold'}
 		<RunWorkFold fold={item}>

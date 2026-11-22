@@ -53,6 +53,25 @@ Malini reads each workstream's state live, the way a chat's **Workstreams** card
 An initiative counts its finished dependencies, and it is finished once all of them are done.
 A finished initiative leaves the rail once its day has passed.
 
+## Sync with GitHub
+
+A plan lives on your Mac until you turn on **Sync with GitHub**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
+Sync is per repository and off until you turn it on.
+
+- Each outcome becomes a milestone, with its day as the due date and its note as the description.
+- Each dependency becomes an issue in that milestone, with its note as the body, and a closed issue means done.
+- The issue's assignee shows as their GitHub picture on the dependency.
+- When a linked workstream's pull request merges, Malini closes its issue.
+- A milestone or issue someone adds on GitHub joins the plan, and one they delete leaves it.
+  Deleting a dependency in Malini closes its issue, since GitHub keeps issues.
+
+Malini reads GitHub every 30 seconds while the plan is on screen, and writes after each edit.
+A change someone else made shows as a line at the bottom of the window, such as who closed which issue.
+Everyone with access to the repository sees the milestones and issues, people without Malini included.
+The scratchpad stays on your Mac.
+
+Turning sync off stops it and leaves GitHub as it is.
+
 ## Notes
 
 Click an initiative or a dependency to select it.

@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -239,6 +239,68 @@ test('an agent adds an MCP server once the user always allows it, shows env name
 		await expect(grants.getByRole('listitem')).toHaveCount(1);
 		await expect(grants.getByRole('listitem')).toContainText('Add MCP servers');
 		await captureFlow(app, 'agent-mcp-server-always-allowed');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('an agent saves a widget with a command source and its sample without asking, the file lands in the worktree with its author, and Activity names it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId, worktree } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-agent-widgets',
+			'Widget chores',
+		);
+		await openWorkstream(page, workstreamId);
+		const source = { command: 'node scripts/rooms.mjs' };
+		agentCalls(app, {
+			tool: 'widgets_save',
+			input: {
+				id: 'rooms',
+				title: 'Rooms',
+				icon: 'users',
+				source,
+				refresh: { every: 60 },
+				size: 'medium',
+				sample: { value: 3, unit: 'rooms', caption: 'open now', history: ['success', 'failure'] },
+			},
+		});
+
+		await sendPrompt(page, 'MALINI_TOOL');
+		const saved = async () =>
+			(await listEvents(page, currentSessionId(page) ?? '')).flatMap(({ event }) =>
+				event.type === 'tool.completed' && event.name === 'mcp__malini__widgets_save'
+					? [String(event.output)]
+					: [],
+			);
+		await expect.poll(saved, { timeout: 20_000 }).toHaveLength(1);
+		await expect(decision(page)).toHaveCount(0);
+		const [output = ''] = await saved();
+		expect(JSON.parse(output)).toMatchObject({
+			path: '.malini/widgets/rooms.json',
+			widget: { id: 'rooms', title: 'Rooms', author: 'e2e-user' },
+			reading: null,
+			note: expect.stringContaining('only once the user pins the widget'),
+		});
+		expect(
+			JSON.parse(readFileSync(join(worktree, '.malini', 'widgets', 'rooms.json'), 'utf8')),
+		).toMatchObject({ title: 'Rooms', source, author: 'e2e-user' });
+		await captureFlow(app, 'agent-widget-saved');
+
+		await openAutomations(page, '#/automations/activity');
+		const activity = page.getByTestId('automations-activity');
+		await activity
+			.getByTestId('chat-turn-row')
+			.getByRole('button', { name: /^Show 1 call in / })
+			.click({ timeout: 20_000 });
+		const call = activity.getByTestId('agent-action-row');
+		await expect(call).toContainText('Save widget ‘Rooms’');
+		await expect(call).not.toContainText('allowed');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

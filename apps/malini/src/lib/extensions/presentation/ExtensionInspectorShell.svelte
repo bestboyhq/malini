@@ -31,6 +31,11 @@
 	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { inspectorGutter } from '$shared/extensions/inspector-gutter.store.svelte';
 	import {
+		INSPECTOR_GUTTER_MAX_WIDTH,
+		INSPECTOR_GUTTER_MIN_WIDTH,
+		inspectorGutterWidth,
+	} from '$shared/extensions/inspector-gutter-width.store.svelte';
+	import {
 		emptyInspectorPanelKeepAliveState,
 		inspectorPanelKeepAliveEntry,
 		reconcileInspectorPanelKeepAlive,
@@ -69,6 +74,7 @@
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		panelActions?: readonly InspectorPanelAction[];
 		belowGutter?: Snippet | undefined;
+		board?: Snippet | undefined;
 		workstreamPanelIds?: ReadonlySet<string>;
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
@@ -90,6 +96,7 @@
 		renderIcon,
 		panelActions = [],
 		belowGutter,
+		board,
 		workstreamPanelIds = new Set(),
 		storage,
 		onactivechange,
@@ -153,6 +160,8 @@
 	const controlledPanelId = $derived(presentsMountedPanel ? presentedPanelId : null);
 	const drawerOpen = $derived(inspectorDrawer.isOpen(workstreamId, storage));
 	const floating = $derived(drawerOpen && inspectorDrawer.overlay);
+	const gutterWidth = $derived(`${inspectorGutterWidth.current}px`);
+	let columnDrag: { pointerId: number; startX: number; startWidth: number } | null = null;
 	const compactRows = $derived(
 		gutterRows({
 			panels: orderedPanels,
@@ -622,6 +631,51 @@
 		return key === controlledPanelId ? inspectorPanelId(key) : undefined;
 	}
 
+	function startColumnResize(event: PointerEvent): void {
+		if (event.button !== 0 && event.pointerType === 'mouse') return;
+		const handle = event.currentTarget;
+		if (!(handle instanceof HTMLElement)) return;
+		event.preventDefault();
+		handle.setPointerCapture(event.pointerId);
+		columnDrag = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startWidth: inspectorGutterWidth.current,
+		};
+	}
+
+	function moveColumnResize(event: PointerEvent): void {
+		if (columnDrag?.pointerId !== event.pointerId) return;
+		if (event.buttons === 0) {
+			endColumnResize(event);
+			return;
+		}
+		inspectorGutterWidth.set(columnDrag.startWidth + columnDrag.startX - event.clientX);
+	}
+
+	function endColumnResize(event: PointerEvent): void {
+		if (columnDrag?.pointerId !== event.pointerId) return;
+		columnDrag = null;
+		inspectorGutterWidth.persist();
+	}
+
+	function columnWidthForKey(key: string, shift: boolean): number | null {
+		const step = shift ? 16 : 1;
+		if (key === 'ArrowLeft') return inspectorGutterWidth.current + step;
+		if (key === 'ArrowRight') return inspectorGutterWidth.current - step;
+		if (key === 'Home') return INSPECTOR_GUTTER_MIN_WIDTH;
+		if (key === 'End') return INSPECTOR_GUTTER_MAX_WIDTH;
+		return null;
+	}
+
+	function resizeColumnByKey(event: KeyboardEvent): void {
+		const next = columnWidthForKey(event.key, event.shiftKey);
+		if (next === null) return;
+		event.preventDefault();
+		inspectorGutterWidth.set(next);
+		inspectorGutterWidth.persist();
+	}
+
 	function compactBadgeCount(count: number): string {
 		const normalized = Math.max(0, Math.floor(count));
 		return normalized > 99 ? '99+' : String(normalized);
@@ -661,285 +715,245 @@
 	</div>
 {/snippet}
 
-{#if floating}
-	<div class="mr-3 w-72 shrink-0" aria-hidden="true"></div>
-{/if}
-
-<section
+<div
 	class={[
-		'bg-surface-root border-border-default/60 mt-1 mr-3 mb-3 flex min-h-0 min-w-0 shrink flex-col overflow-hidden rounded-2xl border-[0.5px] [-webkit-app-region:no-drag] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-7',
-		floating
-			? 'shadow-popup absolute top-0 right-0 z-10 max-h-[calc(100%-1.75rem)]'
-			: 'relative z-10',
-		!drawerOpen && 'w-72',
+		'pointer-events-none flex min-h-0 min-w-0 flex-1 flex-col',
+		!drawerOpen && 'relative',
+		(!drawerOpen || floating) && 'pl-1.5',
 	]}
-	style:width={floating ? `min(calc(100% - 3rem), max(${minWidth}px, 50%))` : undefined}
-	{@attach dockInspector}
-	{@attach floating && dismissOnOutside(closeDrawer, '[data-inspector-dock]')}
-	aria-label="Inspector"
-	aria-busy={drawerOpen && !inspectorRuntimeReady && !presentsMountedPanel && !runtimeError}
-	data-workstream-id={workstreamId}
-	data-navigation-workstream-id={workstreamId}
-	data-workstream-ready={inspectorRuntimeReady}
-	data-inspector-drawer-open={drawerOpen}
-	data-testid="extension-inspector-shell"
 >
-	{#if drawerOpen}
-		<div class="flex h-12 shrink-0 items-center gap-1 px-4 pt-1">
-			<div
-				class="absolute"
-				role="tablist"
-				aria-label="Inspector panels"
-				aria-owns={inspectorTabKeys.map((key) => inspectorTabId(key)).join(' ')}
-			></div>
-			<div
-				class="inspector-tab-strip scroll-fade-x flex min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
-				use:roveTabFocus
-			>
-				{#each visiblePanels as panel, panelIndex (panel.id)}
-					{@const isActive = panel.id === presentedPreferences.activeId}
-					{@const badge = panelBadges[panel.id]}
-					{@const adjacentPanelId = isActive
-						? (visiblePanels[panelIndex + 1]?.id ?? visiblePanels[panelIndex - 1]?.id ?? null)
-						: null}
-					{#snippet badgeCount()}
-						{#if badge}
-							<span
-								class={[
-									'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
-									isActive ? 'bg-surface-100-selected' : 'bg-surface-50-selected',
-									badge.count > 0 ? 'text-fg-default' : 'text-fg-tertiary',
-								]}
-								aria-label={badge.ariaLabel}
-								data-testid="extension-inspector-tab-badge"
-								data-panel-id={panel.id}
-								data-count={badge.count}
-							>
-								{compactBadgeCount(badge.count)}
-							</span>
-						{/if}
-					{/snippet}
-					<BrowserTab
-						label={panel.label}
-						selected={isActive}
-						disabled={!inspectorInteractive}
-						tabId={inspectorTabId(panel.id)}
-						tabindex={panel.id === inspectorTabStopKey ? 0 : -1}
-						ariaControls={controlledPanel(panel.id)}
-						closeLabel={`Close ${panel.label}`}
-						closeDisabled={!inspectorInteractive}
-						data-active={String(isActive)}
-						data-panel-id={panel.id}
-						tabAttributes={{
-							'data-testid': 'extension-inspector-tab',
-							'data-navigation-local-target': isActive ? undefined : 'extension-inspector-panel',
-							'data-navigation-path-id': 'expected-path:extension-inspector.select-panel',
-							'data-navigation-target-workstream-id': workstreamId,
-							'data-navigation-panel-id': panel.id,
-							'data-panel-id': panel.id,
-						}}
-						closeAttributes={{
-							'data-testid': 'extension-inspector-tab-close',
-							'data-navigation-local-target': adjacentPanelId
-								? 'extension-inspector-panel'
-								: undefined,
-							'data-navigation-target-workstream-id': adjacentPanelId ? workstreamId : undefined,
-							'data-navigation-panel-id': adjacentPanelId ?? undefined,
-							'data-navigation-path-id': 'expected-path:extension-inspector.close-panel',
-							'data-panel-id': panel.id,
-						}}
-						onselect={() => selectPanel(panel.id)}
-						oncontextmenu={(event) => openPanelMenu(event, panel.id)}
-						animatesClose={() => drawerOpen}
-						onclose={(event) => {
-							event.preventDefault();
-							event.stopPropagation();
-							closePanel(panel.id);
-						}}
-						trailing={badge ? badgeCount : undefined}
-					>
-						{#snippet icon()}
-							<span class="grid place-items-center" aria-hidden="true">
-								{#if renderIcon}{@render renderIcon(panel.icon, 14)}{:else}<ExtensionPanelIcon
-										icon={panel.icon}
-										size={14}
-									/>{/if}
-							</span>
-						{/snippet}
-					</BrowserTab>
-				{/each}
-			</div>
+	{#if !drawerOpen}
+		<!-- svelte-ignore a11y_no_interactive_element_to_noninteractive_role -->
+		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- drag handle: Button does not forward `aria-orientation`, `aria-valuemin/max/now` or the pointer-capture handlers this separator is made of, as in SidebarFrame. -->
+		<button
+			type="button"
+			role="separator"
+			aria-orientation="vertical"
+			aria-valuemin={INSPECTOR_GUTTER_MIN_WIDTH}
+			aria-valuemax={INSPECTOR_GUTTER_MAX_WIDTH}
+			aria-valuenow={Math.round(inspectorGutterWidth.current)}
+			aria-label="Resize the inspector"
+			tabindex="0"
+			class="inspector-column-handle"
+			data-testid="inspector-column-resize-handle"
+			onpointerdown={startColumnResize}
+			onpointermove={moveColumnResize}
+			onpointerup={endColumnResize}
+			onpointercancel={endColumnResize}
+			onlostpointercapture={endColumnResize}
+			onkeydown={resizeColumnByKey}
+		></button>
+	{/if}
 
-			<span class="mr-auto shrink-0" bind:this={panelPickerAnchor}>
-				<Tooltip
-					content="Open inspector panel"
-					placement="bottom"
-					suppressed={panelPickerOpen}
-					class="size-7 items-center justify-center"
+	{#if floating}
+		<div class="mr-3 shrink-0" style:width={gutterWidth} aria-hidden="true"></div>
+	{/if}
+
+	<section
+		class={[
+			'bg-surface-root border-border-default/60 pointer-events-auto mt-1 mr-3 mb-3 flex min-h-0 min-w-0 shrink flex-col overflow-hidden rounded-2xl border-[0.5px] [-webkit-app-region:no-drag] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-7',
+			floating
+				? 'shadow-popup absolute top-0 right-0 z-10 max-h-[calc(100%-1.75rem)]'
+				: 'relative z-10',
+		]}
+		style:width={floating
+			? `min(calc(100% - 3rem), max(${minWidth}px, 50%))`
+			: drawerOpen
+				? undefined
+				: gutterWidth}
+		{@attach dockInspector}
+		{@attach floating && dismissOnOutside(closeDrawer, '[data-inspector-dock]')}
+		aria-label="Inspector"
+		aria-busy={drawerOpen && !inspectorRuntimeReady && !presentsMountedPanel && !runtimeError}
+		data-workstream-id={workstreamId}
+		data-navigation-workstream-id={workstreamId}
+		data-workstream-ready={inspectorRuntimeReady}
+		data-inspector-drawer-open={drawerOpen}
+		data-testid="extension-inspector-shell"
+	>
+		{#if drawerOpen}
+			<div class="flex h-12 shrink-0 items-center gap-1 px-4 pt-1">
+				<div
+					class="absolute"
+					role="tablist"
+					aria-label="Inspector panels"
+					aria-owns={inspectorTabKeys.map((key) => inspectorTabId(key)).join(' ')}
+				></div>
+				<div
+					class="inspector-tab-strip scroll-fade-x flex min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
+					use:roveTabFocus
 				>
-					<IconButton
-						bare
-						ariaLabel="Open inspector panel"
-						ariaHasPopup="menu"
-						ariaExpanded={panelPickerOpen}
-						disabled={!inspectorInteractive}
-						class="text-fg-tertiary hover:bg-surface-50-selected hover:text-fg-default aria-expanded:bg-surface-50-selected aria-expanded:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[''] focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
-						data-testid="extension-inspector-add"
-						onclick={() => {
-							settingsOpen = false;
-							panelPickerOpen = !panelPickerOpen;
-						}}
-					>
-						<Icon name="plus" size={14} />
-					</IconButton>
-				</Tooltip>
-			</span>
-
-			{#if arrangeable}
-				<span class="shrink-0" bind:this={settingsAnchor}>
-					<Tooltip content="Arrange inspector panels" placement="bottom" suppressed={settingsOpen}>
-						<IconButton
-							ariaLabel="Arrange inspector panels"
-							variant="ghost"
-							size="md"
-							active={settingsOpen}
-							ariaHasPopup="menu"
-							ariaExpanded={settingsOpen}
+					{#each visiblePanels as panel, panelIndex (panel.id)}
+						{@const isActive = panel.id === presentedPreferences.activeId}
+						{@const badge = panelBadges[panel.id]}
+						{@const adjacentPanelId = isActive
+							? (visiblePanels[panelIndex + 1]?.id ?? visiblePanels[panelIndex - 1]?.id ?? null)
+							: null}
+						{#snippet badgeCount()}
+							{#if badge}
+								<span
+									class={[
+										'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
+										isActive ? 'bg-surface-100-selected' : 'bg-surface-50-selected',
+										badge.count > 0 ? 'text-fg-default' : 'text-fg-tertiary',
+									]}
+									aria-label={badge.ariaLabel}
+									data-testid="extension-inspector-tab-badge"
+									data-panel-id={panel.id}
+									data-count={badge.count}
+								>
+									{compactBadgeCount(badge.count)}
+								</span>
+							{/if}
+						{/snippet}
+						<BrowserTab
+							label={panel.label}
+							selected={isActive}
 							disabled={!inspectorInteractive}
+							tabId={inspectorTabId(panel.id)}
+							tabindex={panel.id === inspectorTabStopKey ? 0 : -1}
+							ariaControls={controlledPanel(panel.id)}
+							closeLabel={`Close ${panel.label}`}
+							closeDisabled={!inspectorInteractive}
+							data-active={String(isActive)}
+							data-panel-id={panel.id}
+							tabAttributes={{
+								'data-testid': 'extension-inspector-tab',
+								'data-navigation-local-target': isActive ? undefined : 'extension-inspector-panel',
+								'data-navigation-path-id': 'expected-path:extension-inspector.select-panel',
+								'data-navigation-target-workstream-id': workstreamId,
+								'data-navigation-panel-id': panel.id,
+								'data-panel-id': panel.id,
+							}}
+							closeAttributes={{
+								'data-testid': 'extension-inspector-tab-close',
+								'data-navigation-local-target': adjacentPanelId
+									? 'extension-inspector-panel'
+									: undefined,
+								'data-navigation-target-workstream-id': adjacentPanelId ? workstreamId : undefined,
+								'data-navigation-panel-id': adjacentPanelId ?? undefined,
+								'data-navigation-path-id': 'expected-path:extension-inspector.close-panel',
+								'data-panel-id': panel.id,
+							}}
+							onselect={() => selectPanel(panel.id)}
+							oncontextmenu={(event) => openPanelMenu(event, panel.id)}
+							animatesClose={() => drawerOpen}
+							onclose={(event) => {
+								event.preventDefault();
+								event.stopPropagation();
+								closePanel(panel.id);
+							}}
+							trailing={badge ? badgeCount : undefined}
+						>
+							{#snippet icon()}
+								<span class="grid place-items-center" aria-hidden="true">
+									{#if renderIcon}{@render renderIcon(panel.icon, 14)}{:else}<ExtensionPanelIcon
+											icon={panel.icon}
+											size={14}
+										/>{/if}
+								</span>
+							{/snippet}
+						</BrowserTab>
+					{/each}
+				</div>
+
+				<span class="mr-auto shrink-0" bind:this={panelPickerAnchor}>
+					<Tooltip
+						content="Open inspector panel"
+						placement="bottom"
+						suppressed={panelPickerOpen}
+						class="size-7 items-center justify-center"
+					>
+						<IconButton
+							bare
+							ariaLabel="Open inspector panel"
+							ariaHasPopup="menu"
+							ariaExpanded={panelPickerOpen}
+							disabled={!inspectorInteractive}
+							class="text-fg-tertiary hover:bg-surface-50-selected hover:text-fg-default aria-expanded:bg-surface-50-selected aria-expanded:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[''] focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
+							data-testid="extension-inspector-add"
 							onclick={() => {
-								panelPickerOpen = false;
-								settingsOpen = !settingsOpen;
+								settingsOpen = false;
+								panelPickerOpen = !panelPickerOpen;
 							}}
 						>
-							<Icon name="settings" size={14} />
+							<Icon name="plus" size={14} />
 						</IconButton>
 					</Tooltip>
 				</span>
-			{/if}
-			<span class="shrink-0">
-				<Tooltip content="Hide inspector" placement="bottom">
-					<IconButton
-						ariaLabel="Hide inspector"
-						variant="ghost"
-						size="md"
-						ariaExpanded={true}
-						data-testid="extension-inspector-hide"
-						onclick={closeDrawer}
-					>
-						<Icon name="chevron-right" size={13} />
-					</IconButton>
-				</Tooltip>
-			</span>
-		</div>
 
-		<DropdownLayer
-			open={panelPickerOpen}
-			anchor={panelPickerAnchor}
-			onclose={() => (panelPickerOpen = false)}
-			side="bottom"
-			align="start"
-			owner="extension-inspector-panel-picker"
-			testId="extension-inspector-panel-picker"
-			panelClass="w-60 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1"
-		>
-			<div class="text-fg-tertiary px-2 py-1.5 text-xs">Open panel</div>
-			{#each orderedPanels as panel (panel.id)}
-				{@const isOpen = !presentedPreferences.hidden.includes(panel.id)}
-				{@const isSelected = panel.id === presentedPreferences.activeId}
-				<DropdownItem
-					role="menuitem"
-					closeOnSelect={false}
-					focusOnHover={false}
-					aria-label={`${isOpen ? 'Select' : 'Open'} ${panel.label}`}
-					data-testid="extension-inspector-picker-item"
-					data-navigation-local-target={isSelected ? undefined : 'extension-inspector-panel'}
-					data-navigation-path-id={isOpen
-						? 'expected-path:extension-inspector.select-panel'
-						: 'expected-path:extension-inspector.open-panel'}
-					data-navigation-target-workstream-id={workstreamId}
-					data-navigation-panel-id={panel.id}
-					data-panel-id={panel.id}
-					onclick={() => openPanel(panel.id)}
-				>
-					<span
-						class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
-						aria-hidden="true"
-					>
-						{#if renderIcon}{@render renderIcon(panel.icon, 13)}{:else}<ExtensionPanelIcon
-								icon={panel.icon}
-								size={13}
-							/>{/if}
+				{#if arrangeable}
+					<span class="shrink-0" bind:this={settingsAnchor}>
+						<Tooltip
+							content="Arrange inspector panels"
+							placement="bottom"
+							suppressed={settingsOpen}
+						>
+							<IconButton
+								ariaLabel="Arrange inspector panels"
+								variant="ghost"
+								size="md"
+								active={settingsOpen}
+								ariaHasPopup="menu"
+								ariaExpanded={settingsOpen}
+								disabled={!inspectorInteractive}
+								onclick={() => {
+									panelPickerOpen = false;
+									settingsOpen = !settingsOpen;
+								}}
+							>
+								<Icon name="settings" size={14} />
+							</IconButton>
+						</Tooltip>
 					</span>
-					<span class="min-w-0 flex-1 truncate">{panel.label}</span>
-					{#if isSelected}
-						<span class="text-fg-default" aria-label="Selected">
-							<Icon name="check" size={11} />
-						</span>
-					{:else if !isOpen}
-						<span class="text-fg-tertiary" aria-label="Closed">
-							<Icon name="plus" size={11} />
-						</span>
-					{/if}
-				</DropdownItem>
-			{/each}
-			{#each panelActions as action (action.id)}
-				<DropdownItem
-					role="menuitem"
-					focusOnHover={false}
-					data-testid="extension-inspector-picker-action"
-					onclick={() => {
-						panelPickerOpen = false;
-						action.run();
-					}}
-				>
-					<span
-						class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
-						aria-hidden="true"
-					>
-						{#if renderIcon}{@render renderIcon(action.icon, 13)}{:else}<ExtensionPanelIcon
-								icon={action.icon}
-								size={13}
-							/>{/if}
-					</span>
-					<span class="min-w-0 flex-1 truncate">{action.label}</span>
-					<span class="text-fg-tertiary" aria-hidden="true">
-						<Icon name="plus" size={11} />
-					</span>
-				</DropdownItem>
-			{/each}
-		</DropdownLayer>
+				{/if}
+				<span class="shrink-0">
+					<Tooltip content="Hide inspector" placement="bottom">
+						<IconButton
+							ariaLabel="Hide inspector"
+							variant="ghost"
+							size="md"
+							ariaExpanded={true}
+							data-testid="extension-inspector-hide"
+							onclick={closeDrawer}
+						>
+							<Icon name="chevron-right" size={13} />
+						</IconButton>
+					</Tooltip>
+				</span>
+			</div>
 
-		<DropdownLayer
-			open={settingsOpen && arrangeable}
-			anchor={settingsAnchor}
-			onclose={() => (settingsOpen = false)}
-			side="bottom"
-			align="end"
-			owner="extension-inspector-preferences"
-			testId="extension-inspector-preferences"
-			panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1"
-		>
-			<div class="text-fg-tertiary px-2 py-1.5 text-xs">Inspector panels</div>
-			<div bind:this={arrangeList} data-testid="extension-inspector-arrange-list">
-				{#each orderedPanels as panel, index (panel.id)}
-					{@const isVisible = !presentedPreferences.hidden.includes(panel.id)}
-					{@const hideActiveTargetPanelId =
-						isVisible && panel.id === presentedPreferences.activeId
-							? (visiblePanels.find((candidate) => candidate.id !== panel.id)?.id ?? null)
-							: null}
-					<div
-						class={[
-							'arrange-row hover:bg-surface-elevated-hover relative flex h-8 items-center gap-1 rounded-md px-1',
-							draggingPanelId === panel.id && 'opacity-50',
-						]}
-						data-arrange-row
+			<DropdownLayer
+				open={panelPickerOpen}
+				anchor={panelPickerAnchor}
+				onclose={() => (panelPickerOpen = false)}
+				side="bottom"
+				align="start"
+				owner="extension-inspector-panel-picker"
+				testId="extension-inspector-panel-picker"
+				panelClass="w-60 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1"
+			>
+				<div class="text-fg-tertiary px-2 py-1.5 text-xs">Open panel</div>
+				{#each orderedPanels as panel (panel.id)}
+					{@const isOpen = !presentedPreferences.hidden.includes(panel.id)}
+					{@const isSelected = panel.id === presentedPreferences.activeId}
+					<DropdownItem
+						role="menuitem"
+						closeOnSelect={false}
+						focusOnHover={false}
+						aria-label={`${isOpen ? 'Select' : 'Open'} ${panel.label}`}
+						data-testid="extension-inspector-picker-item"
+						data-navigation-local-target={isSelected ? undefined : 'extension-inspector-panel'}
+						data-navigation-path-id={isOpen
+							? 'expected-path:extension-inspector.select-panel'
+							: 'expected-path:extension-inspector.open-panel'}
+						data-navigation-target-workstream-id={workstreamId}
+						data-navigation-panel-id={panel.id}
 						data-panel-id={panel.id}
-						data-drop-before={dropLineGap === index}
-						data-drop-after={dropLineGap === orderedPanels.length &&
-							index === orderedPanels.length - 1}
+						onclick={() => openPanel(panel.id)}
 					>
 						<span
-							class="text-fg-tertiary grid h-6 w-6 shrink-0 place-items-center"
+							class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
 							aria-hidden="true"
 						>
 							{#if renderIcon}{@render renderIcon(panel.icon, 13)}{:else}<ExtensionPanelIcon
@@ -947,149 +961,241 @@
 									size={13}
 								/>{/if}
 						</span>
-						<span class="text-fg-secondary min-w-0 flex-1 truncate text-xs">{panel.label}</span>
-						<Tooltip
-							content={isVisible ? `Hide ${panel.label}` : `Show ${panel.label}`}
-							placement="top"
-						>
-							<IconButton
-								ariaLabel={isVisible ? `Hide ${panel.label}` : `Show ${panel.label}`}
-								variant="ghost"
-								size="sm"
-								data-navigation-local-target={hideActiveTargetPanelId
-									? 'extension-inspector-panel'
-									: undefined}
-								data-navigation-target-workstream-id={hideActiveTargetPanelId
-									? workstreamId
-									: undefined}
-								data-navigation-panel-id={hideActiveTargetPanelId ?? undefined}
-								data-navigation-path-id="expected-path:extension-inspector.hide-active-panel"
-								onclick={() => togglePanel(panel.id)}
-							>
-								{#if isVisible}<Icon name="eye" size={12} />{:else}<Icon
-										name="eye-off"
-										size={12}
-									/>{/if}
-							</IconButton>
-						</Tooltip>
-						<Tooltip
-							content={`Drag to reorder ${panel.label}`}
-							placement="top"
-							suppressed={draggingPanelId !== null}
-						>
-							<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- a drag handle: pointer capture and the grab cursor live on the element itself, which IconButton does not expose. -->
-							<button
-								type="button"
-								class="text-fg-secondary hover:text-fg-default focus-visible:ring-border-default/50 grid h-6 w-6 shrink-0 touch-none place-items-center rounded outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
-								class:cursor-grab={draggingPanelId === null}
-								class:cursor-grabbing={draggingPanelId !== null}
-								aria-label={`Reorder ${panel.label}. Drag, or press the arrow keys`}
-								data-testid="extension-inspector-arrange-handle"
-								data-panel-id={panel.id}
-								disabled={orderedPanels.length <= 1}
-								onpointerdown={(event) => startPanelDrag(event, panel.id, index)}
-								onpointermove={movePanelDrag}
-								onpointerup={endPanelDrag}
-								onpointercancel={cancelPanelDrag}
-								onkeydown={(event) => arrangeKeydown(event, panel.id)}
-							>
-								<Icon name="grip" size={12} />
-							</button>
-						</Tooltip>
-					</div>
+						<span class="min-w-0 flex-1 truncate">{panel.label}</span>
+						{#if isSelected}
+							<span class="text-fg-default" aria-label="Selected">
+								<Icon name="check" size={11} />
+							</span>
+						{:else if !isOpen}
+							<span class="text-fg-tertiary" aria-label="Closed">
+								<Icon name="plus" size={11} />
+							</span>
+						{/if}
+					</DropdownItem>
 				{/each}
-			</div>
-		</DropdownLayer>
-
-		{#if runtimeError}
-			{@render runtimeFailure(runtimeError)}
-		{:else if !inspectorRuntimeReady && !presentsMountedPanel}
-			<div
-				class="min-h-0 flex-1"
-				data-testid="inspector-cold-shell"
-				data-navigation-cold-shell="true"
-				data-navigation-workstream-id={workstreamId}
-				data-navigation-panel-id={requestedPanelId ?? activePanel?.id ?? undefined}
-				data-navigation-agent-session-id={agentSessionId ?? undefined}
-				aria-label="Workstream tools unavailable until local panels are registered"
-			></div>
-		{:else if !activePanel && (presentedEntry?.panels.length ?? 0) === 0}
-			<div class="grid min-h-0 flex-1 place-items-center px-6 text-center">
-				<p class="text-fg-tertiary max-w-64 text-sm">No inspector panels are registered.</p>
-			</div>
-		{/if}
-	{:else}
-		<ExtensionGutter
-			{workstreamId}
-			rows={compactRows}
-			disabled={!inspectorInteractive}
-			{renderIcon}
-			onopen={openGutterRow}
-			onaction={runGutterAction}
-			oncontextmenu={openPanelMenu}
-		/>
-		{#if runtimeError}
-			{@render runtimeFailure(runtimeError)}
-		{/if}
-	{/if}
-
-	{#each keepAlive.entries as entry (entry.workstreamId)}
-		{#each entry.panels as mountedPanel (mountedPanel.id)}
-			{@const isPresented =
-				drawerOpen &&
-				entry.workstreamId === workstreamId &&
-				mountedPanel.id === presentedPanelId &&
-				presentable(mountedPanel, inspectorRuntimeReady)}
-			{@const isActive =
-				isPresented && (inspectorRuntimeReady || rendersContextWorkstream(mountedPanel))}
-			{@const failure = panelFailures[panelFailureKey(entry.workstreamId, mountedPanel.id)]}
-			<div
-				class="relative flex min-h-0 min-w-0 flex-1"
-				class:hidden={!isPresented}
-				id={isPresented ? inspectorPanelId(mountedPanel.id) : undefined}
-				role="tabpanel"
-				aria-labelledby={inspectorTabId(mountedPanel.id)}
-				inert={!isActive}
-				aria-hidden={!isPresented}
-				data-testid={isPresented ? 'extension-inspector-content' : undefined}
-				data-inspector-panel-cache
-				data-panel-id={mountedPanel.id}
-				data-navigation-workstream-id={entry.workstreamId}
-				data-navigation-panel-id={mountedPanel.id}
-			>
-				<ExtensionPanelHost
-					panel={mountedPanel}
-					context={entry.context}
-					workstreamId={entry.workstreamId}
-					onerror={(cause, failedPanel) => panelError(cause, failedPanel, entry.workstreamId)}
-				/>
-				{#if failure}
-					<div
-						class="absolute inset-0 grid place-items-center p-6"
-						data-navigation-error="true"
-						data-navigation-error-message={failure}
-						data-navigation-workstream-id={entry.workstreamId}
-						data-navigation-panel-id={mountedPanel.id}
-						data-navigation-agent-session-id={agentSessionId ?? undefined}
+				{#each panelActions as action (action.id)}
+					<DropdownItem
+						role="menuitem"
+						focusOnHover={false}
+						data-testid="extension-inspector-picker-action"
+						onclick={() => {
+							panelPickerOpen = false;
+							action.run();
+						}}
 					>
-						<div
-							class="border-surface-elevated-border bg-surface-elevated max-w-80 rounded-lg border-[0.5px] p-3"
+						<span
+							class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
+							aria-hidden="true"
 						>
-							<p class="text-fg-secondary text-sm">{mountedPanel.label} is unavailable</p>
-							<p class="text-fg-tertiary mt-1 text-xs">{failure}</p>
-						</div>
-					</div>
-				{/if}
-			</div>
-		{/each}
-	{/each}
-</section>
+							{#if renderIcon}{@render renderIcon(action.icon, 13)}{:else}<ExtensionPanelIcon
+									icon={action.icon}
+									size={13}
+								/>{/if}
+						</span>
+						<span class="min-w-0 flex-1 truncate">{action.label}</span>
+						<span class="text-fg-tertiary" aria-hidden="true">
+							<Icon name="plus" size={11} />
+						</span>
+					</DropdownItem>
+				{/each}
+			</DropdownLayer>
 
-{#if belowGutter && !floating}
-	<div class={['relative z-10 mr-3 shrink-0', drawerOpen ? 'mb-2' : 'w-72']}>
-		{@render belowGutter()}
-	</div>
-{/if}
+			<DropdownLayer
+				open={settingsOpen && arrangeable}
+				anchor={settingsAnchor}
+				onclose={() => (settingsOpen = false)}
+				side="bottom"
+				align="end"
+				owner="extension-inspector-preferences"
+				testId="extension-inspector-preferences"
+				panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1"
+			>
+				<div class="text-fg-tertiary px-2 py-1.5 text-xs">Inspector panels</div>
+				<div bind:this={arrangeList} data-testid="extension-inspector-arrange-list">
+					{#each orderedPanels as panel, index (panel.id)}
+						{@const isVisible = !presentedPreferences.hidden.includes(panel.id)}
+						{@const hideActiveTargetPanelId =
+							isVisible && panel.id === presentedPreferences.activeId
+								? (visiblePanels.find((candidate) => candidate.id !== panel.id)?.id ?? null)
+								: null}
+						<div
+							class={[
+								'arrange-row hover:bg-surface-elevated-hover relative flex h-8 items-center gap-1 rounded-md px-1',
+								draggingPanelId === panel.id && 'opacity-50',
+							]}
+							data-arrange-row
+							data-panel-id={panel.id}
+							data-drop-before={dropLineGap === index}
+							data-drop-after={dropLineGap === orderedPanels.length &&
+								index === orderedPanels.length - 1}
+						>
+							<span
+								class="text-fg-tertiary grid h-6 w-6 shrink-0 place-items-center"
+								aria-hidden="true"
+							>
+								{#if renderIcon}{@render renderIcon(panel.icon, 13)}{:else}<ExtensionPanelIcon
+										icon={panel.icon}
+										size={13}
+									/>{/if}
+							</span>
+							<span class="text-fg-secondary min-w-0 flex-1 truncate text-xs">{panel.label}</span>
+							<Tooltip
+								content={isVisible ? `Hide ${panel.label}` : `Show ${panel.label}`}
+								placement="top"
+							>
+								<IconButton
+									ariaLabel={isVisible ? `Hide ${panel.label}` : `Show ${panel.label}`}
+									variant="ghost"
+									size="sm"
+									data-navigation-local-target={hideActiveTargetPanelId
+										? 'extension-inspector-panel'
+										: undefined}
+									data-navigation-target-workstream-id={hideActiveTargetPanelId
+										? workstreamId
+										: undefined}
+									data-navigation-panel-id={hideActiveTargetPanelId ?? undefined}
+									data-navigation-path-id="expected-path:extension-inspector.hide-active-panel"
+									onclick={() => togglePanel(panel.id)}
+								>
+									{#if isVisible}<Icon name="eye" size={12} />{:else}<Icon
+											name="eye-off"
+											size={12}
+										/>{/if}
+								</IconButton>
+							</Tooltip>
+							<Tooltip
+								content={`Drag to reorder ${panel.label}`}
+								placement="top"
+								suppressed={draggingPanelId !== null}
+							>
+								<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- a drag handle: pointer capture and the grab cursor live on the element itself, which IconButton does not expose. -->
+								<button
+									type="button"
+									class="text-fg-secondary hover:text-fg-default focus-visible:ring-border-default/50 grid h-6 w-6 shrink-0 touch-none place-items-center rounded outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
+									class:cursor-grab={draggingPanelId === null}
+									class:cursor-grabbing={draggingPanelId !== null}
+									aria-label={`Reorder ${panel.label}. Drag, or press the arrow keys`}
+									data-testid="extension-inspector-arrange-handle"
+									data-panel-id={panel.id}
+									disabled={orderedPanels.length <= 1}
+									onpointerdown={(event) => startPanelDrag(event, panel.id, index)}
+									onpointermove={movePanelDrag}
+									onpointerup={endPanelDrag}
+									onpointercancel={cancelPanelDrag}
+									onkeydown={(event) => arrangeKeydown(event, panel.id)}
+								>
+									<Icon name="grip" size={12} />
+								</button>
+							</Tooltip>
+						</div>
+					{/each}
+				</div>
+			</DropdownLayer>
+
+			{#if runtimeError}
+				{@render runtimeFailure(runtimeError)}
+			{:else if !inspectorRuntimeReady && !presentsMountedPanel}
+				<div
+					class="min-h-0 flex-1"
+					data-testid="inspector-cold-shell"
+					data-navigation-cold-shell="true"
+					data-navigation-workstream-id={workstreamId}
+					data-navigation-panel-id={requestedPanelId ?? activePanel?.id ?? undefined}
+					data-navigation-agent-session-id={agentSessionId ?? undefined}
+					aria-label="Workstream tools unavailable until local panels are registered"
+				></div>
+			{:else if !activePanel && (presentedEntry?.panels.length ?? 0) === 0}
+				<div class="grid min-h-0 flex-1 place-items-center px-6 text-center">
+					<p class="text-fg-tertiary max-w-64 text-sm">No inspector panels are registered.</p>
+				</div>
+			{/if}
+		{:else}
+			<ExtensionGutter
+				{workstreamId}
+				rows={compactRows}
+				disabled={!inspectorInteractive}
+				{renderIcon}
+				onopen={openGutterRow}
+				onaction={runGutterAction}
+				oncontextmenu={openPanelMenu}
+			/>
+			{#if runtimeError}
+				{@render runtimeFailure(runtimeError)}
+			{/if}
+		{/if}
+
+		{#each keepAlive.entries as entry (entry.workstreamId)}
+			{#each entry.panels as mountedPanel (mountedPanel.id)}
+				{@const isPresented =
+					drawerOpen &&
+					entry.workstreamId === workstreamId &&
+					mountedPanel.id === presentedPanelId &&
+					presentable(mountedPanel, inspectorRuntimeReady)}
+				{@const isActive =
+					isPresented && (inspectorRuntimeReady || rendersContextWorkstream(mountedPanel))}
+				{@const failure = panelFailures[panelFailureKey(entry.workstreamId, mountedPanel.id)]}
+				<div
+					class="relative flex min-h-0 min-w-0 flex-1"
+					class:hidden={!isPresented}
+					id={isPresented ? inspectorPanelId(mountedPanel.id) : undefined}
+					role="tabpanel"
+					aria-labelledby={inspectorTabId(mountedPanel.id)}
+					inert={!isActive}
+					aria-hidden={!isPresented}
+					data-testid={isPresented ? 'extension-inspector-content' : undefined}
+					data-inspector-panel-cache
+					data-panel-id={mountedPanel.id}
+					data-navigation-workstream-id={entry.workstreamId}
+					data-navigation-panel-id={mountedPanel.id}
+				>
+					<ExtensionPanelHost
+						panel={mountedPanel}
+						context={entry.context}
+						workstreamId={entry.workstreamId}
+						onerror={(cause, failedPanel) => panelError(cause, failedPanel, entry.workstreamId)}
+					/>
+					{#if failure}
+						<div
+							class="absolute inset-0 grid place-items-center p-6"
+							data-navigation-error="true"
+							data-navigation-error-message={failure}
+							data-navigation-workstream-id={entry.workstreamId}
+							data-navigation-panel-id={mountedPanel.id}
+							data-navigation-agent-session-id={agentSessionId ?? undefined}
+						>
+							<div
+								class="border-surface-elevated-border bg-surface-elevated max-w-80 rounded-lg border-[0.5px] p-3"
+							>
+								<p class="text-fg-secondary text-sm">{mountedPanel.label} is unavailable</p>
+								<p class="text-fg-tertiary mt-1 text-xs">{failure}</p>
+							</div>
+						</div>
+					{/if}
+				</div>
+			{/each}
+		{/each}
+	</section>
+
+	{#if drawerOpen}
+		{#if belowGutter && !floating}
+			<div class="pointer-events-auto relative z-10 mr-3 mb-2 shrink-0">
+				{@render belowGutter()}
+			</div>
+		{/if}
+	{:else if belowGutter || board}
+		<div
+			class="pointer-events-auto relative z-10 mr-3 mb-3 flex min-h-0 flex-1 flex-col"
+			style:width={gutterWidth}
+		>
+			{#if belowGutter}
+				<div class="shrink-0">
+					{@render belowGutter()}
+				</div>
+			{/if}
+			{@render board?.()}
+		</div>
+	{/if}
+</div>
 
 <InspectorPanelContextMenu
 	target={panelMenu}
@@ -1113,5 +1219,42 @@
 	}
 	.arrange-row[data-drop-after='true']::after {
 		bottom: -1px;
+	}
+
+	.inspector-column-handle {
+		pointer-events: auto;
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 20;
+		width: 10px;
+		border: 0;
+		background: transparent;
+		padding: 0;
+		cursor: col-resize;
+		touch-action: none;
+		-webkit-app-region: no-drag;
+	}
+
+	.inspector-column-handle::after {
+		content: '';
+		position: absolute;
+		top: 30%;
+		bottom: 30%;
+		left: 4px;
+		width: 2px;
+		border-radius: 2px;
+		background: var(--color-fg-tertiary);
+		opacity: 0;
+	}
+
+	.inspector-column-handle:hover::after,
+	.inspector-column-handle:focus-visible::after {
+		opacity: 1;
+	}
+
+	.inspector-column-handle:focus-visible {
+		outline: none;
 	}
 </style>

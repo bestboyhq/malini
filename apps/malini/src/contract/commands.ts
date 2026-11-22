@@ -104,9 +104,21 @@ import type {
 	Initiative,
 	InitiativeIdArgs,
 	LinkInitiativeWorkstreamArgs,
+	PlanSync,
+	PlanSyncArgs,
+	SetPlanSyncArgs,
 	UpdateInitiativeArgs,
 	UpdateInitiativeDependencyArgs,
 } from './initiatives';
+import type {
+	PlaceWidgetArgs,
+	ResizeWidgetArgs,
+	WatchWidgetsArgs,
+	WidgetArgs,
+	WidgetBoard,
+	WidgetBoardArgs,
+	WidgetReading,
+} from './widgets';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
 	BrainCapture,
@@ -694,6 +706,16 @@ export interface ContractCommands {
 	'initiatives.update-dependency': { args: UpdateInitiativeDependencyArgs; result: Initiative[] };
 	'initiatives.delete-dependency': { args: InitiativeIdArgs; result: Initiative[] };
 	'initiatives.link-workstream': { args: LinkInitiativeWorkstreamArgs; result: Initiative[] };
+	'initiatives.sync-state': { args: PlanSyncArgs; result: PlanSync };
+	'initiatives.set-sync': { args: SetPlanSyncArgs; result: PlanSync };
+	'initiatives.sync': { args: PlanSyncArgs; result: Initiative[] };
+	'widgets.board': { args: WidgetBoardArgs; result: WidgetBoard };
+	'widgets.place': { args: PlaceWidgetArgs; result: WidgetBoard };
+	'widgets.resize': { args: ResizeWidgetArgs; result: WidgetBoard };
+	'widgets.remove': { args: WidgetArgs; result: WidgetBoard };
+	'widgets.hide': { args: WidgetArgs; result: WidgetBoard };
+	'widgets.refresh': { args: WidgetArgs; result: WidgetReading };
+	'widgets.watch': { args: WatchWidgetsArgs; result: void };
 	'brain.status': { args: undefined; result: BrainStatus };
 	'brain.set-up': { args: SetUpBrainArgs; result: BrainStatus };
 	'brain.set-sync': { args: SetBrainSyncArgs; result: BrainStatus };
@@ -1035,6 +1057,16 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'initiatives.update-dependency',
 	'initiatives.delete-dependency',
 	'initiatives.link-workstream',
+	'initiatives.sync-state',
+	'initiatives.set-sync',
+	'initiatives.sync',
+	'widgets.board',
+	'widgets.place',
+	'widgets.resize',
+	'widgets.remove',
+	'widgets.hide',
+	'widgets.refresh',
+	'widgets.watch',
 	'brain.status',
 	'brain.set-up',
 	'brain.set-sync',

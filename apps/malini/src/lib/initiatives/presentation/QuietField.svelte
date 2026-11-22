@@ -9,7 +9,9 @@
 		shown: boolean;
 		focused?: boolean;
 		class?: ClassValue;
+		inputClass?: ClassValue;
 		onfocused?: () => void;
+		onblur?: (text: string) => void;
 		onsubmit: (text: string) => boolean | Promise<boolean>;
 	}
 
@@ -19,7 +21,9 @@
 		shown,
 		focused = false,
 		class: className = '',
+		inputClass = 'h-8',
 		onfocused,
+		onblur,
 		onsubmit,
 	}: Props = $props();
 
@@ -62,10 +66,12 @@
 	autocomplete="off"
 	class={className}
 	inputClass={[
-		'h-8 min-w-0',
+		'min-w-0',
+		inputClass,
 		!shown &&
 			'placeholder:opacity-0 group-hover/reveal:placeholder:opacity-100 focus:placeholder:opacity-100',
 	]}
 	{onkeydown}
+	onblur={() => onblur?.(value)}
 	{@attach focused ? grab : null}
 />

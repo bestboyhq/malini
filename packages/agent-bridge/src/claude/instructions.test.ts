@@ -62,6 +62,9 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('run them as parallel subagents with the Agent tool');
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).toContain('every shell code block you write has a Run button');
+		expect(prompt).toContain(
+			'make it with `widgets_save` from the `malini` MCP server, never as an HTML page',
+		);
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('An attachment shows you a problem; it is never source data.');

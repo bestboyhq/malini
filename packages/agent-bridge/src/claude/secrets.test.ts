@@ -248,7 +248,7 @@ describe('SessionSecrets leftovers', () => {
 
 		expect(alive(ran.pid)).toBe(false);
 		expect(Date.now() - started).toBeGreaterThanOrEqual(2_900);
-	});
+	}, 10_000);
 
 	it('stops leftovers when the command output is masked too', async () => {
 		const secrets = session();

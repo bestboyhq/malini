@@ -14,6 +14,7 @@ import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
+import type { WidgetsPlatform } from '$lib/widgets/widgets.platform';
 import {
 	workstreamEnvironment,
 	type CheckoutResolver,
@@ -54,6 +55,7 @@ export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
 	readonly leases: AgentRunLeases;
 	readonly secrets: SecretsPlatform;
+	readonly widgets: Pick<WidgetsPlatform, 'save'>;
 	readonly extensions: Pick<ExtensionsPlatform, 'pluginFolders'>;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
@@ -140,6 +142,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		},
 		deliveries,
 		secrets: deps.secrets,
+		widgets: deps.widgets,
 		plugins,
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),

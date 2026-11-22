@@ -9,6 +9,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, intToBool, nowIso8601, run } from '$main/db/rows';
 import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { latestWorkstreamTurn } from '$lib/chat/chat.platform';
+import { addGithubDeletion } from './plan-sync.repository';
 
 const INITIATIVE_ERROR_VERDICTS = {
 	...SHARED_ERROR_VERDICTS,
@@ -29,6 +30,7 @@ type InitiativeRow = {
 	title: string;
 	due_on: string | null;
 	note: string | null;
+	github_milestone: number | null;
 };
 type DependencyRow = {
 	id: string;
@@ -36,8 +38,12 @@ type DependencyRow = {
 	title: string;
 	done: number;
 	note: string | null;
+	github_issue: number | null;
+	assignee: string | null;
 };
 type LinkRow = { dependency_id: string; workstream_id: string };
+
+const INITIATIVE_COLUMNS = 'id, repository_full_name, title, due_on, note, github_milestone';
 
 export type InitiativeChange = Readonly<{
 	title?: string;
@@ -65,8 +71,8 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 	const dependencies = groupBy(
 		all<DependencyRow>(
 			db,
-			`SELECT id, initiative_id, title, done, note FROM initiative_dependencies
-			 ORDER BY position, rowid`,
+			`SELECT id, initiative_id, title, done, note, github_issue, assignee
+			 FROM initiative_dependencies ORDER BY position, rowid`,
 		),
 		'initiative_id',
 		(row): InitiativeDependency => ({
@@ -75,11 +81,13 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 			done: intToBool(row.done),
 			note: row.note,
 			workstreams: workstreams.get(row.id) ?? [],
+			githubIssue: row.github_issue,
+			assignee: row.assignee,
 		}),
 	);
 	return all<InitiativeRow>(
 		db,
-		`SELECT id, repository_full_name, title, due_on, note FROM initiatives
+		`SELECT ${INITIATIVE_COLUMNS} FROM initiatives
 		 ORDER BY due_on IS NULL, due_on, created_at, rowid`,
 	).map((row) => ({
 		id: row.id,
@@ -88,6 +96,7 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 		dueOn: row.due_on,
 		note: row.note,
 		dependencies: dependencies.get(row.id) ?? [],
+		githubMilestone: row.github_milestone,
 	}));
 }
 
@@ -120,9 +129,21 @@ export function updateInitiative(db: MaliniDatabase, id: string, change: Initiat
 }
 
 export function deleteInitiative(db: MaliniDatabase, id: string): void {
-	if (run(db, 'DELETE FROM initiatives WHERE id = ?', id).changes === 0) {
-		throw unknownInitiative(id);
-	}
+	const current = initiativeRow(db, id);
+	db.transaction(() => {
+		const repository = current.repository_full_name;
+		if (current.github_milestone !== null) {
+			addGithubDeletion(db, repository, 'milestone', current.github_milestone);
+		}
+		const issues = all<{ github_issue: number }>(
+			db,
+			`SELECT github_issue FROM initiative_dependencies
+			 WHERE initiative_id = ? AND github_issue IS NOT NULL`,
+			id,
+		);
+		for (const { github_issue } of issues) addGithubDeletion(db, repository, 'issue', github_issue);
+		run(db, 'DELETE FROM initiatives WHERE id = ?', id);
+	});
 }
 
 export function addDependency(db: MaliniDatabase, initiativeId: string, title: string): void {
@@ -156,8 +177,22 @@ export function updateDependency(db: MaliniDatabase, id: string, change: Depende
 
 export function deleteDependency(db: MaliniDatabase, id: string): void {
 	const current = dependencyRow(db, id);
-	run(db, 'DELETE FROM initiative_dependencies WHERE id = ?', id);
-	touch(db, current.initiative_id);
+	db.transaction(() => {
+		if (current.github_issue !== null) {
+			const { repository_full_name } = initiativeRow(db, current.initiative_id);
+			addGithubDeletion(db, repository_full_name, 'issue', current.github_issue);
+		}
+		run(db, 'DELETE FROM initiative_dependencies WHERE id = ?', id);
+		touch(db, current.initiative_id);
+	});
+}
+
+export function initiativeRepository(db: MaliniDatabase, id: string): string {
+	return initiativeRow(db, id).repository_full_name;
+}
+
+export function dependencyRepository(db: MaliniDatabase, id: string): string {
+	return initiativeRepository(db, dependencyRow(db, id).initiative_id);
 }
 
 export function linkWorkstream(
@@ -180,7 +215,7 @@ export function linkWorkstream(
 function initiativeRow(db: MaliniDatabase, id: string): InitiativeRow {
 	const row = get<InitiativeRow>(
 		db,
-		'SELECT id, repository_full_name, title, due_on, note FROM initiatives WHERE id = ?',
+		`SELECT ${INITIATIVE_COLUMNS} FROM initiatives WHERE id = ?`,
 		id,
 	);
 	if (!row) throw unknownInitiative(id);
@@ -190,7 +225,8 @@ function initiativeRow(db: MaliniDatabase, id: string): InitiativeRow {
 function dependencyRow(db: MaliniDatabase, id: string): DependencyRow {
 	const row = get<DependencyRow>(
 		db,
-		'SELECT id, initiative_id, title, done, note FROM initiative_dependencies WHERE id = ?',
+		`SELECT id, initiative_id, title, done, note, github_issue, assignee
+		 FROM initiative_dependencies WHERE id = ?`,
 		id,
 	);
 	if (!row) throw new InitiativeError('not-found', `no initiative dependency ${id}`);

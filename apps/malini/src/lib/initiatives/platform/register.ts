@@ -7,11 +7,14 @@ import { isScratchpadContent } from '$lib/scratchpad/scratchpad.platform';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import { isDay } from '../domain/initiative';
+import { isGithubRepository } from './github-plan';
 import {
 	addDependency,
 	createInitiative,
 	deleteDependency,
 	deleteInitiative,
+	dependencyRepository,
+	initiativeRepository,
 	InitiativeError,
 	linkWorkstream,
 	listInitiatives,
@@ -20,11 +23,15 @@ import {
 	type DependencyChange,
 	type InitiativeChange,
 } from './initiatives.repository';
+import { planSync, setPlanSyncEnabled } from './plan-sync.repository';
+import { PlanSyncService, type PlanSyncDeps } from './plan-sync.service';
 
-export function registerInitiatives(context: MainContext): void {
-	const { db, commands } = context;
-	const after = (change: () => void): Initiative[] => {
+export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): void {
+	const { db, commands, events } = context;
+	const github = new PlanSyncService(context, deps);
+	const after = (repository: string, change: () => void): Initiative[] => {
 		change();
+		github.pushSoon(repository);
 		return listInitiatives(db);
 	};
 
@@ -36,41 +43,83 @@ export function registerInitiatives(context: MainContext): void {
 			title: title(field(args, 'title')),
 			dueOn: dueOn(field(args, 'dueOn')),
 		};
-		return after(() => createInitiative(db, initiative));
+		return after(initiative.repositoryFullName, () => createInitiative(db, initiative));
 	});
 
 	commands.define('initiatives.update', (args: unknown) => {
 		const initiativeId = id(args, 'id');
 		const change = initiativeChange(args);
-		return after(() => updateInitiative(db, initiativeId, change));
+		const repository = initiativeRepository(db, initiativeId);
+		return after(repository, () => updateInitiative(db, initiativeId, change));
 	});
 
 	commands.define('initiatives.delete', (args: unknown) => {
 		const initiativeId = id(args, 'id');
-		return after(() => deleteInitiative(db, initiativeId));
+		const repository = initiativeRepository(db, initiativeId);
+		return after(repository, () => deleteInitiative(db, initiativeId));
 	});
 
 	commands.define('initiatives.add-dependency', (args: unknown) => {
 		const initiativeId = id(args, 'initiativeId');
 		const newTitle = title(field(args, 'title'));
-		return after(() => addDependency(db, initiativeId, newTitle));
+		const repository = initiativeRepository(db, initiativeId);
+		return after(repository, () => addDependency(db, initiativeId, newTitle));
 	});
 
 	commands.define('initiatives.update-dependency', (args: unknown) => {
 		const dependencyId = id(args, 'id');
 		const change = dependencyChange(args);
-		return after(() => updateDependency(db, dependencyId, change));
+		const repository = dependencyRepository(db, dependencyId);
+		return after(repository, () => updateDependency(db, dependencyId, change));
 	});
 
 	commands.define('initiatives.delete-dependency', (args: unknown) => {
 		const dependencyId = id(args, 'id');
-		return after(() => deleteDependency(db, dependencyId));
+		const repository = dependencyRepository(db, dependencyId);
+		return after(repository, () => deleteDependency(db, dependencyId));
 	});
 
 	commands.define('initiatives.link-workstream', (args: unknown) => {
 		const dependencyId = id(args, 'dependencyId');
 		const workstreamId = id(args, 'workstreamId');
-		return after(() => linkWorkstream(db, dependencyId, workstreamId));
+		const repository = dependencyRepository(db, dependencyId);
+		return after(repository, () => linkWorkstream(db, dependencyId, workstreamId));
+	});
+
+	commands.define('initiatives.sync-state', (args: unknown) =>
+		planSync(db, repositoryFullName(field(args, 'repositoryFullName'))),
+	);
+
+	commands.define('initiatives.set-sync', (args: unknown) => {
+		const repository = repositoryFullName(field(args, 'repositoryFullName'));
+		const enabled = field(args, 'enabled');
+		if (typeof enabled !== 'boolean') {
+			throw new InitiativeError(
+				'invalid-argument',
+				'invalid args: `enabled` must be true or false',
+			);
+		}
+		if (enabled && !isGithubRepository(repository)) {
+			throw new InitiativeError(
+				'invalid-argument',
+				'invalid args: `repositoryFullName` must be a GitHub owner/name to sync',
+			);
+		}
+		setPlanSyncEnabled(db, repository, enabled);
+		if (enabled) void github.sync(repository);
+		return planSync(db, repository);
+	});
+
+	commands.define('initiatives.sync', async (args: unknown) => {
+		await github.sync(repositoryFullName(field(args, 'repositoryFullName')));
+		return listInitiatives(db);
+	});
+
+	events.subscribe('pull-requests:ship-changed', ({ workstreamId, merged }) => {
+		if (merged !== undefined) github.mergedWorkstream(workstreamId);
+	});
+	events.subscribe('pull-requests:pull-request-changed', ({ workstreamId, state }) => {
+		if (state === 'merged') github.mergedWorkstream(workstreamId);
 	});
 }
 
