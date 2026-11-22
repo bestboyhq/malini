@@ -623,6 +623,42 @@ describe('groupRunTimeline started workstreams', () => {
 	});
 });
 
+describe('groupRunTimeline saved widgets', () => {
+	const saveWidget = (status: 'running' | 'completed' | 'failed', output?: string) =>
+		tool('mcp__malini__widgets_save', { title: 'CI' }, { key: `save-${seq()}`, status, output });
+
+	it('shows each saved widget as its own card and keeps it out of bursts', () => {
+		const saved = saveWidget('completed', '{"path":".malini/widgets/ci.json"}');
+		const grouped = groupRunTimeline([
+			tool('Read', { file_path: 'a.ts' }),
+			saved,
+			tool('Read', { file_path: 'b.ts' }),
+			saveWidget('running'),
+		]);
+		expect(kinds(grouped)).toEqual(['tool', 'widget', 'tool', 'widget']);
+		expect(grouped[1]).toEqual({
+			kind: 'widget',
+			key: `widget-${saved.key}`,
+			input: { title: 'CI' },
+			output: '{"path":".malini/widgets/ci.json"}',
+			status: 'completed',
+		});
+		expect(grouped[3]).toMatchObject({ kind: 'widget', output: null, status: 'running' });
+	});
+
+	it('keeps the card out of the work fold', () => {
+		const prompt: RunTimelineItem = { kind: 'user', key: 'prompt', seq: 0, text: 'Add CI' };
+		const rows = groupRunTimeline([
+			prompt,
+			tool('Read', { file_path: 'a.ts' }),
+			saveWidget('failed'),
+			command(),
+			assistant('Saved.'),
+		]);
+		expect(kinds(foldRunWork(rows))).toEqual(['user', 'work-fold', 'widget', 'assistant']);
+	});
+});
+
 describe('groupRunTimeline Malini actions', () => {
 	const openDraft = { automation: 'Open draft' };
 	const asked = (input: unknown): RunTimelineItem => ({

@@ -655,6 +655,23 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			'Fires when you publish an extension from one of your repositories to the marketplace on bestboy.dev, with its publisher, name, the version that went live and the repository it came from.',
 		facts: ['publisher', 'name', 'version', 'repository'],
 	},
+	'widgets:board-changed': {
+		description:
+			'Fires when a widget board changes: a widget file under `.malini/widgets` is added, changed or removed in a checkout, or you place, resize, remove or hide a widget, with the `board` it belongs to. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['board'],
+	},
+	'widgets:reading-changed': {
+		description:
+			'Fires when a widget reads its source, starts a read or a read fails, with the board, the widget, when it last read and the error of a failed read. Malini does not keep it in its event log.',
+		logged: false,
+		facts: ['board', 'widgetId', 'readAt', 'error', 'reading'],
+	},
+	'initiatives:synced': {
+		description:
+			"Fires when a repository's plan syncs with its GitHub milestones and issues and someone else changed it there, with the repository and each change: who made it, what kind and the title it touched.",
+		facts: ['repositoryFullName', 'changes'],
+	},
 };
 
 export function eventFacts(channel: EventChannel, payload: unknown): Record<string, unknown> {

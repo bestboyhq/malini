@@ -19,7 +19,10 @@ export type DocBlock = Readonly<{ html: string }> | Readonly<{ demo: DocDemo }>;
 
 const NAV: readonly (readonly [string, readonly string[]])[] = [
 	['Get started', ['', 'install', 'window', 'updates']],
-	['Using Malini', ['workstreams', 'initiatives', 'chat', 'automations', 'brain', 'profile']],
+	[
+		'Using Malini',
+		['workstreams', 'initiatives', 'widgets', 'chat', 'automations', 'brain', 'profile'],
+	],
 	['Build on Malini', ['agent-tools', 'extensions', 'reference/events']],
 ];
 

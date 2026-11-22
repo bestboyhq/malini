@@ -97,6 +97,7 @@
 		"workstreams_send",
 		"workstreams_archive",
 		"files_open",
-		"secrets_request"
+		"secrets_request",
+		"widgets_save"
 	]
 }

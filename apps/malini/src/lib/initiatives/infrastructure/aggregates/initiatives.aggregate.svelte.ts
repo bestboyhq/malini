@@ -11,6 +11,13 @@ class InitiativesAggregate {
 		this.error = null;
 	}
 
+	setRepository(repositoryFullName: string, list: readonly Initiative[]): void {
+		this.set([
+			...this.list.filter((initiative) => initiative.repositoryFullName !== repositoryFullName),
+			...list.filter((initiative) => initiative.repositoryFullName === repositoryFullName),
+		]);
+	}
+
 	fail(error: string): void {
 		this.error = error;
 	}

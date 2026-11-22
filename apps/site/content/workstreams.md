@@ -224,7 +224,6 @@ A repository's name in the sidebar opens its page, on its plan: the [initiatives
 The bar at the top of its page names it as owner / name, and the name opens the repository on GitHub.
 Its scratchpad sits on the right of the plan, where you keep ideas, and the handle between them drags to resize both.
 Any paragraph moves into a new workstream, and a heading takes the text under it, up to the next heading.
-The same scratchpad opens beside any chat of that repository, as **Notes** in the [inspector](/malini/docs/extensions.md).
 **Saved for later**, in the bar, counts the workstreams you saved for later, and hovering it lists them, newest first.
 Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 

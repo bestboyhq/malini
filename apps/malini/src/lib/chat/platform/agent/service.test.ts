@@ -7,8 +7,9 @@ import {
 	DEFAULT_AUTOMATION_BOUNDARY,
 	type AutomationDefinitionRecord,
 } from '$contract/automations';
-import { all, run } from '$main/db/rows';
+import { all, isRecord, run } from '$main/db/rows';
 import { BrowserDialogOpen, type BrowserDialog } from '$lib/browser/browser.platform';
+import type { WidgetsPlatform } from '$lib/widgets/widgets.platform';
 import { osFor } from '$shared/os/os.platform';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
@@ -809,11 +810,17 @@ describe('platform requests from the agent', () => {
 			platformRequest('n-3', 'workstreams_send', { workstream: 'elsewhere', prompt: 'Go' }),
 		);
 		bridge.send(platformRequest('n-4', 'automations_run', { automation: 'Reachable' }));
+		bridge.send(
+			platformRequest('n-5', 'widgets_save', {
+				title: 'Deploys',
+				source: { github: 'repos/{owner}/{repo}/actions/runs' },
+			}),
+		);
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'platform_result');
-		await waitFor(() => results().length === 4, 5_000, 'four platform results');
-		for (const requestId of ['n-1', 'n-2', 'n-3', 'n-4']) {
+		await waitFor(() => results().length === 5, 5_000, 'five platform results');
+		for (const requestId of ['n-1', 'n-2', 'n-3', 'n-4', 'n-5']) {
 			expect(results().find((command) => command['requestId'] === requestId)).toMatchObject({
 				ok: false,
 				error: expect.stringContaining('internet off'),
@@ -1012,6 +1019,96 @@ describe('platform requests from the agent', () => {
 				{ tool: 'files_open', status: 'succeeded', approval: 'not-needed' },
 				{ tool: 'files_open', status: 'failed', approval: 'not-needed' },
 			],
+		);
+	});
+
+	it("saves a widget in the chat's workstream and tells the agent a command runs only once the user pins it", async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		const saved: Array<readonly [string, unknown]> = [];
+		const widgets: Pick<WidgetsPlatform, 'save'> = {
+			async save(workstreamId, input) {
+				saved.push([workstreamId, input]);
+				const command = isRecord(input) && isRecord(input['source']) && input['source']['command'];
+				const id = command ? 'rooms' : 'deploys';
+				return {
+					path: `.malini/widgets/${id}.json`,
+					widget: {
+						id,
+						title: 'Rooms',
+						icon: null,
+						scope: 'shared',
+						source:
+							typeof command === 'string'
+								? { kind: 'command', run: command }
+								: { kind: 'github', path: 'repos/{owner}/{repo}/actions/runs', select: null },
+						refresh: { everySeconds: 300, on: [] },
+						size: 'medium',
+						url: null,
+						author: 'e2e-user',
+						fingerprint: id,
+						path: `.malini/widgets/${id}.json`,
+					},
+					reading: null,
+				};
+			},
+		};
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			widgets,
+			log: () => {},
+		});
+
+		const results = (): Array<Record<string, unknown>> =>
+			bridge.received.filter((command) => command['cmd'] === 'platform_result');
+		const answer = async (requestId: string): Promise<Record<string, unknown>> => {
+			await waitFor(
+				() => results().some((command) => command['requestId'] === requestId),
+				5_000,
+				requestId,
+			);
+			const result = results().find((command) => command['requestId'] === requestId);
+			const parsed: unknown = JSON.parse(String(result?.['text']));
+			return isRecord(parsed) ? parsed : {};
+		};
+		const rooms = { title: 'Rooms', source: { command: 'node scripts/rooms.mjs' } };
+		bridge.send(platformRequest('w-1', 'widgets_save', { ...rooms, sample: { value: 3 } }));
+		const sampled = await answer('w-1');
+		bridge.send(platformRequest('w-2', 'widgets_save', rooms));
+		const unsampled = await answer('w-2');
+		bridge.send(
+			platformRequest('w-3', 'widgets_save', {
+				title: 'Deploys',
+				source: { github: 'repos/{owner}/{repo}/actions/runs' },
+			}),
+		);
+		const github = await answer('w-3');
+
+		expect(saved.map(([workstreamId]) => workstreamId)).toEqual(['ws-1', 'ws-1', 'ws-1']);
+		expect(saved[0]?.[1]).toEqual({ ...rooms, sample: { value: 3 } });
+		expect(sampled).toMatchObject({
+			path: '.malini/widgets/rooms.json',
+			widget: { id: 'rooms', author: 'e2e-user' },
+			reading: null,
+			note: expect.stringContaining('Until then the chat shows your `sample`.'),
+		});
+		expect(unsampled['note']).toContain('You passed no `sample`');
+		expect(github).toEqual({
+			path: '.malini/widgets/deploys.json',
+			widget: expect.objectContaining({ id: 'deploys' }),
+			reading: null,
+		});
+		expect(all(test.db, 'SELECT tool, status, approval FROM agent_actions ORDER BY rowid')).toEqual(
+			Array.from({ length: 3 }, () => ({
+				tool: 'widgets_save',
+				status: 'succeeded',
+				approval: 'not-needed',
+			})),
 		);
 	});
 });

@@ -17,6 +17,7 @@ import type {
 } from '$contract/repositories';
 import { DEMO_REFUSAL, type DemoEmit, type DemoHandlers } from './demo-bridge';
 import { browserHandlers } from './demo-browser';
+import { widgetHandlers } from './demo-widgets';
 import { demoMediaUrl } from './demo-media';
 import { DEMO_PLAY } from './demo-play';
 import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
@@ -305,6 +306,7 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => {
 
 const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	...browserHandlers(emit),
+	...widgetHandlers(emit),
 	'app.take-notification-target': () => null,
 	'app.take-menu-command': () => null,
 	'app.runtime-info': () => ({
@@ -391,7 +393,6 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'repositories.workstream-diff': () => '',
 	'repositories.base-files': () => [],
 	'scratchpad.load': () => null,
-	'initiatives.list': () => [],
 	'chat.agent-capabilities': () => [CLAUDE],
 	'chat.session-changes': ({ workstreamId, sessionId: id }) => sessionChanges(workstreamId, id),
 	'chat.known-session-changes': ({ workstreamId, sessionId: id }) =>

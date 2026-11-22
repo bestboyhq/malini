@@ -430,6 +430,7 @@ describe('ClaudeSession', () => {
 			'mcp__malini__workstreams_send',
 			'mcp__malini__files_open',
 			'mcp__malini__secrets_request',
+			'mcp__malini__widgets_save',
 		]);
 		expect(claude.runs.map(({ mcpPermissionModes }) => mcpPermissionModes)).toEqual([
 			{ malini: 'default' },

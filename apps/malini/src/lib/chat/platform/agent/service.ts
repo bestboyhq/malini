@@ -25,6 +25,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { automationBoundaryForSession } from '$lib/automations/automations.platform';
 import { BrowserDialogOpen, type BrowserDialogAnswer } from '$lib/browser/browser.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
+import type { WidgetsPlatform } from '$lib/widgets/widgets.platform';
 import {
 	listWorkstreams,
 	workstreamEnvironment,
@@ -163,6 +164,7 @@ export interface AgentServiceDeps {
 	readonly browser?: BrowserAutomation;
 	readonly deliveries?: ChatDeliveries;
 	readonly secrets?: SecretsPlatform;
+	readonly widgets?: Pick<WidgetsPlatform, 'save'>;
 	readonly log?: (line: string) => void;
 }
 
@@ -525,6 +527,7 @@ export async function startAgentService(
 						sending,
 						deliveries,
 						...(deps.secrets ? { secrets: deps.secrets } : {}),
+						...(deps.widgets ? { widgets: deps.widgets } : {}),
 						nameWorkstream: (workstreamId, prompt) => namer.nameWorkstream(workstreamId, prompt),
 						log,
 					}),

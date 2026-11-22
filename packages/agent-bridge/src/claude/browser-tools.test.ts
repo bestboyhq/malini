@@ -212,6 +212,7 @@ describe('malini MCP server', () => {
 					{ name: 'workstreams_archive' },
 					{ name: 'files_open' },
 					{ name: 'secrets_request' },
+					{ name: 'widgets_save' },
 					{ name: 'mcp_servers_add' },
 				],
 			},
@@ -379,7 +380,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('pre-approves the browser, the read tools, the work a chat starts in its own tree, opening a file and asking for secrets, never another tool that changes Malini', () => {
+	it('pre-approves the browser, the read tools, the work a chat starts in its own tree, opening a file, asking for secrets and saving a widget, never another tool that changes Malini', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
@@ -395,6 +396,7 @@ describe('malini MCP server', () => {
 			'mcp__malini__workstreams_send',
 			'mcp__malini__files_open',
 			'mcp__malini__secrets_request',
+			'mcp__malini__widgets_save',
 		]);
 	});
 
@@ -500,6 +502,30 @@ describe('malini MCP server', () => {
 			},
 			required: ['names', 'why'],
 		});
+		expect(schemaOf('widgets_save')).toMatchObject({
+			properties: {
+				id: {
+					type: 'string',
+					pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
+					description: expect.any(String),
+				},
+				title: { type: 'string', description: expect.any(String) },
+				scope: { enum: ['shared', 'own'], description: expect.any(String) },
+				source: { anyOf: [{ required: ['github'] }, { required: ['command'] }] },
+				refresh: {
+					properties: { every: { type: 'integer', minimum: 15 }, on: { type: 'array' } },
+				},
+				size: { enum: ['small', 'medium', 'large'] },
+				sample: {
+					properties: {
+						percent: { minimum: 0, maximum: 100 },
+						state: { enum: ['success', 'failure', 'running', 'idle'] },
+						rows: { type: 'array', items: { required: ['label'] } },
+					},
+				},
+			},
+			required: ['title', 'source'],
+		});
 		const automationsSave = tools.find(
 			(tool: { name?: unknown }) => tool.name === 'automations_save',
 		)?.inputSchema?.properties?.when?.description;
@@ -567,5 +593,45 @@ describe('malini MCP server', () => {
 			},
 		});
 		expect(invalid).toMatchObject({ result: { isError: true } });
+	});
+
+	it('sends a widget with a github or a command source to malini and refuses a mix of both', async () => {
+		const { call, platformCalls } = await connect(
+			async () => ({ ok: true }),
+			async () => ({ ok: true, text: '{"path":".malini/widgets/deploys.json"}' }),
+		);
+		const save = (args: Record<string, unknown>) =>
+			call('tools/call', { name: 'widgets_save', arguments: { title: 'Deploys', ...args } });
+		const github = {
+			github: 'repos/{owner}/{repo}/actions/runs?per_page=12',
+			select: '{value: .total_count}',
+		};
+		const sample = { value: 3, unit: 'rooms', history: ['success', 'failure'] };
+
+		const saved = await save({ source: github, refresh: { every: 120 } });
+		await save({ id: 'rooms', source: { command: 'node scripts/rooms.mjs' }, sample });
+		const mixed = await save({ source: { ...github, command: 'node scripts/rooms.mjs' } });
+		const tooOften = await save({ source: github, refresh: { every: 5 } });
+
+		expect(saved).toMatchObject({
+			result: { content: [{ type: 'text', text: '{"path":".malini/widgets/deploys.json"}' }] },
+		});
+		expect(mixed).toMatchObject({ result: { isError: true } });
+		expect(tooOften).toMatchObject({ result: { isError: true } });
+		expect(platformCalls).toEqual([
+			{
+				tool: 'widgets_save',
+				input: { title: 'Deploys', source: github, refresh: { every: 120 } },
+			},
+			{
+				tool: 'widgets_save',
+				input: {
+					id: 'rooms',
+					title: 'Deploys',
+					source: { command: 'node scripts/rooms.mjs' },
+					sample,
+				},
+			},
+		]);
 	});
 });

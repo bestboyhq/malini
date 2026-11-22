@@ -27,6 +27,7 @@ import {
 } from '$lib/automations/automations.platform';
 import { openFileForUser } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
+import type { WidgetsPlatform } from '$lib/widgets/widgets.platform';
 import { osFor, osText } from '$shared/os/os.platform';
 import { DEFAULT_AGENT_MODEL, DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import {
@@ -72,6 +73,7 @@ export type PlatformRequestDeps = Pick<
 		sending: PromptsInFlight;
 		deliveries: ChatDeliveries;
 		secrets?: SecretsPlatform;
+		widgets?: Pick<WidgetsPlatform, 'save'>;
 		nameWorkstream?: (workstreamId: string, prompt: string) => Promise<void>;
 		log: (line: string) => void;
 	}>;
@@ -279,7 +281,31 @@ async function runPlatformTool(
 				why: input['why'],
 			});
 		}
+		case 'widgets_save':
+			if (internetOff && isRecord(input['source']) && 'github' in input['source']) {
+				throw refusesInternet('Reading a GitHub source reaches');
+			}
+			return saveWidget(deps, request);
 	}
+}
+
+const COMMAND_WAITS_FOR_PIN =
+	'Malini runs this command only once the user pins the widget to their panel.';
+
+async function saveWidget(
+	{ db, widgets }: PlatformRequestDeps,
+	request: BridgePlatformRequest,
+): Promise<unknown> {
+	if (!widgets)
+		throw new PlatformToolError('unsupported', 'Malini cannot save widgets in this build.');
+	const { workstreamId } = requestSession(db, request);
+	const { path, widget, reading } = await widgets.save(workstreamId, request.input);
+	if (widget.source.kind !== 'command') return { path, widget, reading };
+	const note =
+		request.input['sample'] === undefined
+			? `${COMMAND_WAITS_FOR_PIN} You passed no \`sample\`, so the chat has nothing to show until then: run the command yourself and save the widget again with what it printed as \`sample\`.`
+			: `${COMMAND_WAITS_FOR_PIN} Until then the chat shows your \`sample\`.`;
+	return { path, widget, reading, note };
 }
 
 async function cloneRepository(

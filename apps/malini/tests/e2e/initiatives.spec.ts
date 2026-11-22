@@ -10,6 +10,7 @@ import {
 	seedWorkstream,
 	type WorkstreamRow,
 } from './harness';
+import { seedWorkstreamOnFakeGithub, toastSaying } from './fake-github';
 
 const OUTCOME = 'Billing page is live';
 const COPY = 'Pricing copy is written';
@@ -149,6 +150,61 @@ test('an initiative shows only on its repository page, keeps its dependencies an
 		await expect(nextDay.getByRole('button', { name: OUTCOME, exact: true })).toBeVisible({
 			timeout: 20_000,
 		});
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a GitHub plan syncs once its switch is on and says what a teammate changed there', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-sync', null);
+		await page.reload();
+
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		const link = sidebar.getByRole('link', { name: 'Open e2e/hutch', exact: true });
+		await expect(link).toBeVisible({ timeout: 20_000 });
+		await link.click();
+		const main = page.getByRole('main');
+		const initiatives = main.getByRole('region', { name: 'Initiatives' });
+		await initiatives.getByRole('textbox', { name: 'Name an outcome with no date' }).fill(OUTCOME);
+		await page.keyboard.press('Enter');
+		await expect(
+			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
+		).toBeFocused();
+		await page.keyboard.type(CHECKOUT);
+		await page.keyboard.press('Enter');
+		const checkout = initiatives.getByRole('checkbox', { name: CHECKOUT });
+		await expect(checkout).not.toBeChecked();
+
+		const sync = main.getByRole('switch', { name: 'Sync with GitHub' });
+		await expect(sync).not.toBeChecked();
+		await sync.click();
+		await expect(sync).toBeChecked();
+		await expect
+			.poll(() => github.plan().issues.map(({ title }) => title), { timeout: 20_000 })
+			.toEqual([CHECKOUT]);
+		expect(github.plan().milestones.map(({ title }) => title)).toEqual([OUTCOME]);
+		await expect(main.getByText(/^Synced /u)).toBeVisible();
+
+		const plan = github.plan();
+		github.setPlan({
+			...plan,
+			issues: plan.issues.map((issue) => ({
+				...issue,
+				state: 'closed',
+				closed_by: { login: 'aleksander' },
+			})),
+		});
+		await page.reload();
+		await expect(toastSaying(page, `aleksander closed ${CHECKOUT} on GitHub`)).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(checkout).toBeChecked();
+		await expect(sync).toBeChecked();
+		await captureFlow(app, 'initiatives-synced');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

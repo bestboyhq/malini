@@ -244,6 +244,12 @@ describe('malini tool approval', () => {
 				{ label: 'Prompt', value: 'Fix the footer links' },
 			],
 		});
+		expect(
+			maliniToolApproval('mcp__malini__widgets_save', {
+				title: 'Deploys',
+				source: { command: 'node scripts/rooms.mjs' },
+			}),
+		).toEqual({ headline: 'Save widget ‘Deploys’', details: [] });
 	});
 
 	it('leaves every other tool to the generic card', () => {

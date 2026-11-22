@@ -702,10 +702,11 @@ export async function sendAgentPrompt(
 	log: (line: string) => void = defaultLog,
 ): Promise<string> {
 	ensureBridgeReady(supervisor);
-	const acceptedRunId = runIdForPromptRequest(input.clientRequestId);
-	if (acceptedRunId !== null && getRun(db, acceptedRunId) !== null) return acceptedRunId;
+	const accepted = runIdForPromptRequest(input.clientRequestId);
+	if (accepted !== null && getRun(db, accepted)?.sessionId === input.sessionId) return accepted;
 	if (!queuedByTheRenderer(input)) await leases.runChangeCaptureSettled(input.workstreamId);
 	await leases.checkoutSettled(input.workstreamId);
+	if (accepted !== null && getRun(db, accepted)?.sessionId === input.sessionId) return accepted;
 	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId, input.steer === true);
 	try {
 		return await sendAgentPromptLeased(db, supervisor, input, hooks, emit, ids, leases, lease, log);

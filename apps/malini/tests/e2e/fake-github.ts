@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
@@ -20,6 +20,12 @@ export const WORKSTREAM_NAME = 'Pull request workstream';
 const GITHUB_IDENTITY = ['-c', 'user.name=GitHub', '-c', 'user.email=noreply@github.com'];
 
 export type FakePullRequest = Record<string, unknown>;
+
+export interface FakePlan {
+	readonly milestones: readonly Record<string, unknown>[];
+	readonly issues: readonly Record<string, unknown>[];
+	readonly events?: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+}
 
 export interface FakeReviewComment {
 	readonly body: string;
@@ -47,6 +53,9 @@ export interface FakeGithub {
 	setOffline(offline: boolean): void;
 	answerWith(stderr: string | null): void;
 	approveDevice(): void;
+	plan(): FakePlan;
+	setPlan(plan: FakePlan): void;
+	answerGet(path: string, output: unknown): void;
 }
 
 export interface PullRequestWorkstream {
@@ -310,11 +319,33 @@ async function fakeGithubFor(
 		answerWith: (stderr) =>
 			stderr === null ? rmSync(failure, { force: true }) : writeFileSync(failure, stderr),
 		approveDevice: () => writeFileSync(join(state, 'device-approved'), ''),
+		plan: () => readPlan(state),
+		setPlan: (plan) => writeAtomically(join(state, 'plan.json'), JSON.stringify(plan)),
+		answerGet: (path, output) => {
+			const file = join(state, 'get-answers.json');
+			const answers: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+			writeAtomically(file, JSON.stringify({ ...Object(answers), [path]: output }));
+		},
 	};
 }
 
 function revParse(repo: string, ...args: string[]): string {
 	return execFileSync('git', ['-C', repo, 'rev-parse', ...args], { encoding: 'utf8' }).trim();
+}
+
+function readPlan(state: string): FakePlan {
+	const file = join(state, 'plan.json');
+	const parsed: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+	const records = (key: string): Record<string, unknown>[] => {
+		const value: unknown =
+			typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, key) : undefined;
+		return Array.isArray(value)
+			? value.filter(
+					(item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
+				)
+			: [];
+	};
+	return { milestones: records('milestones'), issues: records('issues') };
 }
 
 function writeAtomically(path: string, contents: string): void {
@@ -402,10 +433,70 @@ if (command === 'auth' && sub === 'status') {
 		setTimeout(waitForApproval, 100);
 	};
 	waitForApproval();
+} else if (command === 'api' && sub === '--method' && third === 'GET') {
+	const answersFile = path.join(state, 'get-answers.json');
+	const answers = fs.existsSync(answersFile) ? JSON.parse(fs.readFileSync(answersFile, 'utf8')) : {};
+	const answer = answers[args[3]];
+	if (answer === undefined) {
+		process.stderr.write('gh: Not Found (HTTP 404)\\n');
+		process.exit(1);
+	}
+	out(answer);
 } else if (command === 'api' && sub === 'user') {
 	out(args.some((arg) => arg.startsWith('[.id')) ? '4242\\te2e-user\\tE2E Chef\\n' : 'e2e-user\\n');
 } else if (command === 'api' && sub.startsWith('user/repos')) {
 	out('[]');
+} else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+\\/(milestones|issues)/u.test(sub)) {
+	const planFile = path.join(state, 'plan.json');
+	const plan = fs.existsSync(planFile)
+		? JSON.parse(fs.readFileSync(planFile, 'utf8'))
+		: { milestones: [], issues: [] };
+	const savePlan = () => {
+		fs.writeFileSync(planFile + '.tmp', JSON.stringify(plan));
+		fs.renameSync(planFile + '.tmp', planFile);
+	};
+	const method = flag('-X') || 'GET';
+	const fields = {};
+	args.forEach((arg, index) => {
+		const kind = args[index - 1];
+		if (kind !== '-f' && kind !== '-F') return;
+		const split = arg.indexOf('=');
+		const value = arg.slice(split + 1);
+		fields[arg.slice(0, split)] = kind === '-f' ? value : value === 'null' ? null : Number(value);
+	});
+	if (typeof fields.due_on === 'string') fields.due_on = fields.due_on.slice(0, 10) + 'T08:00:00Z';
+	const url = new URL(sub, 'https://api.github.com/');
+	const [, , , , collection, number, tail] = url.pathname.split('/');
+	const list = collection === 'milestones' ? plan.milestones : plan.issues;
+	const found = list.find((item) => String(item.number) === number);
+	const next = list.reduce((max, item) => Math.max(max, item.number), 0) + 1;
+	if (method === 'GET' && tail === 'events') {
+		out((plan.events || {})[number] || []);
+	} else if (method === 'GET' && number === undefined) {
+		const page = Number(url.searchParams.get('page') || '1');
+		out(page > 1 ? [] : collection === 'issues' ? list.filter((issue) => issue.milestone) : list);
+	} else if (method === 'POST' && collection === 'milestones') {
+		const created = { number: next, state: 'open', description: '', due_on: null, creator: { login: 'e2e-user' }, ...fields };
+		list.push(created);
+		savePlan();
+		out(created);
+	} else if (method === 'POST') {
+		const created = { number: next, state: 'open', body: '', user: { login: 'e2e-user' }, assignees: [], ...fields, milestone: { number: fields.milestone } };
+		list.push(created);
+		savePlan();
+		out(created);
+	} else if (!found) {
+		process.stderr.write('gh: Not Found (HTTP 404)\\n');
+		process.exit(1);
+	} else if (method === 'DELETE') {
+		list.splice(list.indexOf(found), 1);
+		savePlan();
+		out('');
+	} else {
+		Object.assign(found, fields);
+		savePlan();
+		out(found);
+	}
 } else if (command === 'api' && sub === 'graphql') {
 	const fields = {};
 	args.forEach((arg, index) => {

@@ -239,6 +239,8 @@ export function maliniToolApproval(
 				headline: named('Archive', workstream && names.workstream(workstream)),
 				details: [{ label: 'Keeps', value: 'Its branch and uncommitted work, under Archived' }],
 			};
+		case 'mcp__malini__widgets_save':
+			return { headline: named('Save widget', field('title')), details: [] };
 		default:
 			return null;
 	}

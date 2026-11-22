@@ -2008,6 +2008,62 @@ CREATE TABLE initiative_dependency_workstreams (
 ALTER TABLE initiatives ADD COLUMN note TEXT;
 ALTER TABLE initiative_dependencies ADD COLUMN note TEXT;
 `,
+	`
+ALTER TABLE initiatives ADD COLUMN github_milestone INTEGER;
+ALTER TABLE initiatives ADD COLUMN github_title TEXT;
+ALTER TABLE initiatives ADD COLUMN github_due_on TEXT;
+ALTER TABLE initiatives ADD COLUMN github_note TEXT;
+ALTER TABLE initiative_dependencies ADD COLUMN github_issue INTEGER;
+ALTER TABLE initiative_dependencies ADD COLUMN assignee TEXT;
+ALTER TABLE initiative_dependencies ADD COLUMN github_title TEXT;
+ALTER TABLE initiative_dependencies ADD COLUMN github_done INTEGER CHECK (github_done IN (0, 1));
+ALTER TABLE initiative_dependencies ADD COLUMN github_note TEXT;
+ALTER TABLE initiative_dependency_workstreams ADD COLUMN merge_closed_at TEXT;
+CREATE TABLE initiative_syncs (
+  repository_full_name TEXT PRIMARY KEY COLLATE NOCASE,
+  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+  synced_at TEXT,
+  error TEXT,
+  people TEXT NOT NULL DEFAULT '[]'
+);
+CREATE TABLE initiative_github_deletions (
+  repository_full_name TEXT NOT NULL COLLATE NOCASE,
+  kind TEXT NOT NULL CHECK (kind IN ('milestone', 'issue')),
+  number INTEGER NOT NULL,
+  PRIMARY KEY (repository_full_name, kind, number)
+);
+`,
+	`
+CREATE TABLE widget_boards (
+  board TEXT PRIMARY KEY COLLATE NOCASE,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE widget_placements (
+  board TEXT NOT NULL COLLATE NOCASE,
+  widget_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  size TEXT NOT NULL CHECK (size IN ('small', 'medium', 'large')),
+  approved_fingerprint TEXT,
+  placed_at TEXT NOT NULL,
+  PRIMARY KEY (board, widget_id)
+);
+CREATE TABLE widget_hidden (
+  board TEXT NOT NULL COLLATE NOCASE,
+  widget_id TEXT NOT NULL,
+  hidden_at TEXT NOT NULL,
+  PRIMARY KEY (board, widget_id)
+);
+CREATE TABLE widget_readings (
+  board TEXT NOT NULL COLLATE NOCASE,
+  widget_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  data TEXT,
+  read_at TEXT,
+  error TEXT,
+  attempted_at TEXT,
+  PRIMARY KEY (board, widget_id)
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

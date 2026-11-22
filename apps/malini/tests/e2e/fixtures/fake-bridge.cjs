@@ -936,6 +936,7 @@ const PRE_APPROVED_TOOLS = new Set([
 	'workstreams_send',
 	'files_open',
 	'secrets_request',
+	'widgets_save',
 ]);
 
 function fakePick(prompt, choices) {

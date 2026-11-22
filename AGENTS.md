@@ -84,6 +84,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `initiatives`          | a repository page's plan: dated outcomes, their dependencies, the workstreams serving them      |
 | `secrets`              | secrets by name: the keychain adapter, requests on a card in the chat, Settings                 |
 | `brain`                | the second brain: its repository and workstream, capture to the log, landing on main            |
+| `widgets`              | the inspector's widget board: widget files, their sources and readings, the chat's widget card  |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                            |
 | `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                            |
 | `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings                      |

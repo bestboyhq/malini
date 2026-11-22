@@ -40,6 +40,8 @@ function dependency(workstreamIds: readonly string[], done = false): InitiativeD
 		done,
 		note: null,
 		workstreams: workstreamIds.map((workstreamId) => ({ workstreamId, needs: null })),
+		githubIssue: null,
+		assignee: null,
 	};
 }
 
@@ -54,6 +56,7 @@ function initiative(
 		dueOn,
 		note: null,
 		dependencies,
+		githubMilestone: null,
 	};
 }
 
