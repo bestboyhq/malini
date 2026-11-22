@@ -80,15 +80,15 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('ask for it with `secrets_request`');
 		expect(prompt).toContain('Never ask the user to paste a secret into the chat');
 		expect(prompt).toContain('one-line bullet that starts with `Next:`');
-		expect(prompt).toContain('where a later workstream starts from it with no transcript');
-		expect(prompt).toContain('name the screen, file or command it is about');
+		expect(prompt).toContain('one short action you settled yourself, naming what it changes');
+		expect(prompt).toContain('Ask it with `AskUserQuestion`, which Malini shows in its own panel');
+		expect(prompt).toContain('the one you recommend first with "(Recommended)"');
+		expect(prompt).toContain('the question is one short sentence that names what it is about');
 		expect(prompt).toContain(
-			'A `Next:` is an instruction for an agent, never a question for the user',
+			"A question that needs more than that to answer is not the user's: decide it yourself.",
 		);
-		expect(prompt).toContain('Treat the user as a tool you call: decide everything else yourself');
-		expect(prompt).toContain(
-			'the user answers it without reading anything else in the chat: the report shows what it is about at every resolution',
-		);
+		expect(prompt).toContain('Never ask a question in your report, in `Next:` or in `Needs:`');
+		expect(prompt).toContain('what only the user can do and that no question asks');
 		expect(prompt).toContain(
 			'`![Before: what it shows](path)` and `![After: what it shows](path)`',
 		);

@@ -253,7 +253,7 @@ Every turn ends in a report. Proof included
 -->
 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
-**Waiting on you** asks only what only you can answer, such as a secret, access or a call on direction, and the report holds all you need to answer it: the words quoted, the variants, or each option with the one the agent recommends.
+The agent decides what is not yours and asks the rest in the question panel, each option with what it leads to and its pick first, so **Waiting on you** lists only what you do, such as pick a variant or sign in.
 The report shows the moment the agent writes it, and its **Outcome** and **Needs** lines never stream in as text.
 While the run still goes after it, for a background agent or a hook, the report shows a clock, **Still running**, and lists what it asks of you under **Over to you after** until the run ends.
 A run you stop, or one that fails, keeps its report, with the failure under it.
@@ -270,7 +270,7 @@ Click it to open Malini, and right-click it for its menu.
 ### Next steps
 
 What the agent left for later, or would do next, sits at the bottom of the report.
-Each step reads on its own, as an instruction with no question in it: it names the screen, file or command, what happens there now and what to change, so it makes sense without the chat.
+Each one is a short action the agent already settled, never a question.
 **Ship** sends it back to the chat as the next prompt, and **Note it** saves it as an idea in the repository's scratchpad.
 Hold ⌘ and **Ship** turns into **Slice, fork, ship**: it forks the chat into a new one with the transcript so far and sends the step there, while you stay where you are.
 Ship several steps that way and each one runs in a chat of its own.
