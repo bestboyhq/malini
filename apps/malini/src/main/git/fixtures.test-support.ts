@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { promisify } from 'node:util';
 import { vi } from 'vitest';
 import { AGENT_ATTACHMENTS_PATH, SANDBOX_SCRATCH_PATH, workstreamBranchName } from './paths';
@@ -32,10 +32,11 @@ export async function realGit(repo: string, args: readonly string[]): Promise<st
 export async function fakeGithubAccount(dir: string): Promise<string> {
 	const bin = join(dir, 'bin');
 	await mkdir(bin, { recursive: true });
-	await writeFile(join(bin, 'gh'), "#!/bin/sh\nprintf '583231\\toctocat\\tThe Octocat\\n'\n", {
-		mode: 0o755,
-	});
-	vi.stubEnv('MALINI_GH_PATH', `${bin}:/usr/bin:/bin`);
+	const account = '583231\toctocat\tThe Octocat';
+	await (process.platform === 'win32'
+		? writeFile(join(bin, 'gh.cmd'), `@echo ${account}\r\n`)
+		: writeFile(join(bin, 'gh'), `#!/bin/sh\nprintf '${account}\\n'\n`, { mode: 0o755 }));
+	vi.stubEnv('MALINI_GH_PATH', `${bin}${delimiter}${process.env['MALINI_GH_PATH'] ?? ''}`);
 	return 'The Octocat <583231+octocat@users.noreply.github.com>';
 }
 

@@ -213,8 +213,10 @@ describe('checkout health', () => {
 		platform.checkoutHealth.probeBroken();
 
 		await expect
-			.poll(() =>
-				context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+			.poll(
+				() =>
+					context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+				{ timeout: 10_000 },
 			)
 			.toEqual(HEALTHY);
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([

@@ -1,6 +1,6 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vitest/config';
@@ -12,6 +12,13 @@ const contractSrc = fileURLToPath(new URL('./src/contract', import.meta.url));
 const hyperUi = fileURLToPath(new URL('../../packages/hyper-ui/src', import.meta.url));
 const TEMP = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-unit-tests-')));
 process.once('exit', () => rmSync(TEMP, { recursive: true, force: true }));
+const PATH_WITHOUT_GH =
+	process.platform === 'win32'
+		? (process.env['PATH'] ?? '')
+				.split(delimiter)
+				.filter((folder) => !existsSync(join(folder, 'gh.exe')))
+				.join(delimiter)
+		: '/usr/bin:/bin';
 
 /**
  * The aliases the renderer compiles against, restated for vitest because it
@@ -55,7 +62,7 @@ export default defineConfig({
 					unstubEnvs: true,
 					env: {
 						ELECTRON_OVERRIDE_DIST_PATH: '/unit-tests-never-launch-electron',
-						MALINI_GH_PATH: '/usr/bin:/bin',
+						MALINI_GH_PATH: PATH_WITHOUT_GH,
 						MALINI_CLAUDE_UPDATES: 'off',
 						MALINI_USAGE_DATA: 'off',
 						MALINI_SCRATCH_ROOT: join(TEMP, 'scratch'),
