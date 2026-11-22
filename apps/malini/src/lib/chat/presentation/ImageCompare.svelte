@@ -60,8 +60,6 @@
 	let frame = $state<HTMLDivElement>();
 
 	const areas = $derived(analysis.status === 'ready' ? analysis.areas : []);
-	const lit = $derived(selected === null ? areas : areas.slice(selected, selected + 1));
-	const spotlightId = $props.id();
 	const zoomed = $derived(view.scale > 1);
 	const showsBefore = $derived(mode === 'flip' && flipped);
 	const shownSrc = $derived(showsBefore ? beforeSrc : afterSrc);
@@ -222,24 +220,16 @@
 				style:--zoom-y="{view.y * 100}%"
 				style:--zoom={view.scale}
 			>
-				{#if lit.length > 0}
-					<svg class="absolute inset-0 size-full text-black/45" aria-hidden="true">
-						<mask id={spotlightId}>
-							<rect width="100%" height="100%" fill="white" />
-							{#each lit as area, index (index)}
-								<rect
-									x="{area.x * 100}%"
-									y="{area.y * 100}%"
-									width="{area.w * 100}%"
-									height="{area.h * 100}%"
-									rx="3"
-									fill="black"
-								/>
-							{/each}
-						</mask>
-						<rect width="100%" height="100%" fill="currentColor" mask="url(#{spotlightId})" />
-					</svg>
-				{/if}
+				{#each areas as area, index (index)}
+					<span
+						class={['area absolute rounded-[3px]', selected === index && 'chosen']}
+						style:left="{area.x * 100}%"
+						style:top="{area.y * 100}%"
+						style:width="{area.w * 100}%"
+						style:height="{area.h * 100}%"
+						style:--stroke="{1.5 / view.scale}px"
+					></span>
+				{/each}
 				{#each areas as area, index (index)}
 					<span
 						class="pin pointer-events-auto absolute"
@@ -361,6 +351,16 @@
 	.wipe {
 		margin: 0;
 		appearance: none;
+	}
+
+	.area {
+		outline: var(--stroke) dashed var(--color-brand-foreground);
+		outline-offset: calc(var(--stroke) * -1);
+	}
+
+	.area.chosen {
+		outline-style: solid;
+		background: color-mix(in oklab, var(--color-brand-foreground) 10%, transparent);
 	}
 
 	.handle {
