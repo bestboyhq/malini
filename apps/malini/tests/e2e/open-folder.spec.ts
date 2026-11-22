@@ -80,7 +80,7 @@ test('a folder with no git history gets a first commit of its files and opens a 
 		await pickFolder(app, folder);
 		await page
 			.getByRole('region', { name: 'Your repositories' })
-			.getByRole('button', { name: 'A folder on this Mac' })
+			.getByRole('button', { name: FOLDER_DOOR })
 			.click();
 		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
 		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 30_000 });
@@ -112,7 +112,7 @@ test('a folder inside another repository names that repository and stays as it i
 		await pickFolder(app, notes);
 		await page
 			.getByRole('region', { name: 'Your repositories' })
-			.getByRole('button', { name: 'A folder on this Mac' })
+			.getByRole('button', { name: FOLDER_DOOR })
 			.click();
 		await expect(setupStep(page, 'Copy failed')).toContainText(
 			'This folder is inside the git repository meadow. Open meadow instead.',
