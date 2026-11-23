@@ -1466,6 +1466,45 @@ describe('migrate', () => {
 		expect(all(db, 'SELECT channel FROM event_log')).toEqual([{ channel: 'chat:turn-finished' }]);
 		db.close();
 	});
+
+	it('turns each widget size into a span of columns and rows, keeping every placement', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const before = MIGRATIONS.findIndex((migration) => migration.includes('span_columns'));
+		for (const migration of MIGRATIONS.slice(0, before)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + before};`);
+		const at = '2026-11-23T00:00:00Z';
+		db.exec(`INSERT INTO widget_placements
+			(board, widget_id, position, size, approved_fingerprint, placed_at) VALUES
+			('b', 'plan', 0, 'large', NULL, '${at}'),
+			('b', 'rooms', 1, 'medium', 'f', '${at}'),
+			('b', 'ci', 2, 'small', NULL, '${at}')`);
+
+		migrate(db);
+
+		expect(
+			all(
+				db,
+				'SELECT widget_id, position, span_columns, span_rows, approved_fingerprint FROM widget_placements ORDER BY position',
+			),
+		).toEqual([
+			{
+				widget_id: 'plan',
+				position: 0,
+				span_columns: 12,
+				span_rows: 2,
+				approved_fingerprint: null,
+			},
+			{ widget_id: 'rooms', position: 1, span_columns: 2, span_rows: 1, approved_fingerprint: 'f' },
+			{ widget_id: 'ci', position: 2, span_columns: 1, span_rows: 1, approved_fingerprint: null },
+		]);
+		expect(() =>
+			db.exec(`INSERT INTO widget_placements
+				(board, widget_id, position, span_columns, span_rows, placed_at)
+				VALUES ('b', 'wide', 3, 13, 1, '${at}')`),
+		).toThrow(/CHECK constraint failed/u);
+		db.close();
+	});
 });
 
 describe('automation_runs', () => {

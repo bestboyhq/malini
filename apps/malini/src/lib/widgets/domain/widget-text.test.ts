@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WidgetDefinition, WidgetSource } from '$contract/widgets';
+import { WIDGET_SIZE_SPANS, type WidgetDefinition, type WidgetSource } from '$contract/widgets';
 import { runsLabel, sourceLine, tileName, updatedLabel, widgetValue } from './widget-text';
 
 const NOW = new Date('2026-11-22T12:00:00Z');
@@ -48,8 +48,10 @@ describe('sourceLine', () => {
 });
 
 describe('tile text', () => {
-	it('names the tile with its size', () => {
-		expect(tileName(widget({ kind: 'plan' }), 'large')).toBe('CI, Large');
+	it('names the tile with its preset, or with its cells when it fits no preset', () => {
+		expect(tileName(widget({ kind: 'plan' }), WIDGET_SIZE_SPANS.large, 4)).toBe('CI, Large');
+		expect(tileName(widget({ kind: 'plan' }), { columns: 3, rows: 2 }, 4)).toBe('CI, 3 by 2');
+		expect(tileName(widget({ kind: 'plan' }), { columns: 3, rows: 3 }, 2)).toBe('CI, 2 by 3');
 	});
 
 	it('formats numbers and keeps text', () => {

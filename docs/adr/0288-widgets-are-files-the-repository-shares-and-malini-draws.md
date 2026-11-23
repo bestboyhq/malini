@@ -1,6 +1,6 @@
 # 0288 - Widgets are files the repository shares, and Malini draws them
 
-Status: accepted
+Status: superseded by 0291
 
 ## Context
 

@@ -5,9 +5,11 @@ import type {
 	PlanRemoteChangeKind,
 } from '$contract/initiatives';
 import type { WidgetSize } from '$contract/widgets';
-import { dateOf, initiativeFinished, type StandingOf } from './initiative';
+import { dateOf, initiativeFinished, initiativesOn, type StandingOf } from './initiative';
 
 export type DueLabel = Readonly<{ text: string; late: boolean }>;
+
+export type PlanDay = Readonly<{ day: string | null; outcomes: readonly Initiative[] }>;
 
 export const PLAN_MEDIUM_ROWS = 3;
 
@@ -31,6 +33,14 @@ export function planOrder(initiatives: readonly Initiative[]): readonly Initiati
 		if (b.dueOn === null) return -1;
 		return a.dueOn < b.dueOn ? -1 : 1;
 	});
+}
+
+export function planDays(initiatives: readonly Initiative[]): readonly PlanDay[] {
+	const ordered = planOrder(initiatives);
+	return [...new Set(ordered.map(({ dueOn }) => dueOn))].map((day) => ({
+		day,
+		outcomes: initiativesOn(ordered, day),
+	}));
 }
 
 export function daysUntil(day: string, today: string): number {
@@ -89,13 +99,13 @@ export function servesWorkstream(
 
 export function syncedLabel(syncedAt: string | null, now: number): string {
 	const at = syncedAt === null ? Number.NaN : Date.parse(syncedAt);
-	if (Number.isNaN(at)) return 'Not synced yet';
+	if (Number.isNaN(at)) return 'Not shared yet';
 	const seconds = Math.max(0, Math.floor((now - at) / 1000));
-	if (seconds < 3) return 'Synced just now';
-	if (seconds < 60) return `Synced ${seconds} s ago`;
-	if (seconds < 3600) return `Synced ${Math.floor(seconds / 60)} min ago`;
-	if (seconds < 86_400) return `Synced ${Math.floor(seconds / 3600)} h ago`;
-	return `Synced ${Math.floor(seconds / 86_400)} d ago`;
+	if (seconds < 3) return 'Shared just now';
+	if (seconds < 60) return `Shared ${seconds} s ago`;
+	if (seconds < 3600) return `Shared ${Math.floor(seconds / 60)} min ago`;
+	if (seconds < 86_400) return `Shared ${Math.floor(seconds / 3600)} h ago`;
+	return `Shared ${Math.floor(seconds / 86_400)} d ago`;
 }
 
 export function remoteChangeLine(change: PlanRemoteChange): string {

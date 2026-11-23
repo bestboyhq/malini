@@ -60,7 +60,7 @@
 </script>
 
 <div
-	class="group/dep hover:bg-surface-50 text-2xs relative flex h-[26px] items-center gap-2 rounded-md pr-1.5 pl-[30px]"
+	class="group/dep hover:bg-surface-50 text-2xs relative ml-3 flex h-[26px] items-center gap-2 rounded-md pr-1.5 pl-[30px]"
 	role="group"
 	aria-label={dependency.title}
 >

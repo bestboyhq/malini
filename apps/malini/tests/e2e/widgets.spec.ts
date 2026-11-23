@@ -22,7 +22,7 @@ function widgetsBoard(page: Page): Promise<WidgetBoard> {
 	return invoke<WidgetBoard>(page, 'widgets.board', { workstreamId: WORKSTREAM });
 }
 
-test('widget files in the checkout wait as suggestions, Add puts them on the board where their sources run, and the menu resizes and removes them', async () => {
+test('widget files in the checkout wait as suggestions, Add puts them on the board where their sources run, the corner resizes them to any span and the menu removes them', async () => {
 	test.setTimeout(150_000);
 	const app = await launchMalini();
 	try {
@@ -80,6 +80,7 @@ test('widget files in the checkout wait as suggestions, Add puts them on the boa
 		await expect(launch).toContainText('13', { timeout: 20_000 });
 		await expect(allow).toHaveCount(0);
 
+		const cell = (await launch.boundingBox())?.width ?? 0;
 		await board.getByRole('button', { name: 'Options for Launch' }).click();
 		const menu = page.getByRole('menu');
 		await expect(menu.getByRole('menuitemradio', { name: 'Small' })).toBeChecked();
@@ -87,9 +88,29 @@ test('widget files in the checkout wait as suggestions, Add puts them on the boa
 		await expect(board.getByRole('article', { name: 'Launch, Large' })).toContainText('13');
 		expect((await widgetsBoard(page)).placements).toContainEqual({
 			widgetId: 'launch',
-			size: 'large',
+			span: { columns: 12, rows: 2 },
 			approved: true,
 		});
+
+		const corner = board.locator('[data-widget-slot="launch"] [data-widget-corner]');
+		await corner.hover();
+		const large = await board.locator('[data-widget-slot="launch"]').boundingBox();
+		const grip = await corner.boundingBox();
+		if (large === null || grip === null) throw new Error('the Launch tile has no corner');
+		const grab = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+		await page.mouse.down();
+		await page.mouse.move(grab.x - (large.width - cell) / 2, grab.y + cell / 2, { steps: 4 });
+		await page.mouse.move(grab.x - (large.width - cell), grab.y + cell + 8, { steps: 4 });
+		await page.mouse.up();
+		await expect(board.getByRole('article', { name: 'Launch, 1 by 3' })).toContainText('13');
+		expect((await widgetsBoard(page)).placements).toContainEqual({
+			widgetId: 'launch',
+			span: { columns: 1, rows: 3 },
+			approved: true,
+		});
+		await board.getByRole('button', { name: 'Options for Launch' }).click();
+		await expect(menu.getByRole('menuitemradio', { checked: true })).toHaveCount(0);
+		await page.keyboard.press('Escape');
 
 		await board.getByRole('button', { name: 'Options for Reviews' }).click();
 		await expect(menu.getByRole('menuitem', { name: 'Refresh now' })).toBeVisible();

@@ -2064,6 +2064,30 @@ CREATE TABLE widget_readings (
   PRIMARY KEY (board, widget_id)
 );
 `,
+	`
+ALTER TABLE initiative_syncs ADD COLUMN home TEXT;
+`,
+	`
+CREATE TABLE widget_placements_spans (
+  board TEXT NOT NULL COLLATE NOCASE,
+  widget_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  span_columns INTEGER NOT NULL CHECK (span_columns BETWEEN 1 AND 12),
+  span_rows INTEGER NOT NULL CHECK (span_rows BETWEEN 1 AND 12),
+  approved_fingerprint TEXT,
+  placed_at TEXT NOT NULL,
+  PRIMARY KEY (board, widget_id)
+);
+INSERT INTO widget_placements_spans
+  (board, widget_id, position, span_columns, span_rows, approved_fingerprint, placed_at)
+SELECT board, widget_id, position,
+  CASE size WHEN 'small' THEN 1 WHEN 'medium' THEN 2 ELSE 12 END,
+  CASE size WHEN 'large' THEN 2 ELSE 1 END,
+  approved_fingerprint, placed_at
+FROM widget_placements;
+DROP TABLE widget_placements;
+ALTER TABLE widget_placements_spans RENAME TO widget_placements;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

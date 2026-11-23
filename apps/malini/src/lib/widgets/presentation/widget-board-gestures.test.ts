@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { slotIndex, snappedSize, withPlaceholder } from './widget-board-gestures';
+import { slotIndex, withPlaceholder } from './widget-board-gestures';
 
 const row = [
 	{ left: 0, top: 0, width: 100, height: 100 },
@@ -13,13 +13,6 @@ describe('widget board gestures', () => {
 		expect(slotIndex({ x: 190, y: 90 }, row)).toBe(2);
 		expect(slotIndex({ x: 190, y: 10 }, row)).toBe(1);
 		expect(slotIndex({ x: 5, y: 5 }, [])).toBe(0);
-	});
-
-	it('snaps a resize to small, medium or large', () => {
-		expect(snappedSize(110, 120, 124)).toBe('small');
-		expect(snappedSize(230, 120, 124)).toBe('medium');
-		expect(snappedSize(120, 240, 124)).toBe('large');
-		expect(snappedSize(600, 60, 124)).toBe('medium');
 	});
 
 	it('puts the placeholder among the other tiles and keeps the dragged one in place', () => {

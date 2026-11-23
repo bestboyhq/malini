@@ -2,11 +2,12 @@ import { isEventChannel } from '$contract/events';
 import {
 	PLAN_WIDGET_ID,
 	WIDGETS_FOLDER,
+	WIDGET_SIZE_SPANS,
 	type WidgetBoard,
 	type WidgetDefinition,
 	type WidgetPlacement,
 	type WidgetReading,
-	type WidgetSize,
+	type WidgetSpan,
 } from '$contract/widgets';
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
@@ -115,7 +116,7 @@ export class WidgetBoards {
 		workstreamId: string,
 		widgetId: string,
 		index: number | null,
-		size: WidgetSize | null,
+		span: WidgetSpan | null,
 	): Promise<WidgetBoard> {
 		const opened = await this.#open(workstreamId);
 		const widget = this.#widget(opened, widgetId);
@@ -125,16 +126,16 @@ export class WidgetBoards {
 		placeWidget(this.#context.db, opened.board, {
 			widgetId,
 			before: index === null ? null : (others[index]?.widgetId ?? null),
-			size: size ?? current?.size ?? widget.size,
+			span: span ?? current?.span ?? WIDGET_SIZE_SPANS[widget.size],
 			approvedFingerprint: widget.fingerprint,
 		});
 		return this.#changed(opened);
 	}
 
-	async resize(workstreamId: string, widgetId: string, size: WidgetSize): Promise<WidgetBoard> {
+	async resize(workstreamId: string, widgetId: string, span: WidgetSpan): Promise<WidgetBoard> {
 		const opened = await this.#open(workstreamId);
 		this.#widget(opened, widgetId);
-		if (!resizePlacement(this.#context.db, opened.board, widgetId, size)) {
+		if (!resizePlacement(this.#context.db, opened.board, widgetId, span)) {
 			throw new WidgetError('not-found', `The widget \`${widgetId}\` is not on the board.`);
 		}
 		return this.#changed(opened);
@@ -224,7 +225,7 @@ export class WidgetBoards {
 			placeWidget(this.#context.db, location.board, {
 				widgetId: PLAN_WIDGET_ID,
 				before: null,
-				size: 'large',
+				span: WIDGET_SIZE_SPANS.large,
 				approvedFingerprint: PLAN_WIDGET.fingerprint,
 			});
 		}
@@ -284,7 +285,7 @@ export class WidgetBoards {
 			if (!widget) return [];
 			const approved =
 				widget.source.kind !== 'command' || placement.approvedFingerprint === widget.fingerprint;
-			return [{ widgetId: widget.id, size: placement.size, approved }];
+			return [{ widgetId: widget.id, span: placement.span, approved }];
 		});
 	}
 

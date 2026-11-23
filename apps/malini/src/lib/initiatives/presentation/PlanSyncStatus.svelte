@@ -16,7 +16,7 @@
 	let now: number = $state(Date.now());
 
 	const status = $derived(
-		sync.error === null ? syncedLabel(sync.syncedAt, now) : `Not synced · ${sync.error}`,
+		sync.error === null ? syncedLabel(sync.syncedAt, now) : `Not shared · ${sync.error}`,
 	);
 	const people = $derived(sync.people.slice(0, PEOPLE_SHOWN));
 

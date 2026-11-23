@@ -1,4 +1,4 @@
-import { INITIATIVE_TITLE_MAX_LENGTH, type Initiative } from '$contract/initiatives';
+import { INITIATIVE_TITLE_MAX_LENGTH, type Initiative, type PlanSync } from '$contract/initiatives';
 import {
 	REPOSITORY_FULL_NAME_MAX_LENGTH,
 	SCRATCHPAD_CONTENT_MAX_LENGTH,
@@ -86,11 +86,21 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 		return after(repository, () => linkWorkstream(db, dependencyId, workstreamId));
 	});
 
+	async function syncState(repository: string): Promise<PlanSync> {
+		const state = planSync(db, repository);
+		if (state.enabled || !isGithubRepository(repository)) {
+			return state.enabled ? state : { ...state, home: null };
+		}
+		const known = github.knownHome(repository);
+		const home = known !== undefined ? known : await github.homeOf(repository).catch(() => null);
+		return { ...state, home };
+	}
+
 	commands.define('initiatives.sync-state', (args: unknown) =>
-		planSync(db, repositoryFullName(field(args, 'repositoryFullName'))),
+		syncState(repositoryFullName(field(args, 'repositoryFullName'))),
 	);
 
-	commands.define('initiatives.set-sync', (args: unknown) => {
+	commands.define('initiatives.set-sync', async (args: unknown) => {
 		const repository = repositoryFullName(field(args, 'repositoryFullName'));
 		const enabled = field(args, 'enabled');
 		if (typeof enabled !== 'boolean') {
@@ -105,9 +115,9 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 				'invalid args: `repositoryFullName` must be a GitHub owner/name to sync',
 			);
 		}
-		setPlanSyncEnabled(db, repository, enabled);
-		if (enabled) void github.sync(repository);
-		return planSync(db, repository);
+		if (enabled) await github.turnOn(repository);
+		else setPlanSyncEnabled(db, repository, false);
+		return syncState(repository);
 	});
 
 	commands.define('initiatives.sync', async (args: unknown) => {
