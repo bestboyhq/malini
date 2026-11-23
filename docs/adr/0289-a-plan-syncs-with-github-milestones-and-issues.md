@@ -1,6 +1,6 @@
 # 0289 - A plan syncs with GitHub milestones and issues
 
-Status: accepted
+Status: superseded by 0290
 
 ## Context
 
@@ -9,14 +9,10 @@ Simon asked "can we Also synchronize list of outcomes ... and the dependencies",
 Malini has no backend (`AGENTS.md`), and everything on GitHub goes through the `gh` CLI, so the team's copy has to live on GitHub.
 Milestones already carry a title, a due date and a description, and issues already carry a title, an open or closed state, a body and assignees.
 Syncing puts the plan where everyone with access to the repository reads it, so it is a choice per repository and never a default.
-Simon then ruled out public repositories: "i dont want to expose it at all, storing it publicly isnt an option".
 
 ## Decision
 
-- `initiatives.set-sync` turns sync on or off for one repository; it is off by default and kept in SQLite, and `initiatives.sync-state` reports it with the last sync, its error, the GitHub logins seen and whether the repository is private.
-- Sync works only with a private repository.
-  `initiatives.set-sync` refuses a public one with the expected `public-repository` error, and the switch shows only when `private` is true.
-  Every sync and push first reads `repos/{owner}/{repo}` and turns sync off, writing nothing, when the repository is not private; a failed read writes nothing either.
+- `initiatives.set-sync` turns sync on or off for one repository; it is off by default and kept in SQLite, and `initiatives.sync-state` reports it with the last sync, its error and the GitHub logins seen.
 - With sync on, each outcome is a milestone: its title, its due day as `due_on`, and its note as the description.
   Each dependency is an issue in that milestone: its title, closed when done, its note as the body, and its first assignee shown as an avatar.
 - `initiatives.sync` pulls milestones and issues with `gh api`, applies only the fields that changed on GitHub since the last sync, then pushes only the fields that changed in Malini.
@@ -34,5 +30,4 @@ Simon then ruled out public repositories: "i dont want to expose it at all, stor
 - A team shares one plan with no server of Malini's: GitHub holds it, and people without Malini work on it as milestones and issues.
 - Turning sync off stops it and leaves GitHub as it is.
 - Sync makes no outbound call of its own: every call goes through `gh`, under the user's own GitHub sign-in.
-- A plan never reaches a public repository, even one that was private when sync turned on.
-- Enforced by `src/lib/initiatives/platform` tests on real SQLite with a fake `gh` (a public repository refused, a private one that turns public stops before its next write, a first sync both ways, a remote close and reopen, a rename, a due day round trip, a remote delete, a merge that closes its issue, a sync that changes nothing writes nothing, and no call while sync is off).
+- Enforced by `src/lib/initiatives/platform` tests on real SQLite with a fake `gh` (a first sync both ways, a remote close and reopen, a rename, a due day round trip, a remote delete, a merge that closes its issue, a sync that changes nothing writes nothing, and no call while sync is off).

@@ -52,8 +52,8 @@
 				<SensitiveText text={error} />
 			</p>
 		</div>
-		<Strip>
-			<span class="text-error-content flex min-w-0 items-center gap-1.5">
+		<Strip wrap>
+			<span class="text-error-content flex h-7 min-w-0 items-center gap-1.5">
 				<Icon name="alert" size={12} class="shrink-0" />
 				<span class="truncate">Agent session unavailable</span>
 			</span>

@@ -87,9 +87,13 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 	});
 
 	async function syncState(repository: string): Promise<PlanSync> {
-		const known = isGithubRepository(repository) ? github.knownPrivate(repository) : false;
-		const isPrivate = known ?? (await github.isPrivate(repository).catch(() => null));
-		return { ...planSync(db, repository), private: isPrivate };
+		const state = planSync(db, repository);
+		if (state.enabled || !isGithubRepository(repository)) {
+			return state.enabled ? state : { ...state, home: null };
+		}
+		const known = github.knownHome(repository);
+		const home = known !== undefined ? known : await github.homeOf(repository).catch(() => null);
+		return { ...state, home };
 	}
 
 	commands.define('initiatives.sync-state', (args: unknown) =>
@@ -111,14 +115,8 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 				'invalid args: `repositoryFullName` must be a GitHub owner/name to sync',
 			);
 		}
-		if (enabled && !(await github.isPrivate(repository))) {
-			throw new InitiativeError(
-				'public-repository',
-				`\`${repository}\` is public, and a plan syncs only with a private repository`,
-			);
-		}
-		setPlanSyncEnabled(db, repository, enabled);
-		if (enabled) void github.sync(repository);
+		if (enabled) await github.turnOn(repository);
+		else setPlanSyncEnabled(db, repository, false);
 		return syncState(repository);
 	});
 

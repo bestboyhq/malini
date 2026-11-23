@@ -10,7 +10,7 @@ Malini draws every tile, so a widget your agent made looks like the rest of Mali
 ## The board
 
 There is one board per repository, and every workstream of that repository shows it.
-Widgets come in three sizes, the way they do on a phone: **Small** is one cell, **Medium** is two cells wide, and **Large** is two by two.
+Widgets come in three sizes, the way they do on a phone: **Small** is one cell, **Medium** is two cells wide, and **Large** is two cells tall and as wide as the panel.
 A tile shows what fits its size: a number or a ring when small, a few rows when medium, everything when large.
 
 - Click a tile to open what it reads, such as the deploy run, in a Browser tab.
@@ -116,9 +116,10 @@ Every board of a GitHub repository starts with **Plan**: the repository's [initi
 An edit in either place shows in the other at once.
 
 - Small shows the next outcome and how much of it is done.
-- Medium and Large list the outcomes by day, with their dependencies under them.
+- Medium lists the next three outcomes.
+- Large spans the panel and lists every outcome under its day, with its dependencies under it, and the outcomes with no date last.
 - Tick a dependency to finish it, click a title to rename it, and add a dependency under an outcome.
 - **Start workstream** on a dependency starts one in this repository.
 - **This chat** marks the dependency the workstream you are in serves, and **Needs you** marks one waiting on you.
 
-In a private repository, turn on **Sync with GitHub** to share the plan with your team, as [milestones and issues](/malini/docs/initiatives.md#sync-with-github).
+Turn on **Sync with GitHub** to share the plan with your team, as [milestones and issues in a private repository](/malini/docs/initiatives.md#sync-with-github).

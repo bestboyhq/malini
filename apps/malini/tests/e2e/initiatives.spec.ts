@@ -7,6 +7,7 @@ import {
 	holdCheckouts,
 	invoke,
 	launchMalini,
+	openWorkstream,
 	seedWorkstream,
 	type WorkstreamRow,
 } from './harness';
@@ -17,6 +18,7 @@ const COPY = 'Pricing copy is written';
 const CHECKOUT = 'Checkout takes a card';
 const COPY_RENAMED = 'Pricing copy is approved';
 const NOTE = 'Launch with the annual plan first';
+const PLAN_REPOSITORY = 'e2e/hutch-malini-plan';
 
 function dayLabel(date: Date): string {
 	const weekday = date.toLocaleString('en-US', { weekday: 'short' });
@@ -211,7 +213,7 @@ test('a GitHub plan syncs once its switch is on and says what a teammate changed
 	}
 });
 
-test('a plan in a public repository offers no GitHub sync and stays on the Mac', async () => {
+test('a plan in a public repository syncs only to a private plan repository its collaborators get', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -230,9 +232,66 @@ test('a plan in a public repository offers no GitHub sync and stays on the Mac',
 		await expect(
 			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
 		).toBeFocused();
-		await expect(main.getByRole('switch', { name: 'Sync with GitHub' })).toHaveCount(0);
+		await expect(main.getByText(`in the private ${PLAN_REPOSITORY}`)).toBeVisible();
+		await expect(main.getByText('Malini invites the collaborators of e2e/hutch')).toBeVisible();
+
+		const sync = main.getByRole('switch', { name: 'Sync with GitHub' });
+		await sync.click();
+		await expect(sync).toBeChecked();
+		await expect
+			.poll(() => github.plan(PLAN_REPOSITORY).milestones.map(({ title }) => title), {
+				timeout: 20_000,
+			})
+			.toEqual([OUTCOME]);
+		expect(github.repository(PLAN_REPOSITORY)).toEqual({
+			private: true,
+			invited: { aleksander: 'push' },
+		});
 		expect(github.plan()).toEqual({ milestones: [], issues: [] });
-		await captureFlow(app, 'initiatives-public-no-sync');
+		await expect(main.getByText(`Syncs with the private ${PLAN_REPOSITORY}.`)).toBeVisible();
+		await captureFlow(app, 'initiatives-public-plan-repository');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the Plan widget lists outcomes under the day they are due and the ones with no date last', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-days', null);
+		await page.reload();
+
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		const link = sidebar.getByRole('link', { name: 'Open e2e/hutch', exact: true });
+		await expect(link).toBeVisible({ timeout: 20_000 });
+		await link.click();
+		const initiatives = page.getByRole('main').getByRole('region', { name: 'Initiatives' });
+		const today = dayLabel(new Date());
+		await initiatives.getByRole('textbox', { name: `Name an outcome on ${today}` }).fill(OUTCOME);
+		await page.keyboard.press('Enter');
+		await expect(
+			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
+		).toBeFocused();
+		await initiatives.getByRole('textbox', { name: 'Name an outcome with no date' }).fill(COPY);
+		await page.keyboard.press('Enter');
+		await expect(
+			initiatives.getByRole('textbox', { name: `Add a dependency to ${COPY}` }),
+		).toBeFocused();
+
+		await openWorkstream(page, 'e2e-plan-days');
+		const plan = page
+			.getByRole('region', { name: 'Widgets' })
+			.getByRole('article', { name: 'Plan, Large' });
+		const due = plan.getByRole('group', { name: today, exact: true });
+		const undated = plan.getByRole('group', { name: 'No date', exact: true });
+		await expect(due.getByRole('group', { name: OUTCOME, exact: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(undated.getByRole('group', { name: COPY, exact: true })).toBeVisible();
+		await expect(due.getByRole('group', { name: COPY, exact: true })).toHaveCount(0);
+		await captureFlow(app, 'plan-widget-days');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -16,6 +16,10 @@ export const WIDGET_SPANS: Readonly<Record<WidgetSize, WidgetSpan>> = {
 	large: { columns: 2, rows: 2 },
 };
 
+export function widgetSpan(size: WidgetSize, columns: number): WidgetSpan {
+	return size === 'large' ? { columns, rows: WIDGET_SPANS.large.rows } : WIDGET_SPANS[size];
+}
+
 export function widgetGrid(width: number): WidgetGrid {
 	const columns = Math.max(
 		WIDGET_MIN_COLUMNS,

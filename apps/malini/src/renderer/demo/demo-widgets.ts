@@ -236,7 +236,7 @@ export const widgetHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'initiatives.sync-state': ({ repositoryFullName }) => ({
 		repositoryFullName,
 		enabled: true,
-		private: true,
+		home: repositoryFullName,
 		syncedAt: minutesAgo(0.05),
 		error: null,
 		people: [OWNER],

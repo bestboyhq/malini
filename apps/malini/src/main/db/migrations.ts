@@ -2064,6 +2064,9 @@ CREATE TABLE widget_readings (
   PRIMARY KEY (board, widget_id)
 );
 `,
+	`
+ALTER TABLE initiative_syncs ADD COLUMN home TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -8,16 +8,21 @@ import {
 	type RepositoriesPlatform,
 } from '$shared/repositories/repositories.platform';
 import {
+	accessToGrant,
+	collaboratorAccess,
 	dueInstant,
 	eventActor,
+	invitees,
 	isGithubRepository,
 	noteFromText,
 	noteText,
+	planRepositoryOf,
 	remoteIssues,
 	remoteMilestones,
 	type RemoteIssue,
 	type RemoteMilestone,
 } from './github-plan';
+import { InitiativeError } from './initiatives.repository';
 import {
 	addGithubDeletion,
 	closeOnMerge,
@@ -63,7 +68,9 @@ type FoundChange = Readonly<{
 	issue?: number;
 }>;
 
-type Field = string | number | null;
+type Field = string | number | boolean | null;
+
+type GithubRepository = Readonly<{ private: boolean; organization: boolean }>;
 
 const GH_TIMEOUT_MS = 15_000;
 
@@ -75,7 +82,7 @@ export class PlanSyncService {
 	readonly #context: MainContext;
 	readonly #deps: PlanSyncDeps;
 	readonly #lanes = new Map<string, Lane>();
-	readonly #private = new Map<string, boolean>();
+	readonly #homes = new Map<string, string | null>();
 	#viewer: string | null = null;
 
 	constructor(context: MainContext, deps: PlanSyncDeps) {
@@ -83,18 +90,35 @@ export class PlanSyncService {
 		this.#deps = deps;
 	}
 
-	knownPrivate(repositoryFullName: string): boolean | null {
-		return this.#private.get(repositoryFullName.toLowerCase()) ?? null;
+	knownHome(repositoryFullName: string): string | null | undefined {
+		return this.#homes.get(repositoryFullName.toLowerCase());
 	}
 
-	async isPrivate(repositoryFullName: string): Promise<boolean> {
-		const repository = parseGhJson<unknown>(
-			await this.#call(['api', `repos/${repositoryFullName}`]),
-			'read the repository on GitHub',
-		);
-		const isPrivate = isRecord(repository) && repository['private'] === true;
-		this.#private.set(repositoryFullName.toLowerCase(), isPrivate);
-		return isPrivate;
+	async homeOf(repositoryFullName: string): Promise<string | null> {
+		const repository = await this.#repository(repositoryFullName);
+		const home =
+			repository === null
+				? null
+				: repository.private
+					? repositoryFullName
+					: planRepositoryOf(repositoryFullName);
+		this.#homes.set(repositoryFullName.toLowerCase(), home);
+		return home;
+	}
+
+	async turnOn(repositoryFullName: string): Promise<void> {
+		const source = await this.#repository(repositoryFullName);
+		if (source === null) {
+			throw new InitiativeError(
+				'not-on-github',
+				`\`${repositoryFullName}\` is not on GitHub, or this gh account cannot see it`,
+			);
+		}
+		const home = source.private ? repositoryFullName : planRepositoryOf(repositoryFullName);
+		if (!source.private) await this.#openPlanRepository(repositoryFullName, home, source);
+		this.#homes.set(repositoryFullName.toLowerCase(), home);
+		setPlanSyncEnabled(this.#context.db, repositoryFullName, true, home);
+		void this.sync(repositoryFullName);
 	}
 
 	sync(repositoryFullName: string): Promise<void> {
@@ -159,30 +183,32 @@ export class PlanSyncService {
 		if (!isGithubRepository(repositoryFullName) || !isPlanSyncEnabled(db, repositoryFullName)) {
 			return;
 		}
+		const home = planSync(db, repositoryFullName).home ?? repositoryFullName;
 		try {
-			if (!(await this.isPrivate(repositoryFullName))) {
+			if ((await this.#repository(home))?.private !== true) {
+				this.#homes.delete(repositoryFullName.toLowerCase());
 				setPlanSyncEnabled(db, repositoryFullName, false);
 				return;
 			}
-			const people = kind === 'sync' ? await this.#pull(repositoryFullName) : null;
+			const people = kind === 'sync' ? await this.#pull(repositoryFullName, home) : null;
 			this.#closeMerged(repositoryFullName);
-			await this.#push(repositoryFullName);
+			await this.#push(repositoryFullName, home);
 			recordPlanSynced(db, repositoryFullName, people);
 		} catch (error) {
 			recordPlanSyncError(db, repositoryFullName, describeError(error));
 		}
 	}
 
-	async #pull(repository: string): Promise<string[]> {
+	async #pull(repository: string, home: string): Promise<string[]> {
 		const { db } = this.#context;
 		const first = planSync(db, repository).syncedAt === null;
 		const [milestones, issues] = await Promise.all([
-			this.#list(`repos/${repository}/milestones?state=all&per_page=${PAGE_SIZE}`),
-			this.#list(`repos/${repository}/issues?milestone=*&state=all&per_page=${PAGE_SIZE}`),
+			this.#list(`repos/${home}/milestones?state=all&per_page=${PAGE_SIZE}`),
+			this.#list(`repos/${home}/issues?milestone=*&state=all&per_page=${PAGE_SIZE}`),
 		]);
 		const remote = { milestones: remoteMilestones(milestones), issues: remoteIssues(issues) };
 		const found = db.transaction(() => this.#apply(repository, remote.milestones, remote.issues));
-		if (!first && found.length > 0) await this.#announce(repository, found);
+		if (!first && found.length > 0) await this.#announce(repository, home, found);
 		return [
 			...new Set(
 				[
@@ -339,13 +365,12 @@ export class PlanSyncService {
 		];
 	}
 
-	async #announce(repository: string, found: readonly FoundChange[]): Promise<void> {
+	async #announce(repository: string, home: string, found: readonly FoundChange[]): Promise<void> {
 		const viewer = await this.#viewerLogin();
 		const changes: PlanRemoteChange[] = [];
 		for (const change of found) {
 			const actor =
-				change.actor ??
-				(change.issue === undefined ? null : await this.#actorOf(repository, change));
+				change.actor ?? (change.issue === undefined ? null : await this.#actorOf(home, change));
 			if (actor !== null && actor === viewer) continue;
 			changes.push({ actor, kind: change.kind, title: change.title });
 		}
@@ -383,14 +408,14 @@ export class PlanSyncService {
 		}
 	}
 
-	async #push(repository: string): Promise<void> {
+	async #push(repository: string, home: string): Promise<void> {
 		const { db } = this.#context;
 		const refused: GhError[] = [];
 		await eachRow(githubDeletions(db, repository), refused, async (deletion) => {
 			if (deletion.kind === 'milestone') {
-				await this.#write(`repos/${repository}/milestones/${deletion.number}`, 'DELETE', {}, true);
+				await this.#write(`repos/${home}/milestones/${deletion.number}`, 'DELETE', {}, true);
 			} else {
-				const path = `repos/${repository}/issues/${deletion.number}`;
+				const path = `repos/${home}/issues/${deletion.number}`;
 				await this.#write(path, 'PATCH', { state: 'closed' }, true);
 			}
 			dropGithubDeletion(db, repository, deletion);
@@ -399,7 +424,7 @@ export class PlanSyncService {
 			const sent = { title: row.title, dueOn: row.due_on, note: noteText(row.note) };
 			const base =
 				row.github_milestone === null
-					? await this.#createMilestone(repository, row.id, sent)
+					? await this.#createMilestone(repository, home, row.id, sent)
 					: {
 							number: row.github_milestone,
 							title: row.github_title,
@@ -413,7 +438,7 @@ export class PlanSyncService {
 				...(sent.note === base.note ? {} : { description: sent.note }),
 			};
 			if (Object.keys(change).length === 0) return;
-			await this.#write(`repos/${repository}/milestones/${base.number}`, 'PATCH', change);
+			await this.#write(`repos/${home}/milestones/${base.number}`, 'PATCH', change);
 			linkInitiative(db, row.id, { number: base.number, ...sent });
 		});
 		const milestoneOf = new Map(
@@ -425,7 +450,7 @@ export class PlanSyncService {
 			const sent = { title: row.title, done: intToBool(row.done), note: noteText(row.note) };
 			const base =
 				row.github_issue === null
-					? await this.#createIssue(repository, row.id, milestone, sent)
+					? await this.#createIssue(repository, home, row.id, milestone, sent)
 					: {
 							number: row.github_issue,
 							title: row.github_title,
@@ -439,7 +464,7 @@ export class PlanSyncService {
 				...(sent.note === base.note ? {} : { body: sent.note }),
 			};
 			if (Object.keys(change).length === 0) return;
-			await this.#write(`repos/${repository}/issues/${base.number}`, 'PATCH', change);
+			await this.#write(`repos/${home}/issues/${base.number}`, 'PATCH', change);
 			linkDependency(db, row.id, { number: base.number, ...sent });
 		});
 		const [first] = refused;
@@ -448,10 +473,11 @@ export class PlanSyncService {
 
 	async #createMilestone(
 		repository: string,
+		home: string,
 		initiativeId: string,
 		sent: Omit<MilestoneBase, 'number'>,
 	): Promise<MilestoneBase | null> {
-		const created = await this.#write(`repos/${repository}/milestones`, 'POST', {
+		const created = await this.#write(`repos/${home}/milestones`, 'POST', {
 			title: sent.title,
 			description: sent.note,
 			...(sent.dueOn === null ? {} : { due_on: dueField(sent.dueOn) }),
@@ -464,11 +490,12 @@ export class PlanSyncService {
 
 	async #createIssue(
 		repository: string,
+		home: string,
 		dependencyId: string,
 		milestone: number,
 		sent: Omit<IssueBase, 'number'>,
 	): Promise<IssueBase | null> {
-		const created = await this.#write(`repos/${repository}/issues`, 'POST', {
+		const created = await this.#write(`repos/${home}/issues`, 'POST', {
 			title: sent.title,
 			body: sent.note,
 			milestone,
@@ -477,6 +504,88 @@ export class PlanSyncService {
 		if (linkDependency(this.#context.db, dependencyId, base)) return base;
 		addGithubDeletion(this.#context.db, repository, 'issue', base.number);
 		return null;
+	}
+
+	async #openPlanRepository(
+		source: string,
+		home: string,
+		repository: GithubRepository,
+	): Promise<void> {
+		const plan = await this.#repository(home);
+		if (plan?.private === false) {
+			throw new InitiativeError(
+				'public-repository',
+				`\`${home}\` is public, and a plan syncs only with a private repository`,
+			);
+		}
+		if (plan === null) await this.#createPlanRepository(source, home, repository);
+		await this.#invite(source, home);
+	}
+
+	async #createPlanRepository(
+		source: string,
+		home: string,
+		repository: GithubRepository,
+	): Promise<void> {
+		const [owner = '', name = ''] = home.split('/');
+		const path = repository.organization
+			? `orgs/${owner}/repos`
+			: owner === (await this.#viewerLogin())
+				? 'user/repos'
+				: null;
+		if (path === null) {
+			throw new InitiativeError(
+				'no-plan-repository',
+				`Only ${owner} can make the private \`${home}\`. Once they make it and add you, turn sync on again.`,
+			);
+		}
+		await this.#write(path, 'POST', {
+			name,
+			private: true,
+			description: `The plan of ${source}, synced by Malini`,
+			has_wiki: false,
+			has_projects: false,
+		});
+	}
+
+	// ponytail: invites go out only as sync turns on, so someone added to the source later waits for the next turn-on; a stored invite list would let each sync invite them
+	async #invite(source: string, home: string): Promise<void> {
+		try {
+			const [people, members, pending, viewer] = await Promise.all([
+				this.#list(`repos/${source}/collaborators?per_page=${PAGE_SIZE}`),
+				this.#list(`repos/${home}/collaborators?per_page=${PAGE_SIZE}`),
+				this.#list(`repos/${home}/invitations?per_page=${PAGE_SIZE}`),
+				this.#viewerLogin(),
+			]);
+			const grants = accessToGrant(
+				collaboratorAccess(people),
+				collaboratorAccess(members),
+				invitees(pending),
+				viewer,
+			);
+			for (const { login, access } of grants) {
+				await this.#write(`repos/${home}/collaborators/${login}`, 'PUT', {
+					permission: access,
+				}).catch((error: unknown) => {
+					this.#deps.log?.(`initiatives: invite ${login} to ${home}: ${describeError(error)}`);
+				});
+			}
+		} catch (error) {
+			this.#deps.log?.(`initiatives: invite the people of ${source}: ${describeError(error)}`);
+		}
+	}
+
+	async #repository(name: string): Promise<GithubRepository | null> {
+		const args = ['api', `repos/${name}`];
+		const result = await this.#deps.gh(args, { timeoutMs: GH_TIMEOUT_MS });
+		if (result.code !== 0 && GONE.test(result.stderr)) return null;
+		if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, args);
+		const repository = parseGhJson<unknown>(result, 'read the repository on GitHub');
+		const owner = isRecord(repository) ? repository['owner'] : undefined;
+		return {
+			private: isRecord(repository) && repository['private'] === true,
+			organization: isRecord(owner) && owner['type'] === 'Organization',
+		};
 	}
 
 	async #list(path: string): Promise<unknown[]> {
@@ -499,7 +608,7 @@ export class PlanSyncService {
 
 	async #write(
 		path: string,
-		method: 'POST' | 'PATCH' | 'DELETE',
+		method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
 		fields: Readonly<Record<string, Field>>,
 		goneIsDone = false,
 	): Promise<GhResult> {

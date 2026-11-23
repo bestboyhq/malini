@@ -10,6 +10,8 @@ import { registerInitiatives } from './register';
 
 const REPOSITORY = 'bestboyhq/gardener';
 
+const PLAN_REPOSITORY = 'bestboyhq/gardener-malini-plan';
+
 type Login = { login: string };
 type Milestone = {
 	number: number;
@@ -19,6 +21,17 @@ type Milestone = {
 	state: 'open' | 'closed';
 	creator: Login;
 };
+type Access = 'pull' | 'triage' | 'push' | 'maintain' | 'admin';
+type Repository = {
+	private: boolean;
+	organization: boolean;
+	people: Map<string, Access>;
+	invited: Map<string, string>;
+	milestones: Milestone[];
+	issues: Issue[];
+	numbers: { milestone: number; issue: number };
+};
+type Field = string | number | boolean | null;
 type Issue = {
 	number: number;
 	title: string;
@@ -38,13 +51,20 @@ function pacificDay(instant: string): string {
 }
 
 function fakeGithub(viewer: string) {
-	const milestones: Milestone[] = [];
-	const issues: Issue[] = [];
 	const events = new Map<number, { event: string; actor: Login }[]>();
 	const calls: string[][] = [];
-	const numbers = { milestone: 0, issue: 0 };
 	let offline = false;
-	let isPrivate = true;
+	const repository = (isPrivate: boolean, people: Record<string, Access>): Repository => ({
+		private: isPrivate,
+		organization: true,
+		people: new Map(Object.entries(people)),
+		invited: new Map(),
+		milestones: [],
+		issues: [],
+		numbers: { milestone: 0, issue: 0 },
+	});
+	const source = repository(true, { [viewer]: 'admin', aleksander: 'push', maja: 'pull' });
+	const repositories = new Map<string, Repository>([[REPOSITORY, source]]);
 	const answer = (value: unknown): GhResult => ({
 		stdout: typeof value === 'string' ? value : JSON.stringify(value),
 		stderr: '',
@@ -57,7 +77,7 @@ function fakeGithub(viewer: string) {
 		const [, path = ''] = args;
 		if (path === 'user') return answer(`${viewer}\n`);
 		const method = args[args.indexOf('-X') + 1] ?? 'GET';
-		const fields: Record<string, string | number | null> = {};
+		const fields: Record<string, Field> = {};
 		args.forEach((arg, index) => {
 			const flag = args[index - 1];
 			if (flag !== '-f' && flag !== '-F') return;
@@ -65,13 +85,48 @@ function fakeGithub(viewer: string) {
 				arg.slice(0, arg.indexOf('=')),
 				arg.slice(arg.indexOf('=') + 1),
 			];
-			fields[key] = flag === '-f' ? value : value === 'null' ? null : Number(value);
+			fields[key] =
+				flag === '-f'
+					? value
+					: value === 'null'
+						? null
+						: value === 'true' || value === 'false'
+							? value === 'true'
+							: Number(value);
 		});
 		const url = new URL(path, 'https://api.github.com/');
-		const [, , , , collection, number, sub] = url.pathname.split('/');
-		if (collection === undefined && !args.includes('-X')) return answer({ private: isPrivate });
+		const [, scope, owner = viewer, name, collection, number, sub] = url.pathname.split('/');
+		if (method === 'POST' && (path === 'user/repos' || (scope === 'orgs' && name === 'repos'))) {
+			const created = `${scope === 'orgs' ? owner : viewer}/${String(fields['name'])}`;
+			repositories.set(created, {
+				...repository(fields['private'] === true, { [viewer]: 'admin' }),
+				organization: scope === 'orgs',
+			});
+			return answer({ full_name: created });
+		}
+		const found = repositories.get(`${owner}/${name}`);
+		if (found === undefined) return notFound;
+		const { milestones, issues, numbers } = found;
+		if (collection === undefined && !args.includes('-X')) {
+			return answer({
+				private: found.private,
+				owner: { type: found.organization ? 'Organization' : 'User' },
+			});
+		}
 		if (url.searchParams.get('page') !== null && url.searchParams.get('page') !== '1') {
 			return answer([]);
+		}
+		if (collection === 'collaborators' && method === 'PUT') {
+			found.invited.set(number ?? '', String(fields['permission']));
+			return answer({});
+		}
+		if (collection === 'collaborators') {
+			return answer(
+				[...found.people].map(([login, access]) => ({ login, permissions: { [access]: true } })),
+			);
+		}
+		if (collection === 'invitations') {
+			return answer([...found.invited.keys()].map((login) => ({ invitee: { login } })));
 		}
 		if (collection === 'milestones' && !args.includes('-X')) return answer(milestones);
 		if (collection === 'issues' && !args.includes('-X') && sub === 'events') {
@@ -126,7 +181,7 @@ function fakeGithub(viewer: string) {
 		Object.assign(issue, fields);
 		return answer(issue);
 	};
-	const dueOn = (fields: Record<string, string | number | null>) => {
+	const dueOn = (fields: Record<string, Field>) => {
 		if (!('due_on' in fields)) return {};
 		const due = fields['due_on'];
 		return { due_on: typeof due === 'string' ? `${pacificDay(due)}T08:00:00Z` : null };
@@ -134,11 +189,13 @@ function fakeGithub(viewer: string) {
 	return {
 		run,
 		calls,
-		makePublic: () => {
-			isPrivate = false;
+		repositories,
+		makePublic: (name = REPOSITORY) => {
+			const found = repositories.get(name);
+			if (found) found.private = false;
 		},
-		milestones,
-		issues,
+		milestones: source.milestones,
+		issues: source.issues,
 		events,
 		writes: () => calls.filter((args) => args.includes('-X')),
 		reads: (collection: string) =>
@@ -147,15 +204,15 @@ function fakeGithub(viewer: string) {
 			offline = next;
 		},
 		addMilestone: (milestone: Omit<Milestone, 'number'>): Milestone => {
-			numbers.milestone += 1;
-			const added = { number: numbers.milestone, ...milestone };
-			milestones.push(added);
+			source.numbers.milestone += 1;
+			const added = { number: source.numbers.milestone, ...milestone };
+			source.milestones.push(added);
 			return added;
 		},
 		addIssue: (issue: Omit<Issue, 'number'>): Issue => {
-			numbers.issue += 1;
-			const added = { number: numbers.issue, ...issue };
-			issues.push(added);
+			source.numbers.issue += 1;
+			const added = { number: source.numbers.issue, ...issue };
+			source.issues.push(added);
 			return added;
 		},
 	};
@@ -226,7 +283,7 @@ describe('plan sync with GitHub', () => {
 		expect(await call.state()).toEqual({
 			repositoryFullName: REPOSITORY,
 			enabled: false,
-			private: true,
+			home: REPOSITORY,
 			syncedAt: null,
 			error: null,
 			people: [],
@@ -249,10 +306,51 @@ describe('plan sync with GitHub', () => {
 		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('GitHub owner/name') });
 	});
 
-	it('refuses to turn on sync for a public repository and writes nothing there', async () => {
+	it('syncs a public repository to a private plan repository its people are invited to', async () => {
 		await call.create('Launch day', '2026-12-01');
 		github.makePublic();
-		expect(await call.state()).toMatchObject({ enabled: false, private: false });
+		expect(await call.state()).toMatchObject({ enabled: false, home: PLAN_REPOSITORY });
+		expect(await call.turn(true)).toMatchObject({ enabled: true, home: PLAN_REPOSITORY });
+		await call.sync();
+		expect(github.repositories.get(PLAN_REPOSITORY)).toMatchObject({
+			private: true,
+			organization: true,
+			invited: new Map([
+				['aleksander', 'push'],
+				['maja', 'pull'],
+			]),
+		});
+		const plan = github.repositories.get(PLAN_REPOSITORY);
+		expect(plan?.milestones.map(({ title }) => title)).toEqual(['Launch day']);
+		expect(github.milestones).toEqual([]);
+		const paths = github.calls
+			.map(([, path = '']) => path)
+			.filter((path) => /milestones|issues/u.test(path));
+		expect(paths.length).toBeGreaterThan(0);
+		expect(paths.filter((path) => !path.startsWith(`repos/${PLAN_REPOSITORY}/`))).toEqual([]);
+		expect(
+			github.writes().filter(([, path = '']) => path.startsWith(`repos/${REPOSITORY}/`)),
+		).toEqual([]);
+
+		github.repositories.get(PLAN_REPOSITORY)?.invited.clear();
+		await call.turn(false);
+		await call.turn(true);
+		expect(github.repositories.get(PLAN_REPOSITORY)?.invited.size).toBe(2);
+		expect(github.writes().filter(([, path = '']) => path.includes('/repos'))).toHaveLength(1);
+	});
+
+	it('refuses a plan repository that is public and writes nothing', async () => {
+		await call.create('Launch day', '2026-12-01');
+		github.makePublic();
+		github.repositories.set(PLAN_REPOSITORY, {
+			private: false,
+			organization: true,
+			people: new Map(),
+			invited: new Map(),
+			milestones: [],
+			issues: [],
+			numbers: { milestone: 0, issue: 0 },
+		});
 		await expect(
 			context.commands.invoke({
 				command: 'initiatives.set-sync',
@@ -261,6 +359,7 @@ describe('plan sync with GitHub', () => {
 		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('is public') });
 		expect(github.writes()).toEqual([]);
 		expect(github.milestones).toEqual([]);
+		expect(await call.state()).toMatchObject({ enabled: false });
 	});
 
 	it('stops syncing once a private repository turns public, and writes nothing after', async () => {
@@ -276,7 +375,19 @@ describe('plan sync with GitHub', () => {
 		await call.sync();
 		expect(github.writes()).toEqual([]);
 		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
-		expect(await call.state()).toMatchObject({ enabled: false, private: false });
+		expect(await call.state()).toMatchObject({ enabled: false, home: PLAN_REPOSITORY });
+
+		await call.turn(true);
+		await call.sync();
+		expect(github.repositories.get(PLAN_REPOSITORY)?.milestones.map(({ title }) => title)).toEqual([
+			'Secret',
+			'Another secret',
+		]);
+		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
+		expect(
+			github.writes().filter(([, path = '']) => path.startsWith(`repos/${REPOSITORY}/`)),
+		).toEqual([]);
+		expect(synced).toEqual([]);
 	});
 
 	it('syncs both ways at first, links by title and imports only open milestones', async () => {

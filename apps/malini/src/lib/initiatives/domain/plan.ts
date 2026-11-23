@@ -5,9 +5,11 @@ import type {
 	PlanRemoteChangeKind,
 } from '$contract/initiatives';
 import type { WidgetSize } from '$contract/widgets';
-import { dateOf, initiativeFinished, type StandingOf } from './initiative';
+import { dateOf, initiativeFinished, initiativesOn, type StandingOf } from './initiative';
 
 export type DueLabel = Readonly<{ text: string; late: boolean }>;
+
+export type PlanDay = Readonly<{ day: string | null; outcomes: readonly Initiative[] }>;
 
 export const PLAN_MEDIUM_ROWS = 3;
 
@@ -31,6 +33,14 @@ export function planOrder(initiatives: readonly Initiative[]): readonly Initiati
 		if (b.dueOn === null) return -1;
 		return a.dueOn < b.dueOn ? -1 : 1;
 	});
+}
+
+export function planDays(initiatives: readonly Initiative[]): readonly PlanDay[] {
+	const ordered = planOrder(initiatives);
+	return [...new Set(ordered.map(({ dueOn }) => dueOn))].map((day) => ({
+		day,
+		outcomes: initiativesOn(ordered, day),
+	}));
 }
 
 export function daysUntil(day: string, today: string): number {

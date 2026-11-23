@@ -22,7 +22,7 @@
 	import { resizeWidgetCommand } from '$lib/widgets/application/commands/resize-widget.command';
 	import { watchWidgetsHook } from '$lib/widgets/application/hooks/watch-widgets.hook';
 	import { widgetBoardQuery } from '$lib/widgets/application/queries/widget-board.query.svelte';
-	import { WIDGET_GAP, WIDGET_SPANS, widgetGrid } from '$lib/widgets/domain/widget-grid';
+	import { WIDGET_GAP, widgetGrid, widgetSpan } from '$lib/widgets/domain/widget-grid';
 	import {
 		DRAG_THRESHOLD,
 		slotIndex,
@@ -511,7 +511,7 @@
 				>
 					{#each entries as tile (tile?.widget.id ?? '')}
 						{@const size = tile ? sizeOf(tile) : (shownLift?.size ?? 'medium')}
-						{@const span = WIDGET_SPANS[size]}
+						{@const span = widgetSpan(size, grid.columns)}
 						{@const box = tile && tile === liftedTile && shownLift ? liftedBox(shownLift) : null}
 						<div
 							class={[

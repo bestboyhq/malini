@@ -14,20 +14,29 @@
 	import { initiativesQuery } from '$lib/initiatives/application/queries/initiatives.query.svelte';
 	import { planSyncQuery } from '$lib/initiatives/application/queries/plan-sync.query.svelte';
 	import {
+		dateOf,
 		initiativeFinished,
 		initiativeProgress,
+		isWeekend,
 		localDay,
 		type Initiative,
 		type InitiativeDependency,
 		type StandingOf,
 	} from '$lib/initiatives/domain/initiative';
-	import { daysUntil, dueLabel, outcomesFor, planOrder } from '$lib/initiatives/domain/plan';
+	import {
+		daysUntil,
+		dueLabel,
+		outcomesFor,
+		planDays,
+		planOrder,
+	} from '$lib/initiatives/domain/plan';
 	import { repositoryWebUrl, type Repository } from '$shared/repositories/repositories.api';
 	import PlanOutcome from './PlanOutcome.svelte';
 	import PlanSyncStatus from './PlanSyncStatus.svelte';
 	import PlanSyncSwitch from './PlanSyncSwitch.svelte';
 	import ProgressRing from './ProgressRing.svelte';
 	import QuietField from './QuietField.svelte';
+	import { dayName, weekdayOf } from './rail-labels';
 
 	interface Props {
 		repository: Repository;
@@ -53,6 +62,7 @@
 	const ordered = $derived(planOrder(initiatives));
 	const shown = $derived(outcomesFor(size, ordered, today, standingOf));
 	const next = $derived(size === 'small' ? (shown[0] ?? null) : null);
+	const byDay = $derived(planDays(shown));
 
 	onMount(() => loadInitiativesCommand());
 
@@ -184,19 +194,57 @@
 			{/each}
 		</Button>
 	{:else}
-		<ScrollableDiv class="-mx-2 min-h-0 flex-1" fadeEdges ariaLabel="Outcomes">
-			{#each shown as initiative (initiative.id)}
-				<PlanOutcome
-					{initiative}
-					{standingOf}
-					{today}
-					{currentWorkstreamId}
-					open={isOpen(initiative)}
-					adding={adding === initiative.id}
-					ontoggle={() => toggle(initiative)}
-					onadding={(on) => (adding = on ? initiative.id : null)}
-					onstart={(dependency) => onstart(initiative, dependency)}
-				/>
+		<ScrollableDiv class="@container -mx-2 min-h-0 flex-1" fadeEdges ariaLabel="Outcomes">
+			{#each byDay as { day, outcomes } (day)}
+				{@const isToday = day === today}
+				{@const dim = day !== null && isWeekend(day)}
+				<div
+					class="grid pt-1 first:pt-0 @sm:grid-cols-[68px_minmax(0,1fr)]"
+					role="group"
+					aria-label={day ? dayName(day) : 'No date'}
+				>
+					<div class="flex h-6 items-center gap-1 px-2 @sm:h-7" aria-hidden="true">
+						{#if day}
+							<span
+								class={[
+									'text-3xs @sm:w-6',
+									isToday ? 'text-fg-default' : dim ? 'text-fg-quaternary' : 'text-fg-tertiary',
+								]}
+							>
+								{weekdayOf(day)}
+							</span>
+							<span
+								class={[
+									'h-5 rounded-md text-center text-xs leading-5 font-semibold tabular-nums @sm:min-w-6',
+									isToday
+										? 'bg-surface-invert text-fg-invert min-w-5 px-1'
+										: dim
+											? 'text-fg-quaternary'
+											: 'text-fg-default',
+								]}
+							>
+								{dateOf(day).getDate()}
+							</span>
+						{:else}
+							<span class="text-3xs text-fg-tertiary whitespace-nowrap">No date</span>
+						{/if}
+					</div>
+					<div class="min-w-0">
+						{#each outcomes as initiative (initiative.id)}
+							<PlanOutcome
+								{initiative}
+								{standingOf}
+								{today}
+								{currentWorkstreamId}
+								open={isOpen(initiative)}
+								adding={adding === initiative.id}
+								ontoggle={() => toggle(initiative)}
+								onadding={(on) => (adding = on ? initiative.id : null)}
+								onstart={(dependency) => onstart(initiative, dependency)}
+							/>
+						{/each}
+					</div>
+				</div>
 			{/each}
 			<div class="text-fg-quaternary flex h-7 items-center gap-2 px-2">
 				<Icon name="plus" size={12} class="shrink-0" />

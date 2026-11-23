@@ -62,6 +62,7 @@ export type MergeLink = Readonly<{
 
 type SyncRow = {
 	enabled: number;
+	home: string | null;
 	synced_at: string | null;
 	error: string | null;
 	people: string;
@@ -73,19 +74,18 @@ const INITIATIVE_SYNC_COLUMNS =
 const DEPENDENCY_SYNC_COLUMNS = `d.id, d.initiative_id, d.title, d.done, d.note, d.assignee,
 	d.github_issue, d.github_title, d.github_done, d.github_note`;
 
-export function planSync(
-	db: MaliniDatabase,
-	repositoryFullName: string,
-): Omit<PlanSync, 'private'> {
+export function planSync(db: MaliniDatabase, repositoryFullName: string): PlanSync {
 	const row = get<SyncRow>(
 		db,
-		'SELECT enabled, synced_at, error, people FROM initiative_syncs WHERE repository_full_name = ?',
+		`SELECT enabled, home, synced_at, error, people FROM initiative_syncs
+		 WHERE repository_full_name = ?`,
 		repositoryFullName,
 	);
 	const people = parseJsonColumn(row?.people ?? null);
 	return {
 		repositoryFullName,
 		enabled: intToBool(row?.enabled ?? 0),
+		home: row === null ? null : (row.home ?? repositoryFullName),
 		syncedAt: row?.synced_at ?? null,
 		error: row?.error ?? null,
 		people: Array.isArray(people)
@@ -102,13 +102,48 @@ export function setPlanSyncEnabled(
 	db: MaliniDatabase,
 	repositoryFullName: string,
 	enabled: boolean,
+	home?: string,
 ): void {
+	db.transaction(() => {
+		const previous = planSync(db, repositoryFullName).home;
+		if (home !== undefined && previous !== null && previous.toLowerCase() !== home.toLowerCase()) {
+			unlinkPlan(db, repositoryFullName);
+		}
+		run(
+			db,
+			`INSERT INTO initiative_syncs (repository_full_name, enabled, home) VALUES (?, ?, ?)
+			 ON CONFLICT (repository_full_name) DO UPDATE SET enabled = excluded.enabled, error = NULL,
+			 home = COALESCE(excluded.home, home)`,
+			repositoryFullName,
+			enabled,
+			home ?? null,
+		);
+	});
+}
+
+function unlinkPlan(db: MaliniDatabase, repositoryFullName: string): void {
 	run(
 		db,
-		`INSERT INTO initiative_syncs (repository_full_name, enabled) VALUES (?, ?)
-		 ON CONFLICT (repository_full_name) DO UPDATE SET enabled = excluded.enabled, error = NULL`,
+		`UPDATE initiatives SET github_milestone = NULL, github_title = NULL, github_due_on = NULL,
+		 github_note = NULL WHERE repository_full_name = ? COLLATE NOCASE`,
 		repositoryFullName,
-		enabled,
+	);
+	run(
+		db,
+		`UPDATE initiative_dependencies SET github_issue = NULL, github_title = NULL,
+		 github_done = NULL, github_note = NULL
+		 WHERE initiative_id IN (SELECT id FROM initiatives WHERE repository_full_name = ? COLLATE NOCASE)`,
+		repositoryFullName,
+	);
+	run(
+		db,
+		'DELETE FROM initiative_github_deletions WHERE repository_full_name = ?',
+		repositoryFullName,
+	);
+	run(
+		db,
+		`UPDATE initiative_syncs SET synced_at = NULL, people = '[]' WHERE repository_full_name = ?`,
+		repositoryFullName,
 	);
 }
 

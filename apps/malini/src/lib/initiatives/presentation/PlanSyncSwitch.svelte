@@ -13,25 +13,41 @@
 	let { repositoryFullName, compact }: Props = $props();
 
 	const LABEL = 'Sync with GitHub';
-	const WHAT_ON_DOES =
-		'Outcomes become milestones and dependencies become issues. Everyone with access to the repository sees them.';
-	const WHAT_OFF_DOES = 'Turning it off stops syncing. GitHub keeps what it has.';
 
 	const switchId = $props.id();
 
 	const sync = $derived(planSyncQuery.data(repositoryFullName));
+	const home = $derived(sync?.home ?? null);
+	const where = $derived(
+		home === repositoryFullName ? 'this private repository' : `the private ${home}`,
+	);
+	const whoSees = $derived(
+		home === repositoryFullName
+			? 'Only people with access to it see them.'
+			: `Malini invites the collaborators of ${repositoryFullName}, and nobody else sees them.`,
+	);
+	const whatOnDoes = $derived(
+		`Outcomes become milestones and dependencies become issues in ${where}. ${whoSees}`,
+	);
+	const whatOffDoes = $derived(
+		`Syncs with ${where}. Turning it off stops syncing, and GitHub keeps what it has.`,
+	);
 
 	function onchange(checked: boolean): void {
 		setPlanSyncCommand(repositoryFullName, checked);
 	}
 </script>
 
-{#if sync?.private && compact}
-	<Tooltip content={WHAT_ON_DOES} placement="top" class="flex min-w-0 items-center gap-2">
+{#if sync && home !== null && compact}
+	<Tooltip
+		content={sync.enabled ? whatOffDoes : whatOnDoes}
+		placement="top"
+		class="flex min-w-0 items-center gap-2"
+	>
 		<Switch id={switchId} size="sm" checked={sync.enabled} {onchange} />
 		<label for={switchId} class="min-w-0 cursor-pointer truncate">{LABEL}</label>
 	</Tooltip>
-{:else if sync?.private}
+{:else if sync && home !== null}
 	<div class="mb-5 flex items-start gap-3">
 		<div class="min-w-0 flex-1">
 			<label for={switchId} class="text-fg-default cursor-pointer text-sm font-medium">
@@ -42,7 +58,7 @@
 					<PlanSyncStatus {sync} />
 				</div>
 			{/if}
-			<p class="text-2xs text-fg-tertiary mt-1">{sync.enabled ? WHAT_OFF_DOES : WHAT_ON_DOES}</p>
+			<p class="text-2xs text-fg-tertiary mt-1">{sync.enabled ? whatOffDoes : whatOnDoes}</p>
 		</div>
 		<Switch id={switchId} size="sm" checked={sync.enabled} class="mt-0.5" {onchange} />
 	</div>
