@@ -1,7 +1,7 @@
 import type { PlanRemoteChange } from '$contract/initiatives';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
-import { describeError, GhError } from '$main/errors';
+import { describeError, GhError, isGhError } from '$main/errors';
 import { parseGhJson, type GhResult } from '$main/process/gh';
 import {
 	githubFullNameFromRemote,
@@ -510,7 +510,16 @@ export class PlanSyncService {
 
 	async #viewerOf(): Promise<Viewer | null> {
 		if (this.#viewer !== null) return this.#viewer;
-		const result = await this.#gh(['api', 'user', '--jq', '[.id, .login, .name // ""] | @tsv']);
+		const result = await this.#gh([
+			'api',
+			'user',
+			'--jq',
+			'[.id, .login, .name // ""] | @tsv',
+		]).catch((error: unknown) => {
+			if (isGhError(error, 'not-installed')) return null;
+			throw error;
+		});
+		if (result === null) return null;
 		const [id = '', login = '', name = ''] =
 			result.code === 0 ? result.stdout.trim().split('\t') : [];
 		if (!/^\d+$/u.test(id) || !isGithubLogin(login)) return null;
