@@ -211,13 +211,17 @@ export type AppUpdatedPayload = Readonly<{ from: string; to: string; changes: Co
 
 export type UpdateStagedPayload = Readonly<{ version: string }>;
 
+export type UpdateChange = Readonly<{ kind: 'feature' | 'fix' | 'perf'; summary: string }>;
+
+export type UpdateRelease = Readonly<{ version: string; changes: readonly UpdateChange[] }>;
+
 export type UpdateStatus = Readonly<
 	| { state: 'idle' }
 	| { state: 'checking' }
 	| { state: 'downloading'; version: string }
 	| { state: 'up-to-date'; version: string }
 	| { state: 'failed'; error: string }
-	| { state: 'ready'; version: string }
+	| { state: 'ready'; version: string; installed: string; releases: readonly UpdateRelease[] }
 >;
 
 export type AppStartedPayload = Readonly<{ version: string }>;

@@ -628,7 +628,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			facts: ['state', 'version'],
 			payloadType: 'UpdateStatus',
 			payload:
-				"type UpdateStatus = Readonly<\n\t| { state: 'idle' }\n\t| { state: 'checking' }\n\t| { state: 'downloading'; version: string }\n\t| { state: 'up-to-date'; version: string }\n\t| { state: 'failed'; error: string }\n\t| { state: 'ready'; version: string }\n>;",
+				"type UpdateChange = Readonly<{ kind: 'feature' | 'fix' | 'perf'; summary: string }>;\n\ntype UpdateRelease = Readonly<{ version: string; changes: readonly UpdateChange[] }>;\n\ntype UpdateStatus = Readonly<\n\t| { state: 'idle' }\n\t| { state: 'checking' }\n\t| { state: 'downloading'; version: string }\n\t| { state: 'up-to-date'; version: string }\n\t| { state: 'failed'; error: string }\n\t| { state: 'ready'; version: string; installed: string; releases: readonly UpdateRelease[] }\n>;",
 		},
 		{
 			channel: 'browser:state-changed',

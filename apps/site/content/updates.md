@@ -10,6 +10,8 @@ Updates download in the background and install when you quit.
 A download that makes no progress for 5 minutes stops, and the next check starts it again.
 The bottom of the sidebar is the one place that shows update status, and Malini never opens a dialog about an update.
 Once an update is ready, **Restart to update** there installs the newest release right away.
+Hover it for what changed since the version you run: every release you missed, up to the last ten, newest first, with its new features, fixes and speedups from the release notes.
+Chats that were running carry on after the restart.
 **Check for Updates…** in the app menu checks now, and the sidebar shows it checking, downloading, up to date, or failed with **Retry**, opening the sidebar if you had hidden it.
 
 Malini must run from an Applications folder to update itself; started anywhere else, it offers to move itself there.

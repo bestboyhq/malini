@@ -4,6 +4,7 @@ import {
 	clipboard,
 	ClipboardItem,
 	Menu,
+	nativeImage,
 	nativeTheme,
 	Notification,
 	safeStorage,
@@ -23,8 +24,13 @@ const LIVE_NOTIFICATION_LIMIT = 32;
 const liveNotifications = new Set<Notification>();
 
 let tray: Tray | null = null;
+let trayIcon = '';
 
 export type TrayItem = Readonly<{ label: string; click: () => void } | { type: 'separator' }>;
+
+function unreadChats(count: number): string {
+	return `${count} unread ${count === 1 ? 'chat' : 'chats'}`;
+}
 
 function holdUntilSettled(notification: Notification): void {
 	const release = (): void => {
@@ -53,7 +59,7 @@ export interface ShellHost {
 	showNotification(options: { title: string; body: string; onClick?: () => void }): void;
 	openMainWindow(): void;
 	showTray(icon: string, items: readonly TrayItem[], open: () => void): void;
-	showTrayCount(count: number): void;
+	showTrayCount(count: number, badge: Uint8Array | null): void;
 	showApplicationMenu(template: readonly MenuItemConstructorOptions[]): void;
 	onWindowCreated(listener: (window: BrowserWindow) => void): void;
 	onBeforeQuit(listener: () => void): void;
@@ -101,9 +107,15 @@ export function createElectronShellHost(): ShellHost {
 			shown.on('click', (event) => (event.ctrlKey ? popUpMenu() : open()));
 			shown.on('right-click', popUpMenu);
 			tray = shown;
+			trayIcon = icon;
 		},
-		showTrayCount: (count) => {
-			tray?.setTitle(count > 0 ? String(count) : '', { fontType: 'monospacedDigit' });
+		showTrayCount: (count, badge) => {
+			if (!tray) return;
+			const badged = badge && nativeImage.createFromBuffer(Buffer.from(badge), { scaleFactor: 2 });
+			const fits = badged && !badged.isEmpty() && badged.getSize().height === 18;
+			if (fits) badged.setTemplateImage(true);
+			tray.setImage(fits ? badged : trayIcon);
+			tray.setToolTip(count > 0 ? `${app.getName()}, ${unreadChats(count)}` : app.getName());
 		},
 		showApplicationMenu: (template) => {
 			app.setAboutPanelOptions(aboutPanel(app.getName(), app.getVersion()));

@@ -491,7 +491,7 @@ export type SetThemeModeArgs = Readonly<{ mode: ThemeMode }>;
 
 export type CloseGuardArgs = Readonly<{ armed: boolean }>;
 
-export type UnreadChatsArgs = Readonly<{ count: number }>;
+export type UnreadChatsArgs = Readonly<{ count: number; icon: Uint8Array | null }>;
 
 export type NotifyArgs = Readonly<{
 	options: Readonly<{ title: string; body: string; opens?: NotificationTarget }>;

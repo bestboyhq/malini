@@ -1352,13 +1352,17 @@ An automation sees: `state`, `version`
 Payload: `UpdateStatus`
 
 ```ts
+type UpdateChange = Readonly<{ kind: 'feature' | 'fix' | 'perf'; summary: string }>;
+
+type UpdateRelease = Readonly<{ version: string; changes: readonly UpdateChange[] }>;
+
 type UpdateStatus = Readonly<
 	| { state: 'idle' }
 	| { state: 'checking' }
 	| { state: 'downloading'; version: string }
 	| { state: 'up-to-date'; version: string }
 	| { state: 'failed'; error: string }
-	| { state: 'ready'; version: string }
+	| { state: 'ready'; version: string; installed: string; releases: readonly UpdateRelease[] }
 >;
 ```
 

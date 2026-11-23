@@ -90,7 +90,7 @@
 	</nav>
 
 	<h3 class="text-fg-tertiary px-4.5 pt-6 pb-2.5 text-xs font-medium">Your automations</h3>
-	<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Your automations">
+	<ScrollableDiv class="min-h-0 flex-1" fadeEdges ariaLabel="Your automations">
 		<ul class="flex flex-col gap-px px-2.5 pb-4">
 			{#each automations as automation (automation.id)}
 				{@const runs = runsFor(automation.id)}
