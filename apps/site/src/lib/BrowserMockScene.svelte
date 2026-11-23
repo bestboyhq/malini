@@ -543,7 +543,7 @@
 							<TextInput
 								type="url"
 								size="xs"
-								value="localhost:5173"
+								value="http://localhost:5173"
 								ariaLabel="Page address"
 								placeholder="Type a URL"
 								autocomplete="off"
