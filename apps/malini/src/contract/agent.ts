@@ -25,7 +25,7 @@ export function compactsOutput(setting: string | null | undefined): boolean {
 export const STE_REPLIES_SETTING = 'chat.ste-replies';
 
 export function writesSte(setting: string | null | undefined): boolean {
-	return setting === 'on';
+	return setting !== 'off';
 }
 
 export const CONTEXT_WINDOW_SETTING = 'chat.context-window';

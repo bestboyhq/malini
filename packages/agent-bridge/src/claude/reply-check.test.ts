@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { mayAskUser, replyFix } from './reply-check.js';
+import { mayAskUser, replyCheckInstructions, replyFix } from './reply-check.js';
+
+describe('replyCheckInstructions', () => {
+	it('checks STE only while the switch is on, and never sends a reply back for its length', () => {
+		expect(replyCheckInstructions(true)).toContain('The STE rule');
+		expect(replyCheckInstructions(true)).toContain('never ask the reply to drop content');
+		expect(replyCheckInstructions(false)).not.toContain('The STE rule');
+		for (const ste of [true, false]) {
+			expect(replyCheckInstructions(ste)).not.toContain('length rule');
+			expect(replyCheckInstructions(ste)).toContain('The question rule');
+		}
+	});
+});
 
 describe('replyFix', () => {
 	it('sends a reply back only with what to fix', () => {

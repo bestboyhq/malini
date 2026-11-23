@@ -947,7 +947,7 @@ export class ClaudeSession implements ProviderHandle {
 				SessionStart: [
 					{ matcher: 'compact', hooks: recordHooks(() => this.#context.requestHistory()) },
 				],
-				Stop: [{ hooks: [this.#checkReplyHook(steReplies, report !== 'high')] }],
+				Stop: [{ hooks: [this.#checkReplyHook(steReplies)] }],
 			},
 			...(compactWindow ? { settings: { autoCompactWindow: compactWindow } } : {}),
 			...maliniTools(
@@ -1166,13 +1166,13 @@ export class ClaudeSession implements ProviderHandle {
 		}, this.#outage.remainingMs).unref();
 	}
 
-	#checkReplyHook(ste: boolean, terse: boolean): HookCallback {
+	#checkReplyHook(ste: boolean): HookCallback {
 		return async (input, _toolUseId, { signal }) => {
 			const active = this.#active;
 			if (input.hook_event_name !== 'Stop' || input.stop_hook_active || !active) return {};
 			const reply = input.last_assistant_message?.trim();
 			if (!reply || !(ste || mayAskUser(reply))) return {};
-			const check = { request: active.request, reply, ste, terse };
+			const check = { request: active.request, reply, ste };
 			const fix = await this.#checkReply(check, signal).catch((error: unknown) => {
 				process.stderr.write(`[claude] could not check the reply: ${describe(error)}\n`);
 				return null;

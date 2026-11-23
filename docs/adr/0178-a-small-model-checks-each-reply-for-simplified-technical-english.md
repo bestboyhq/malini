@@ -1,6 +1,6 @@
 # 0178 - A small model checks each reply for Simplified Technical English
 
-Status: accepted
+Status: superseded by 0296
 
 ## Context
 

@@ -310,13 +310,16 @@ Once you pick one, the agent builds it into the real thing and removes what it r
 
 ### Plain replies
 
-**Settings → Models → Plain replies** has every agent write its replies in ASD-STE100 Simplified Technical English, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
-At the low and medium report resolutions, a reply also stays under 135 words, code, paths and the footer not counted.
+**Settings → Models → Plain replies** has every agent write its chat replies in ASD-STE100 Simplified Technical English, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
+It is on until you turn it off, and the next prompt of every chat follows the switch.
+It sets how an agent writes, never how much: the report resolution sets how long a report is.
+It covers chat replies only.
+Docs, copy, code comments, commit messages and pull requests the agent writes keep the style their project asks for.
 Before you see a reply, the provider's small model, Haiku on a Claude plan, reads it beside your prompt.
 A reply that breaks a rule goes back to the agent once, with what to fix, and you see only the rewrite.
-Ask for another style or length in a prompt, such as "in detail" or "reply casually", and that reply keeps it.
+The rewrite changes the words and keeps every fact.
+Ask for another style in a prompt, such as "reply casually", and that reply keeps it.
 A reply that passes waits a few seconds for the check; one that goes back costs a rewrite.
-It is off until you turn it on, and the next prompt of every chat follows it.
 
 ## The lid closed
 
