@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { worktreePageUrl } from '../../src/contract/browser';
 import {
 	APP_ROOT,
 	captureFlow,
@@ -144,14 +145,14 @@ test('the gutter counts the media in .context, and its gallery sorts, filters, p
 		await grid.getByRole('button', { name: /^proto\.html/u }).click();
 		await expect(gallery).toHaveCount(0);
 		const address = page.getByRole('textbox', { name: 'Page address' });
-		await expect(address).toHaveValue('./.context/proto.html');
+		await expect(address).toHaveValue(worktreePageUrl(seeded.workstreamId, '.context/proto.html'));
 
 		await page.getByRole('button', { name: 'Hide inspector' }).click();
 		await media.click();
 		await tabs.filter({ hasText: 'Documents' }).click();
 		await grid.getByRole('button', { name: /^notes\.md/u }).click();
 		await expect(gallery).toHaveCount(0);
-		await expect(address).toHaveValue('./.context/notes.md');
+		await expect(address).toHaveValue(worktreePageUrl(seeded.workstreamId, '.context/notes.md'));
 
 		placeInContext(worktree, 'review/later.png', readFixture('before.png'), 0);
 		await page.getByRole('button', { name: 'Hide inspector' }).click();
