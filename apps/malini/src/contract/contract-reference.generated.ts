@@ -835,5 +835,22 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload:
 				"const PLAN_REMOTE_CHANGE_KINDS = [\n\t'added',\n\t'renamed',\n\t'closed',\n\t'reopened',\n\t'dated',\n\t'removed',\n] as const;\n\ntype PlanRemoteChangeKind = (typeof PLAN_REMOTE_CHANGE_KINDS)[number];\n\ntype PlanRemoteChange = Readonly<{\n\tactor: string | null;\n\tkind: PlanRemoteChangeKind;\n\ttitle: string;\n}>;\n\ntype PlanSyncedEvent = Readonly<{\n\trepositoryFullName: string;\n\tchanges: readonly PlanRemoteChange[];\n}>;",
 		},
+		{
+			channel: 'initiatives:share-requested',
+			description:
+				'Fires when someone asks to share the plan of a repository you own, with the repository and the GitHub login of each person who asks.',
+			facts: ['repositoryFullName', 'people'],
+			payloadType: 'ShareRequest',
+			payload:
+				'type ShareRequest = Readonly<{ repositoryFullName: string; people: readonly string[] }>;',
+		},
+		{
+			channel: 'initiatives:share-accepted',
+			description:
+				"Fires when the owner you asked shares a repository's plan and Malini joins its private plan repository, with the repository and the owner's GitHub login.",
+			facts: ['repositoryFullName', 'owner'],
+			payloadType: 'ShareAcceptedEvent',
+			payload: 'type ShareAcceptedEvent = Readonly<{ repositoryFullName: string; owner: string }>;',
+		},
 	],
 };

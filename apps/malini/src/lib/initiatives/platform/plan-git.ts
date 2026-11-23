@@ -13,6 +13,7 @@ import {
 	runGitWithInput,
 } from '$main/git/run';
 import { AGENT_IDENTITY } from '$main/git/snapshots';
+import { isGithubLogin } from './github-plan';
 import { PLAN_FILE } from './plan-file';
 
 export type PlanClone = Readonly<{ path: string; url: string }>;
@@ -36,6 +37,8 @@ const NETWORK_CONFIG = [
 ];
 
 const AUTHORS_READ = 200;
+
+const SHARE_REQUESTS = 'refs/malini/plan-requests';
 
 export async function openPlanClone(appDataRoot: string, home: string): Promise<PlanClone> {
 	const [owner = '', name = ''] = home.toLowerCase().split('/');
@@ -109,9 +112,78 @@ export async function commitPlan(
 		['mktree', '-z'],
 		[...others, `100644 blob ${blob}\t${PLAN_FILE}`, ''].join('\0'),
 	);
-	const identity = author ?? AGENT_IDENTITY;
-	return git(
+	return commitTree(clone, tree, parent, message, author);
+}
+
+export async function askToShare(
+	clone: PlanClone,
+	source: string,
+	login: string,
+	author: CommitIdentity | null,
+): Promise<void> {
+	const tree = (await runGitWithInput(['-C', clone.path, 'mktree'], '')).trim();
+	const commit = await commitTree(clone, tree, null, 'Share the plan', author);
+	await pushRefs(clone.path, source, [`+${commit}:${SHARE_REQUESTS}/${login}`]);
+}
+
+export async function shareRequests(source: string): Promise<string[]> {
+	const env = await noPromptCredentialEnv.prepare(null);
+	const listed = await runGit(
+		[...NETWORK_CONFIG, 'ls-remote', canonicalGithubHttpsUrl(source), `${SHARE_REQUESTS}/*`],
+		env,
+	);
+	return listed.split('\n').flatMap((line) => {
+		const login = line.split('\t')[1]?.slice(SHARE_REQUESTS.length + 1) ?? '';
+		return isGithubLogin(login) ? [login] : [];
+	});
+}
+
+export async function clearShareRequests(
+	clone: PlanClone,
+	source: string,
+	logins: readonly string[],
+): Promise<void> {
+	if (logins.length === 0) return;
+	await pushRefs(
+		clone.path,
+		source,
+		logins.map((login) => `:${SHARE_REQUESTS}/${login}`),
+	);
+}
+
+async function pushRefs(
+	path: string,
+	repository: string,
+	refspecs: readonly string[],
+): Promise<void> {
+	const env = await noPromptCredentialEnv.prepare(null);
+	await runGit(
 		[
+			'-C',
+			path,
+			...NETWORK_CONFIG,
+			'push',
+			'-q',
+			'--no-verify',
+			canonicalGithubHttpsUrl(repository),
+			...refspecs,
+		],
+		env,
+	);
+}
+
+async function commitTree(
+	clone: PlanClone,
+	tree: string,
+	parent: string | null,
+	message: string,
+	author: CommitIdentity | null,
+): Promise<string> {
+	const identity = author ?? AGENT_IDENTITY;
+	const commit = await runGitWithInput(
+		[
+			'-C',
+			clone.path,
 			'-c',
 			`user.name=${identity.name}`,
 			'-c',
@@ -126,6 +198,7 @@ export async function commitPlan(
 		],
 		message,
 	);
+	return commit.trim();
 }
 
 export async function pushPlan(clone: PlanClone, commit: string): Promise<boolean> {

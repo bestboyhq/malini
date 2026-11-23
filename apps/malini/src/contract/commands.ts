@@ -107,10 +107,12 @@ import type {
 	PlanSync,
 	PlanSyncArgs,
 	SetPlanSyncArgs,
+	ShareRequest,
 	UpdateInitiativeArgs,
 	UpdateInitiativeDependencyArgs,
 } from './initiatives';
 import type {
+	PinPlanWidgetArgs,
 	PlaceWidgetArgs,
 	ResizeWidgetArgs,
 	WatchWidgetsArgs,
@@ -709,6 +711,8 @@ export interface ContractCommands {
 	'initiatives.sync-state': { args: PlanSyncArgs; result: PlanSync };
 	'initiatives.set-sync': { args: SetPlanSyncArgs; result: PlanSync };
 	'initiatives.sync': { args: PlanSyncArgs; result: Initiative[] };
+	'initiatives.share-requests': { args: undefined; result: ShareRequest[] };
+	'initiatives.dismiss-share-request': { args: PlanSyncArgs; result: void };
 	'widgets.board': { args: WidgetBoardArgs; result: WidgetBoard };
 	'widgets.place': { args: PlaceWidgetArgs; result: WidgetBoard };
 	'widgets.resize': { args: ResizeWidgetArgs; result: WidgetBoard };
@@ -716,6 +720,7 @@ export interface ContractCommands {
 	'widgets.hide': { args: WidgetArgs; result: WidgetBoard };
 	'widgets.refresh': { args: WidgetArgs; result: WidgetReading };
 	'widgets.watch': { args: WatchWidgetsArgs; result: void };
+	'widgets.pin-plan': { args: PinPlanWidgetArgs; result: void };
 	'brain.status': { args: undefined; result: BrainStatus };
 	'brain.set-up': { args: SetUpBrainArgs; result: BrainStatus };
 	'brain.set-sync': { args: SetBrainSyncArgs; result: BrainStatus };
@@ -1060,6 +1065,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'initiatives.sync-state',
 	'initiatives.set-sync',
 	'initiatives.sync',
+	'initiatives.share-requests',
+	'initiatives.dismiss-share-request',
 	'widgets.board',
 	'widgets.place',
 	'widgets.resize',
@@ -1067,6 +1074,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'widgets.hide',
 	'widgets.refresh',
 	'widgets.watch',
+	'widgets.pin-plan',
 	'brain.status',
 	'brain.set-up',
 	'brain.set-sync',

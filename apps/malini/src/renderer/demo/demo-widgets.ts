@@ -240,6 +240,9 @@ export const widgetHandlers = (emit: DemoEmit): DemoHandlers => ({
 		syncedAt: minutesAgo(0.05),
 		error: null,
 		people: [OWNER],
+		waitingFor: null,
+		requestedBy: [],
 	}),
 	'initiatives.sync': () => [...PLAN],
+	'initiatives.share-requests': () => [],
 });

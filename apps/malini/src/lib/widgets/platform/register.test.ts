@@ -197,6 +197,31 @@ describe('widget files', () => {
 		expect((await board()).placements).toEqual([]);
 	});
 
+	it('pins the plan before the other widgets of a repository board, once', async () => {
+		const pin = (repositoryFullName: string) =>
+			context.commands.call('widgets.pin-plan', { repositoryFullName });
+		const order = async () =>
+			(await board()).placements.map(({ widgetId, span }) => [widgetId, span]);
+		widgetFile('deploy', DEPLOY);
+		await context.commands.call('widgets.hide', { workstreamId: WORKSTREAM, widgetId: 'plan' });
+		await place('deploy');
+		await pin('bestboyhq/malini');
+		expect(await order()).toEqual([
+			['plan', { columns: 12, rows: 2 }],
+			['deploy', { columns: 1, rows: 1 }],
+		]);
+		expect((await board()).hidden).toEqual([]);
+		await place('plan', 1);
+		await pin('bestboyhq/malini');
+		expect(await order()).toEqual([
+			['deploy', { columns: 1, rows: 1 }],
+			['plan', { columns: 12, rows: 2 }],
+		]);
+		await expect(
+			call('widgets.pin-plan', { repositoryFullName: 'not a repository' }),
+		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('repositoryFullName') });
+	});
+
 	it('places, moves, resizes and hides widgets, and refuses bad arguments', async () => {
 		widgetFile('deploy', DEPLOY);
 		widgetFile('rooms', { title: 'Rooms', source: { command: 'true' }, size: 'medium' });

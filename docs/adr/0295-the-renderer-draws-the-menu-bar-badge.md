@@ -1,4 +1,4 @@
-# 0294 - The renderer draws the menu bar badge
+# 0295 - The renderer draws the menu bar badge
 
 Status: accepted
 

@@ -19,7 +19,7 @@ import type {
 	TimeReachedEvent,
 } from './automations';
 import type { McpServerListing, McpServerReport } from './mcp-servers';
-import type { PlanSyncedEvent } from './initiatives';
+import type { PlanSyncedEvent, ShareAcceptedEvent, ShareRequest } from './initiatives';
 import type { WidgetBoardChangedEvent, WidgetReading } from './widgets';
 import type {
 	PullRequestChangedEvent,
@@ -304,6 +304,8 @@ export interface ContractEvents {
 	'widgets:board-changed': WidgetBoardChangedEvent;
 	'widgets:reading-changed': WidgetReading;
 	'initiatives:synced': PlanSyncedEvent;
+	'initiatives:share-requested': ShareRequest;
+	'initiatives:share-accepted': ShareAcceptedEvent;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -380,6 +382,8 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'widgets:board-changed': null,
 	'widgets:reading-changed': null,
 	'initiatives:synced': null,
+	'initiatives:share-requested': null,
+	'initiatives:share-accepted': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {

@@ -181,7 +181,8 @@ test('a shared plan lands as one file in its private plan repository and says wh
 		const checkout = initiatives.getByRole('checkbox', { name: CHECKOUT });
 		await expect(checkout).not.toBeChecked();
 
-		const sync = main.getByRole('switch', { name: 'Share internally' });
+		const bar = page.getByTestId('repository-bar');
+		const sync = bar.getByRole('switch', { name: 'Share internally' });
 		await expect(sync).not.toBeChecked();
 		await sync.click();
 		await expect(sync).toBeChecked();
@@ -193,7 +194,8 @@ test('a shared plan lands as one file in its private plan repository and says wh
 					dependencies: [expect.objectContaining({ title: CHECKOUT, done: false })],
 				}),
 			]);
-		await expect(main.getByText(/^Shared /u)).toBeVisible();
+		await bar.getByText('Share internally').hover();
+		await expect(page.getByRole('tooltip').getByText(/^Shared /u)).toBeVisible();
 
 		github.editPlan(
 			(plan) => ({
@@ -239,10 +241,17 @@ test('a plan in a public repository syncs only to a private plan repository its 
 		await expect(
 			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
 		).toBeFocused();
-		await expect(main.getByText(`Private repo ${PLAN_REPOSITORY}`)).toBeVisible();
-		await expect(main.getByText('Only collaborators of e2e/hutch see it')).toBeVisible();
+		const bar = page.getByTestId('repository-bar');
+		const tooltip = page.getByRole('tooltip');
+		await bar.getByText('Share internally').hover();
+		await expect(
+			tooltip.getByText(`Private repo ${PLAN_REPOSITORY}, as one plain file`, { exact: true }),
+		).toBeVisible();
+		await expect(
+			tooltip.getByText('Only collaborators of e2e/hutch see it', { exact: true }),
+		).toBeVisible();
 
-		const sync = main.getByRole('switch', { name: 'Share internally' });
+		const sync = bar.getByRole('switch', { name: 'Share internally' });
 		await sync.click();
 		await expect(sync).toBeChecked();
 		await expect
@@ -252,8 +261,10 @@ test('a plan in a public repository syncs only to a private plan repository its 
 			private: true,
 			invited: { robin: 'push' },
 		});
+		await main.hover();
+		await bar.getByText('Share internally').hover();
 		await expect(
-			main.getByText(`Private repo ${PLAN_REPOSITORY}. Only collaborators`),
+			tooltip.getByText(`Private repo ${PLAN_REPOSITORY}`, { exact: true }),
 		).toBeVisible();
 		await captureFlow(app, 'initiatives-public-plan-repository');
 		expectCleanConsole(app);
@@ -316,6 +327,46 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 
 		await plan.getByRole('link', { name: 'Plan', exact: true }).click();
 		await expect(page.getByRole('main').getByRole('region', { name: 'Initiatives' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a teammate asks to share the plan, and Share in the toast makes its private plan repository and pins the Plan', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-ask', null);
+		await openWorkstream(page, 'e2e-plan-ask');
+		const board = page.getByRole('region', { name: 'Widgets' });
+		const plan = board.getByRole('article', { name: 'Plan, Large' });
+		await expect(plan).toBeVisible({ timeout: 20_000 });
+		await board.getByRole('button', { name: 'Options for Plan' }).click();
+		await page.getByRole('menu').getByRole('menuitem', { name: 'Remove' }).click();
+		await expect(plan).toHaveCount(0);
+
+		github.askToShare('robin');
+		await page.reload();
+		const toast = toastSaying(
+			page,
+			'robin wants to share a plan. Only collaborators of e2e/hutch see it',
+		);
+		await expect(toast).toBeVisible({ timeout: 20_000 });
+		await captureFlow(app, 'plan-share-ask-toast');
+		await toast.getByRole('button', { name: 'Share' }).click();
+
+		await expect(plan).toBeVisible({ timeout: 20_000 });
+		await expect(plan.getByRole('switch', { name: 'Share internally' })).toBeChecked();
+		await expect
+			.poll(() => github.repository(PLAN_REPOSITORY), { timeout: 20_000 })
+			.toEqual({
+				private: true,
+				invited: { robin: 'push' },
+			});
+		await expect.poll(() => github.shareAsks()).toEqual([]);
+		await expect(toast).toHaveCount(0);
+		await captureFlow(app, 'plan-share-ask');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
