@@ -1,17 +1,23 @@
-import { isWidgetSize, parseWidgetData, type WidgetData, type WidgetSize } from '$contract/widgets';
+import {
+	WIDGET_SIZE_SPANS,
+	isWidgetSpan,
+	parseWidgetData,
+	type WidgetData,
+	type WidgetSpan,
+} from '$contract/widgets';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, column, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 
 export type StoredPlacement = Readonly<{
 	widgetId: string;
-	size: WidgetSize;
+	span: WidgetSpan;
 	approvedFingerprint: string | null;
 }>;
 
 export type Placing = Readonly<{
 	widgetId: string;
 	before: string | null;
-	size: WidgetSize;
+	span: WidgetSpan;
 	approvedFingerprint: string;
 }>;
 
@@ -23,7 +29,12 @@ export type StoredReading = Readonly<{
 	attemptedAt: string | null;
 }>;
 
-type PlacementRow = { widget_id: string; size: string; approved_fingerprint: string | null };
+type PlacementRow = {
+	widget_id: string;
+	span_columns: number;
+	span_rows: number;
+	approved_fingerprint: string | null;
+};
 
 type ReadingRow = {
 	fingerprint: string;
@@ -47,18 +58,18 @@ export function startBoard(db: MaliniDatabase, board: string): boolean {
 export function listPlacements(db: MaliniDatabase, board: string): StoredPlacement[] {
 	return all<PlacementRow>(
 		db,
-		`SELECT widget_id, size, approved_fingerprint FROM widget_placements
+		`SELECT widget_id, span_columns, span_rows, approved_fingerprint FROM widget_placements
 		 WHERE board = ? ORDER BY position, placed_at`,
 		board,
 	).map((row) => ({
 		widgetId: row.widget_id,
-		size: isWidgetSize(row.size) ? row.size : 'small',
+		span: storedSpan(row),
 		approvedFingerprint: row.approved_fingerprint,
 	}));
 }
 
 export function placeWidget(db: MaliniDatabase, board: string, placing: Placing): void {
-	const { widgetId, before, size, approvedFingerprint } = placing;
+	const { widgetId, before, span, approvedFingerprint } = placing;
 	db.transaction(() => {
 		const order = listPlacements(db, board)
 			.map((placement) => placement.widgetId)
@@ -68,15 +79,17 @@ export function placeWidget(db: MaliniDatabase, board: string, placing: Placing)
 		run(
 			db,
 			`INSERT INTO widget_placements
-			   (board, widget_id, position, size, approved_fingerprint, placed_at)
-			 VALUES (?, ?, ?, ?, ?, ?)
+			   (board, widget_id, position, span_columns, span_rows, approved_fingerprint, placed_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(board, widget_id) DO UPDATE SET
-			   size = excluded.size,
+			   span_columns = excluded.span_columns,
+			   span_rows = excluded.span_rows,
 			   approved_fingerprint = excluded.approved_fingerprint`,
 			board,
 			widgetId,
 			order.length,
-			size,
+			span.columns,
+			span.rows,
 			approvedFingerprint,
 			nowIso8601(),
 		);
@@ -97,17 +110,23 @@ export function resizePlacement(
 	db: MaliniDatabase,
 	board: string,
 	widgetId: string,
-	size: WidgetSize,
+	span: WidgetSpan,
 ): boolean {
 	return (
 		run(
 			db,
-			'UPDATE widget_placements SET size = ? WHERE board = ? AND widget_id = ?',
-			size,
+			'UPDATE widget_placements SET span_columns = ?, span_rows = ? WHERE board = ? AND widget_id = ?',
+			span.columns,
+			span.rows,
 			board,
 			widgetId,
 		).changes > 0
 	);
+}
+
+function storedSpan(row: PlacementRow): WidgetSpan {
+	const span = { columns: row.span_columns, rows: row.span_rows };
+	return isWidgetSpan(span) ? span : WIDGET_SIZE_SPANS.small;
 }
 
 export function removePlacement(db: MaliniDatabase, board: string, widgetId: string): void {

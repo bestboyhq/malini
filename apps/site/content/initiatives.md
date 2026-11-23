@@ -53,10 +53,19 @@ Malini reads each workstream's state live, the way a chat's **Workstreams** card
 An initiative counts its finished dependencies, and it is finished once all of them are done.
 A finished initiative leaves the rail once its day has passed.
 
-## Sync with GitHub
+## Share internally
 
-A plan lives on your Mac until you turn on **Sync with GitHub**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
-Sync is per repository and off until you turn it on.
+A plan lives on your Mac until you turn on **Share internally**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
+Sharing is per repository and off until you turn it on.
+A plan only ever goes to a private repository:
+
+- A private repository holds its own plan.
+- A public repository's plan goes to a private repository beside it, named after it with `-malini-plan`, such as `acme/web-malini-plan`.
+  Turning sharing on makes it when it is not there yet, and invites the public repository's collaborators with the access they have there.
+  Nobody else sees it.
+  In a repository of another person's account, only they can make it.
+
+In that private repository:
 
 - Each outcome becomes a milestone, with its day as the due date and its note as the description.
 - Each dependency becomes an issue in that milestone, with its note as the body, and a closed issue means done.
@@ -67,10 +76,12 @@ Sync is per repository and off until you turn it on.
 
 Malini reads GitHub every 30 seconds while the plan is on screen, and writes after each edit.
 A change someone else made shows as a line at the bottom of the window, such as who closed which issue.
-Everyone with access to the repository sees the milestones and issues, people without Malini included.
+Everyone with access to that private repository sees the milestones and issues, people without Malini included.
+Malini checks that it is still private before each sync, and turns sharing off once it is public.
+Someone added to a public repository later gets their invitation the next time sharing turns on.
 The scratchpad stays on your Mac.
 
-Turning sync off stops it and leaves GitHub as it is.
+Turning sharing off stops it and leaves GitHub as it is.
 
 ## Notes
 

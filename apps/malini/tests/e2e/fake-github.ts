@@ -26,6 +26,11 @@ export interface FakePlan {
 	readonly events?: Readonly<Record<string, readonly Record<string, unknown>[]>>;
 }
 
+export interface FakeRepository {
+	readonly private: boolean;
+	readonly invited: Readonly<Record<string, string>>;
+}
+
 export interface FakeReviewComment {
 	readonly body: string;
 	readonly author?: string;
@@ -52,9 +57,11 @@ export interface FakeGithub {
 	setOffline(offline: boolean): void;
 	answerWith(stderr: string | null): void;
 	approveDevice(): void;
-	plan(): FakePlan;
+	plan(repository?: string): FakePlan;
 	setPlan(plan: FakePlan): void;
 	answerGet(path: string, output: unknown): void;
+	makePublic(): void;
+	repository(name: string): FakeRepository | null;
 }
 
 export interface PullRequestWorkstream {
@@ -321,12 +328,24 @@ async function fakeGithubFor(
 		answerWith: (stderr) =>
 			stderr === null ? rmSync(failure, { force: true }) : writeFileSync(failure, stderr),
 		approveDevice: () => writeFileSync(join(state, 'device-approved'), ''),
-		plan: () => readPlan(state),
+		plan: (repository = REPOSITORY) => readPlan(state, repository),
 		setPlan: (plan) => writeAtomically(join(state, 'plan.json'), JSON.stringify(plan)),
 		answerGet: (path, output) => {
 			const file = join(state, 'get-answers.json');
 			const answers: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 			writeAtomically(file, JSON.stringify({ ...Object(answers), [path]: output }));
+		},
+		makePublic: () => writeFileSync(join(state, 'public'), ''),
+		repository: (name) => {
+			const file = join(state, 'repositories.json');
+			const created: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+			const found: unknown = Object(created)[name];
+			return typeof found === 'object' && found !== null
+				? {
+						private: Reflect.get(found, 'private') === true,
+						invited: { ...Reflect.get(found, 'invited') },
+					}
+				: null;
 		},
 	};
 }
@@ -335,8 +354,12 @@ function revParse(repo: string, ...args: string[]): string {
 	return execFileSync('git', ['-C', repo, 'rev-parse', ...args], { encoding: 'utf8' }).trim();
 }
 
-function readPlan(state: string): FakePlan {
-	const file = join(state, 'plan.json');
+function planFile(repository: string): string {
+	return repository === REPOSITORY ? 'plan.json' : `plan-${repository.replace('/', '__')}.json`;
+}
+
+function readPlan(state: string, repository: string): FakePlan {
+	const file = join(state, planFile(repository));
 	const parsed: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 	const records = (key: string): Record<string, unknown>[] => {
 		const value: unknown =
@@ -418,6 +441,21 @@ const flag = (name) => {
 const out = (value) =>
 	process.stdout.write(typeof value === 'string' ? value : JSON.stringify(value));
 const [command, sub, third] = args;
+const field = (key) => {
+	const arg = args.find((candidate, index) => (args[index - 1] === '-f' || args[index - 1] === '-F') && candidate.startsWith(key + '='));
+	return arg === undefined ? undefined : arg.slice(key.length + 1);
+};
+const repositoriesFile = path.join(state, 'repositories.json');
+const repositories = () =>
+	fs.existsSync(repositoriesFile) ? JSON.parse(fs.readFileSync(repositoriesFile, 'utf8')) : {};
+const saveRepositories = (next) => {
+	fs.writeFileSync(repositoriesFile + '.tmp', JSON.stringify(next));
+	fs.renameSync(repositoriesFile + '.tmp', repositoriesFile);
+};
+const fakeRepository = (name) =>
+	name === ${JSON.stringify(REPOSITORY)}
+		? { private: !fs.existsSync(path.join(state, 'public')), invited: {} }
+		: repositories()[name];
 const failure = path.join(state, 'github-failure');
 if (command !== 'auth' && fs.existsSync(failure)) {
 	process.stderr.write(fs.readFileSync(failure, 'utf8'));
@@ -449,8 +487,35 @@ if (command === 'auth' && sub === 'status') {
 	out(args.some((arg) => arg.startsWith('[.id')) ? '4242\\te2e-user\\tE2E Chef\\n' : 'e2e-user\\n');
 } else if (command === 'api' && sub.startsWith('user/repos')) {
 	out('[]');
+} else if (command === 'api' && flag('-X') === 'POST' && /^orgs\\/[^/]+\\/repos$/u.test(sub)) {
+	const name = sub.split('/')[1] + '/' + field('name');
+	saveRepositories({ ...repositories(), [name]: { private: field('private') === 'true', invited: {} } });
+	out({ full_name: name });
+} else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+$/u.test(sub) && args.length === 2) {
+	const found = fakeRepository(sub.slice('repos/'.length));
+	if (!found) {
+		process.stderr.write('gh: Not Found (HTTP 404)\\n');
+		process.exit(1);
+	}
+	out({ private: found.private, owner: { type: 'Organization' } });
+} else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+\\/(collaborators|invitations)/u.test(sub)) {
+	const [, owner, name, collection, login] = sub.split('?')[0].split('/');
+	const repository = owner + '/' + name;
+	const found = fakeRepository(repository) || { invited: {} };
+	if (flag('-X') === 'PUT') {
+		const all = repositories();
+		all[repository].invited[login] = field('permission');
+		saveRepositories(all);
+		out({});
+	} else if (collection === 'invitations') {
+		out(Object.keys(found.invited).map((invitee) => ({ invitee: { login: invitee } })));
+	} else {
+		const people = { 'e2e-user': { admin: true }, ...(repository === ${JSON.stringify(REPOSITORY)} ? { aleksander: { push: true } } : {}) };
+		out(Object.entries(people).map(([person, permissions]) => ({ login: person, permissions })));
+	}
 } else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+\\/(milestones|issues)/u.test(sub)) {
-	const planFile = path.join(state, 'plan.json');
+	const [, planOwner, planName] = sub.split('?')[0].split('/');
+	const planFile = path.join(state, planOwner + '/' + planName === ${JSON.stringify(REPOSITORY)} ? 'plan.json' : 'plan-' + planOwner + '__' + planName + '.json');
 	const plan = fs.existsSync(planFile)
 		? JSON.parse(fs.readFileSync(planFile, 'utf8'))
 		: { milestones: [], issues: [] };

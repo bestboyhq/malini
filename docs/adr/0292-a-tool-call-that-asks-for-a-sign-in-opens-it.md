@@ -1,4 +1,4 @@
-# 0290 - A tool call that asks for a sign-in opens it
+# 0292 - A tool call that asks for a sign-in opens it
 
 Status: accepted
 

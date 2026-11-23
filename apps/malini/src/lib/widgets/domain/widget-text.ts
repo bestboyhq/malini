@@ -1,4 +1,5 @@
-import type { WidgetDefinition, WidgetSize, WidgetState } from '$contract/widgets';
+import type { WidgetDefinition, WidgetSize, WidgetSpan, WidgetState } from '$contract/widgets';
+import { presetOf, shownSpan } from './widget-grid';
 
 export const WIDGET_SIZE_NAMES: Readonly<Record<WidgetSize, string>> = {
 	small: 'Small',
@@ -44,8 +45,11 @@ export function sourceLine({ source }: WidgetDefinition): string {
 	}
 }
 
-export function tileName(widget: WidgetDefinition, size: WidgetSize): string {
-	return `${widget.title}, ${WIDGET_SIZE_NAMES[size]}`;
+export function tileName(widget: WidgetDefinition, span: WidgetSpan, columns: number): string {
+	const preset = presetOf(span, columns);
+	const shown = shownSpan(span, columns);
+	const size = preset === null ? `${shown.columns} by ${shown.rows}` : WIDGET_SIZE_NAMES[preset];
+	return `${widget.title}, ${size}`;
 }
 
 export function widgetValue(value: number | string): string {

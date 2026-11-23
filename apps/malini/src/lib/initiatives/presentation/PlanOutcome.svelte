@@ -103,10 +103,10 @@
 			<span
 				class={[
 					'text-3xs col-start-1 row-start-1 whitespace-nowrap transition-opacity duration-100 group-focus-within/outcome:opacity-0 group-hover/outcome:opacity-0 motion-reduce:transition-none',
-					due.late ? 'text-error-content' : 'text-fg-tertiary',
+					'text-error-content',
 				]}
 			>
-				{due.text}
+				{#if due.late}{due.text}{/if}
 			</span>
 			<span
 				class="col-start-1 row-start-1 flex items-center opacity-0 transition-opacity duration-100 group-focus-within/outcome:opacity-100 group-hover/outcome:opacity-100 motion-reduce:transition-none"
@@ -158,7 +158,7 @@
 		/>
 	{/each}
 	{#if adding}
-		<div class="flex h-[26px] items-center pl-[30px]">
+		<div class="ml-3 flex h-[26px] items-center pl-[30px]">
 			<QuietField
 				label={`Add a dependency to ${initiative.title}`}
 				placeholder="Add a dependency"

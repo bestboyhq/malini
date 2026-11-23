@@ -22,12 +22,60 @@ export type RemoteIssue = Readonly<{
 	people: readonly string[];
 }>;
 
+const ACCESS = ['pull', 'triage', 'push', 'maintain', 'admin'] as const;
+
+export type GithubAccess = (typeof ACCESS)[number];
+
+export type Grant = Readonly<{ login: string; access: GithubAccess }>;
+
+const PLAN_REPOSITORY_SUFFIX = '-malini-plan';
+
 const GITHUB_REPOSITORY = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/u;
 
 const DUE_DAY = /^\d{4}-\d{2}-\d{2}/u;
 
 export function isGithubRepository(fullName: string): boolean {
 	return GITHUB_REPOSITORY.test(fullName) && !fullName.endsWith('/..') && !fullName.endsWith('/.');
+}
+
+export function planRepositoryOf(repositoryFullName: string): string {
+	return `${repositoryFullName}${PLAN_REPOSITORY_SUFFIX}`;
+}
+
+export function collaboratorAccess(raw: readonly unknown[]): Map<string, GithubAccess> {
+	return new Map(
+		raw.flatMap((item) => {
+			const name = login(item);
+			const permissions = isRecord(item) ? item['permissions'] : undefined;
+			const access = isRecord(permissions)
+				? [...ACCESS].reverse().find((level) => permissions[level] === true)
+				: undefined;
+			return name === null || access === undefined ? [] : [[name, access] as const];
+		}),
+	);
+}
+
+export function invitees(raw: readonly unknown[]): string[] {
+	return raw.flatMap((item) => {
+		const name = isRecord(item) ? login(item['invitee']) : null;
+		return name === null ? [] : [name];
+	});
+}
+
+export function accessToGrant(
+	source: ReadonlyMap<string, GithubAccess>,
+	plan: ReadonlyMap<string, GithubAccess>,
+	pending: readonly string[],
+	viewer: string | null,
+): Grant[] {
+	const rank = (access: GithubAccess | undefined): number =>
+		access === undefined ? -1 : ACCESS.indexOf(access);
+	return [...source]
+		.filter(
+			([name, access]) =>
+				name !== viewer && !pending.includes(name) && rank(plan.get(name)) < rank(access),
+		)
+		.map(([name, access]) => ({ login: name, access }));
 }
 
 export function remoteMilestones(raw: readonly unknown[]): RemoteMilestone[] {
