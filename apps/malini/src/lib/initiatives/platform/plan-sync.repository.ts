@@ -1,58 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import type { PlanSync } from '$contract/initiatives';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, intToBool, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
-
-export type GithubDeletionKind = 'milestone' | 'issue';
-
-export type GithubDeletion = Readonly<{ kind: GithubDeletionKind; number: number }>;
-
-export type SyncedInitiative = Readonly<{
-	id: string;
-	title: string;
-	due_on: string | null;
-	note: string | null;
-	github_milestone: number | null;
-	github_title: string | null;
-	github_due_on: string | null;
-	github_note: string | null;
-}>;
-
-export type SyncedDependency = Readonly<{
-	id: string;
-	initiative_id: string;
-	title: string;
-	done: number;
-	note: string | null;
-	assignee: string | null;
-	github_issue: number | null;
-	github_title: string | null;
-	github_done: number | null;
-	github_note: string | null;
-}>;
-
-export type InitiativeValues = Readonly<{
-	title: string;
-	dueOn: string | null;
-	note: string | null;
-}>;
-
-export type MilestoneBase = Readonly<{
-	number: number;
-	title: string;
-	dueOn: string | null;
-	note: string;
-}>;
-
-export type DependencyValues = Readonly<{
-	initiativeId: string;
-	title: string;
-	done: boolean;
-	note: string | null;
-	assignee: string | null;
-}>;
-
-export type IssueBase = Readonly<{ number: number; title: string; done: boolean; note: string }>;
+import { canonicalNote, type SharedDependency, type SharedPlan } from './plan-file';
 
 export type MergeLink = Readonly<{
 	dependency_id: string;
@@ -64,28 +13,36 @@ type SyncRow = {
 	enabled: number;
 	home: string | null;
 	synced_at: string | null;
+	synced_commit: string | null;
 	error: string | null;
 	people: string;
 };
 
-const INITIATIVE_SYNC_COLUMNS =
-	'id, title, due_on, note, github_milestone, github_title, github_due_on, github_note';
+type OutcomeRow = {
+	id: string;
+	title: string;
+	due_on: string | null;
+	note: string | null;
+	created_at: string;
+};
 
-const DEPENDENCY_SYNC_COLUMNS = `d.id, d.initiative_id, d.title, d.done, d.note, d.assignee,
-	d.github_issue, d.github_title, d.github_done, d.github_note`;
+type DependencyRow = {
+	id: string;
+	initiative_id: string;
+	title: string;
+	done: number;
+	note: string | null;
+	assignee: string | null;
+	position: number;
+};
 
 export function planSync(db: MaliniDatabase, repositoryFullName: string): PlanSync {
-	const row = get<SyncRow>(
-		db,
-		`SELECT enabled, home, synced_at, error, people FROM initiative_syncs
-		 WHERE repository_full_name = ?`,
-		repositoryFullName,
-	);
+	const row = syncRow(db, repositoryFullName);
 	const people = parseJsonColumn(row?.people ?? null);
 	return {
 		repositoryFullName,
 		enabled: intToBool(row?.enabled ?? 0),
-		home: row === null ? null : (row.home ?? repositoryFullName),
+		home: row?.home ?? null,
 		syncedAt: row?.synced_at ?? null,
 		error: row?.error ?? null,
 		people: Array.isArray(people)
@@ -98,6 +55,10 @@ export function isPlanSyncEnabled(db: MaliniDatabase, repositoryFullName: string
 	return planSync(db, repositoryFullName).enabled;
 }
 
+export function syncedCommit(db: MaliniDatabase, repositoryFullName: string): string | null {
+	return syncRow(db, repositoryFullName)?.synced_commit ?? null;
+}
+
 export function setPlanSyncEnabled(
 	db: MaliniDatabase,
 	repositoryFullName: string,
@@ -106,9 +67,6 @@ export function setPlanSyncEnabled(
 ): void {
 	db.transaction(() => {
 		const previous = planSync(db, repositoryFullName).home;
-		if (home !== undefined && previous !== null && previous.toLowerCase() !== home.toLowerCase()) {
-			unlinkPlan(db, repositoryFullName);
-		}
 		run(
 			db,
 			`INSERT INTO initiative_syncs (repository_full_name, enabled, home) VALUES (?, ?, ?)
@@ -118,31 +76,26 @@ export function setPlanSyncEnabled(
 			enabled,
 			home ?? null,
 		);
+		if (home !== undefined && previous !== null && previous.toLowerCase() !== home.toLowerCase()) {
+			run(
+				db,
+				`UPDATE initiative_syncs SET synced_at = NULL, synced_commit = NULL, people = '[]'
+				 WHERE repository_full_name = ?`,
+				repositoryFullName,
+			);
+		}
 	});
 }
 
-function unlinkPlan(db: MaliniDatabase, repositoryFullName: string): void {
+export function recordPlanBase(
+	db: MaliniDatabase,
+	repositoryFullName: string,
+	commit: string | null,
+): void {
 	run(
 		db,
-		`UPDATE initiatives SET github_milestone = NULL, github_title = NULL, github_due_on = NULL,
-		 github_note = NULL WHERE repository_full_name = ? COLLATE NOCASE`,
-		repositoryFullName,
-	);
-	run(
-		db,
-		`UPDATE initiative_dependencies SET github_issue = NULL, github_title = NULL,
-		 github_done = NULL, github_note = NULL
-		 WHERE initiative_id IN (SELECT id FROM initiatives WHERE repository_full_name = ? COLLATE NOCASE)`,
-		repositoryFullName,
-	);
-	run(
-		db,
-		'DELETE FROM initiative_github_deletions WHERE repository_full_name = ?',
-		repositoryFullName,
-	);
-	run(
-		db,
-		`UPDATE initiative_syncs SET synced_at = NULL, people = '[]' WHERE repository_full_name = ?`,
+		'UPDATE initiative_syncs SET synced_commit = ? WHERE repository_full_name = ?',
+		commit,
 		repositoryFullName,
 	);
 }
@@ -175,206 +128,172 @@ export function recordPlanSyncError(
 	);
 }
 
-export function addGithubDeletion(
+export function localPlan(db: MaliniDatabase, repositoryFullName: string): SharedPlan {
+	const dependencies = groupedDependencies(db, repositoryFullName);
+	return outcomeRows(db, repositoryFullName).map((row) => ({
+		id: row.id,
+		title: row.title,
+		dueOn: row.due_on,
+		note: canonicalNote(row.note),
+		createdAt: row.created_at,
+		dependencies: (dependencies.get(row.id) ?? []).map(sharedDependency),
+	}));
+}
+
+export function applyPlan(db: MaliniDatabase, repositoryFullName: string, plan: SharedPlan): void {
+	const now = nowIso8601();
+	const outcomes = new Map(outcomeRows(db, repositoryFullName).map((row) => [row.id, row]));
+	const wanted = new Set(plan.map(({ id }) => id));
+	for (const id of outcomes.keys()) {
+		if (!wanted.has(id)) run(db, 'DELETE FROM initiatives WHERE id = ?', id);
+	}
+	const ours = new Set<string>();
+	for (const outcome of plan) {
+		const current = outcomes.get(outcome.id);
+		if (current === undefined) {
+			const inserted = run(
+				db,
+				`INSERT OR IGNORE INTO initiatives (id, repository_full_name, title, due_on, note,
+				 created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				outcome.id,
+				repositoryFullName,
+				outcome.title,
+				outcome.dueOn,
+				outcome.note,
+				outcome.createdAt,
+				now,
+			);
+			if (inserted.changes > 0) ours.add(outcome.id);
+			continue;
+		}
+		ours.add(outcome.id);
+		if (
+			current.title !== outcome.title ||
+			current.due_on !== outcome.dueOn ||
+			canonicalNote(current.note) !== outcome.note
+		) {
+			run(
+				db,
+				'UPDATE initiatives SET title = ?, due_on = ?, note = ?, updated_at = ? WHERE id = ?',
+				outcome.title,
+				outcome.dueOn,
+				outcome.note,
+				now,
+				outcome.id,
+			);
+		}
+	}
+	applyDependencies(db, repositoryFullName, plan, ours);
+}
+
+function applyDependencies(
 	db: MaliniDatabase,
 	repositoryFullName: string,
-	kind: GithubDeletionKind,
-	number: number,
+	plan: SharedPlan,
+	ours: ReadonlySet<string>,
 ): void {
-	run(
-		db,
-		`INSERT OR IGNORE INTO initiative_github_deletions (repository_full_name, kind, number)
-		 VALUES (?, ?, ?)`,
-		repositoryFullName,
-		kind,
-		number,
+	const current = new Map(
+		[...groupedDependencies(db, repositoryFullName).values()].flat().map((row) => [row.id, row]),
+	);
+	const wanted = new Set(plan.flatMap(({ dependencies }) => dependencies.map(({ id }) => id)));
+	for (const id of current.keys()) {
+		if (!wanted.has(id)) run(db, 'DELETE FROM initiative_dependencies WHERE id = ?', id);
+	}
+	for (const outcome of plan) {
+		if (!ours.has(outcome.id)) continue;
+		outcome.dependencies.forEach((dependency, position) => {
+			const row = current.get(dependency.id);
+			if (row === undefined) {
+				run(
+					db,
+					`INSERT OR IGNORE INTO initiative_dependencies (id, initiative_id, title, done, note,
+					 assignee, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					dependency.id,
+					outcome.id,
+					dependency.title,
+					dependency.done,
+					dependency.note,
+					dependency.assignee,
+					position,
+					nowIso8601(),
+				);
+			} else if (!sameDependency(row, outcome.id, dependency, position)) {
+				run(
+					db,
+					`UPDATE initiative_dependencies SET initiative_id = ?, title = ?, done = ?, note = ?,
+					 assignee = ?, position = ? WHERE id = ?`,
+					outcome.id,
+					dependency.title,
+					dependency.done,
+					dependency.note,
+					dependency.assignee,
+					position,
+					dependency.id,
+				);
+			}
+		});
+	}
+}
+
+function sameDependency(
+	row: DependencyRow,
+	initiativeId: string,
+	dependency: SharedDependency,
+	position: number,
+): boolean {
+	return (
+		row.initiative_id === initiativeId &&
+		row.title === dependency.title &&
+		intToBool(row.done) === dependency.done &&
+		canonicalNote(row.note) === dependency.note &&
+		row.assignee === dependency.assignee &&
+		row.position === position
 	);
 }
 
-export function githubDeletions(db: MaliniDatabase, repositoryFullName: string): GithubDeletion[] {
-	return all<GithubDeletion>(
-		db,
-		`SELECT kind, number FROM initiative_github_deletions WHERE repository_full_name = ?
-		 ORDER BY kind DESC, number`,
-		repositoryFullName,
-	);
+function sharedDependency(row: DependencyRow): SharedDependency {
+	return {
+		id: row.id,
+		title: row.title,
+		done: intToBool(row.done),
+		note: canonicalNote(row.note),
+		assignee: row.assignee,
+	};
 }
 
-export function dropGithubDeletion(
-	db: MaliniDatabase,
-	repositoryFullName: string,
-	deletion: GithubDeletion,
-): void {
-	run(
+function outcomeRows(db: MaliniDatabase, repositoryFullName: string): OutcomeRow[] {
+	return all<OutcomeRow>(
 		db,
-		`DELETE FROM initiative_github_deletions
-		 WHERE repository_full_name = ? AND kind = ? AND number = ?`,
-		repositoryFullName,
-		deletion.kind,
-		deletion.number,
-	);
-}
-
-export function syncedInitiatives(
-	db: MaliniDatabase,
-	repositoryFullName: string,
-): SyncedInitiative[] {
-	return all<SyncedInitiative>(
-		db,
-		`SELECT ${INITIATIVE_SYNC_COLUMNS} FROM initiatives
+		`SELECT id, title, due_on, note, created_at FROM initiatives
 		 WHERE repository_full_name = ? COLLATE NOCASE ORDER BY created_at, rowid`,
 		repositoryFullName,
 	);
 }
 
-export function syncedDependencies(
+function groupedDependencies(
 	db: MaliniDatabase,
 	repositoryFullName: string,
-): SyncedDependency[] {
-	return all<SyncedDependency>(
+): Map<string, DependencyRow[]> {
+	const groups = new Map<string, DependencyRow[]>();
+	for (const row of all<DependencyRow>(
 		db,
-		`SELECT ${DEPENDENCY_SYNC_COLUMNS} FROM initiative_dependencies d
-		 JOIN initiatives i ON i.id = d.initiative_id
+		`SELECT d.id, d.initiative_id, d.title, d.done, d.note, d.assignee, d.position
+		 FROM initiative_dependencies d JOIN initiatives i ON i.id = d.initiative_id
 		 WHERE i.repository_full_name = ? COLLATE NOCASE ORDER BY d.position, d.rowid`,
 		repositoryFullName,
-	);
+	)) {
+		groups.set(row.initiative_id, [...(groups.get(row.initiative_id) ?? []), row]);
+	}
+	return groups;
 }
 
-export function saveInitiativeSync(
-	db: MaliniDatabase,
-	id: string,
-	values: InitiativeValues,
-	base: MilestoneBase,
-): void {
-	run(
+function syncRow(db: MaliniDatabase, repositoryFullName: string): SyncRow | null {
+	return get<SyncRow>(
 		db,
-		`UPDATE initiatives SET title = ?, due_on = ?, note = ?, github_milestone = ?,
-		 github_title = ?, github_due_on = ?, github_note = ? WHERE id = ?`,
-		values.title,
-		values.dueOn,
-		values.note,
-		base.number,
-		base.title,
-		base.dueOn,
-		base.note,
-		id,
-	);
-}
-
-export function linkInitiative(db: MaliniDatabase, id: string, base: MilestoneBase): boolean {
-	return (
-		run(
-			db,
-			`UPDATE initiatives SET github_milestone = ?, github_title = ?, github_due_on = ?,
-			 github_note = ? WHERE id = ?`,
-			base.number,
-			base.title,
-			base.dueOn,
-			base.note,
-			id,
-		).changes > 0
-	);
-}
-
-export function insertInitiativeFromGithub(
-	db: MaliniDatabase,
-	repositoryFullName: string,
-	values: InitiativeValues,
-	base: MilestoneBase,
-): string {
-	const id = randomUUID();
-	const now = nowIso8601();
-	run(
-		db,
-		`INSERT INTO initiatives (id, repository_full_name, title, due_on, note, github_milestone,
-		 github_title, github_due_on, github_note, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id,
+		`SELECT enabled, home, synced_at, synced_commit, error, people FROM initiative_syncs
+		 WHERE repository_full_name = ?`,
 		repositoryFullName,
-		values.title,
-		values.dueOn,
-		values.note,
-		base.number,
-		base.title,
-		base.dueOn,
-		base.note,
-		now,
-		now,
 	);
-	return id;
-}
-
-export function forgetInitiative(db: MaliniDatabase, id: string): void {
-	run(db, 'DELETE FROM initiatives WHERE id = ?', id);
-}
-
-export function saveDependencySync(
-	db: MaliniDatabase,
-	id: string,
-	values: DependencyValues,
-	base: IssueBase,
-): void {
-	run(
-		db,
-		`UPDATE initiative_dependencies SET initiative_id = ?, title = ?, done = ?, note = ?,
-		 assignee = ?, github_issue = ?, github_title = ?, github_done = ?, github_note = ?
-		 WHERE id = ?`,
-		values.initiativeId,
-		values.title,
-		values.done,
-		values.note,
-		values.assignee,
-		base.number,
-		base.title,
-		base.done,
-		base.note,
-		id,
-	);
-}
-
-export function linkDependency(db: MaliniDatabase, id: string, base: IssueBase): boolean {
-	return (
-		run(
-			db,
-			`UPDATE initiative_dependencies SET github_issue = ?, github_title = ?, github_done = ?,
-			 github_note = ? WHERE id = ?`,
-			base.number,
-			base.title,
-			base.done,
-			base.note,
-			id,
-		).changes > 0
-	);
-}
-
-export function insertDependencyFromGithub(
-	db: MaliniDatabase,
-	values: DependencyValues,
-	base: IssueBase,
-): void {
-	run(
-		db,
-		`INSERT INTO initiative_dependencies (id, initiative_id, title, done, note, assignee,
-		 github_issue, github_title, github_done, github_note, position, created_at)
-		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(MAX(position) + 1, 0), ?
-		 FROM initiative_dependencies WHERE initiative_id = ?`,
-		randomUUID(),
-		values.initiativeId,
-		values.title,
-		values.done,
-		values.note,
-		values.assignee,
-		base.number,
-		base.title,
-		base.done,
-		base.note,
-		nowIso8601(),
-		values.initiativeId,
-	);
-}
-
-export function forgetDependency(db: MaliniDatabase, id: string): void {
-	run(db, 'DELETE FROM initiative_dependencies WHERE id = ?', id);
 }
 
 export function openMergeLinks(

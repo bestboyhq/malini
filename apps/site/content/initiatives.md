@@ -57,31 +57,30 @@ A finished initiative leaves the rail once its day has passed.
 
 A plan lives on your Mac until you turn on **Share internally**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
 Sharing is per repository and off until you turn it on.
-A plan only ever goes to a private repository:
 
-- A private repository holds its own plan.
-- A public repository's plan goes to a private repository beside it, named after it with `-malini-plan`, such as `acme/web-malini-plan`.
-  Turning sharing on makes it when it is not there yet, and invites the public repository's collaborators with the access they have there.
-  Nobody else sees it.
+A shared plan never goes into the repository itself.
+It goes to a private repository of its own, named after it with `-malini-plan`, such as `acme/web-malini-plan`, whether `acme/web` is public or private.
+So a private repository that turns public later takes no plan with it.
+
+- Turning sharing on makes the plan repository when it is not there yet.
   In a repository of another person's account, only they can make it.
+- The plan is one file, `plan.json`, on `main`.
+  Each change is a commit that names it, such as `Rename Launch`, so the plan's history is the repository's history.
+- Malini fetches, merges and pushes the file with git.
+  Two people who edit different fields both keep their edit, and a deleted row stays deleted.
+  Anyone can edit the file by hand, and Malini drops what it cannot read.
+- When a linked workstream's pull request merges, Malini ticks its dependency.
 
-In that private repository:
+Only collaborators of the code repository see the plan.
+When you can manage the plan repository, Malini keeps its people in step with the code repository: it invites new collaborators with the access they have there, removes people who left, and cancels invitations they no longer need.
+It checks at most every 10 minutes while sharing is on.
+Malini checks that the plan repository is still private before each sync, and turns sharing off once it is public or gone.
 
-- Each outcome becomes a milestone, with its day as the due date and its note as the description.
-- Each dependency becomes an issue in that milestone, with its note as the body, and a closed issue means done.
-- The issue's assignee shows as their GitHub picture on the dependency.
-- When a linked workstream's pull request merges, Malini closes its issue.
-- A milestone or issue someone adds on GitHub joins the plan, and one they delete leaves it.
-  Deleting a dependency in Malini closes its issue, since GitHub keeps issues.
-
-Malini reads GitHub every 30 seconds while the plan is on screen, and writes after each edit.
-A change someone else made shows as a line at the bottom of the window, such as who closed which issue.
-Everyone with access to that private repository sees the milestones and issues, people without Malini included.
-Malini checks that it is still private before each sync, and turns sharing off once it is public.
-Someone added to a public repository later gets their invitation the next time sharing turns on.
+Malini syncs every 30 seconds while the plan is on screen, and after each edit.
+A change someone else pushed shows as a line at the bottom of the window, such as who closed which dependency.
 The scratchpad stays on your Mac.
 
-Turning sharing off stops it and leaves GitHub as it is.
+Turning sharing off stops it, and the plan repository keeps its file and history.
 
 ## Notes
 

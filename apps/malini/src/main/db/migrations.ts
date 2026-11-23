@@ -2088,6 +2088,19 @@ FROM widget_placements;
 DROP TABLE widget_placements;
 ALTER TABLE widget_placements_spans RENAME TO widget_placements;
 `,
+	`
+ALTER TABLE initiative_syncs ADD COLUMN synced_commit TEXT;
+UPDATE initiative_syncs SET enabled = 0, home = NULL, synced_at = NULL, error = NULL, people = '[]';
+ALTER TABLE initiatives DROP COLUMN github_milestone;
+ALTER TABLE initiatives DROP COLUMN github_title;
+ALTER TABLE initiatives DROP COLUMN github_due_on;
+ALTER TABLE initiatives DROP COLUMN github_note;
+ALTER TABLE initiative_dependencies DROP COLUMN github_issue;
+ALTER TABLE initiative_dependencies DROP COLUMN github_title;
+ALTER TABLE initiative_dependencies DROP COLUMN github_done;
+ALTER TABLE initiative_dependencies DROP COLUMN github_note;
+DROP TABLE initiative_github_deletions;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -1,253 +1,290 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Initiative, PlanSyncedEvent } from '$contract/initiatives';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus } from '$main/events';
+import { installGitRunnerForTests } from '$main/git/run';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
 import { recordMergedPullRequest } from '$shared/repositories/repositories.platform';
 import { registerInitiatives } from './register';
 
-const REPOSITORY = 'bestboyhq/gardener';
+const REPOSITORY = 'acme/rocket';
 
-const PLAN_REPOSITORY = 'bestboyhq/gardener-malini-plan';
+const PLAN_REPOSITORY = 'acme/rocket-malini-plan';
 
-type Login = { login: string };
-type Milestone = {
-	number: number;
-	title: string;
-	description: string | null;
-	due_on: string | null;
-	state: 'open' | 'closed';
-	creator: Login;
-};
+const VIEWER = 'kit';
+
 type Access = 'pull' | 'triage' | 'push' | 'maintain' | 'admin';
+
 type Repository = {
 	private: boolean;
 	organization: boolean;
+	admin: boolean;
 	people: Map<string, Access>;
-	invited: Map<string, string>;
-	milestones: Milestone[];
-	issues: Issue[];
-	numbers: { milestone: number; issue: number };
+	members: Map<string, Access>;
+	invited: Map<number, { login: string; access: string | null }>;
 };
-type Field = string | number | boolean | null;
-type Issue = {
-	number: number;
+
+type FileDependency = {
+	id: string;
 	title: string;
-	body: string | null;
-	state: 'open' | 'closed';
-	milestone: { number: number } | null;
-	user: Login;
-	assignees: Login[];
-	closed_by?: Login;
-	pull_request?: Record<string, never>;
+	done: boolean;
+	note: unknown;
+	assignee: unknown;
 };
 
-function pacificDay(instant: string): string {
-	return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(
-		new Date(instant),
-	);
-}
+type FileOutcome = {
+	id: string;
+	title: string;
+	dueOn: string | null;
+	note: unknown;
+	createdAt: string;
+	dependencies: FileDependency[];
+};
 
-function fakeGithub(viewer: string) {
-	const events = new Map<number, { event: string; actor: Login }[]>();
+type PlanFile = { outcomes: FileOutcome[] };
+
+let root: string;
+let context: MainContext;
+let github: ReturnType<typeof fakeGithub>;
+let synced: PlanSyncedEvent[];
+let clock: number;
+
+function fakeGithub() {
 	const calls: string[][] = [];
+	const repositories = new Map<string, Repository>();
 	let offline = false;
-	const repository = (isPrivate: boolean, people: Record<string, Access>): Repository => ({
-		private: isPrivate,
-		organization: true,
-		people: new Map(Object.entries(people)),
-		invited: new Map(),
-		milestones: [],
-		issues: [],
-		numbers: { milestone: 0, issue: 0 },
-	});
-	const source = repository(true, { [viewer]: 'admin', aleksander: 'push', maja: 'pull' });
-	const repositories = new Map<string, Repository>([[REPOSITORY, source]]);
+	let invitation = 0;
+	const add = (name: string, repository: Partial<Repository> = {}): Repository => {
+		const created: Repository = {
+			private: true,
+			organization: true,
+			admin: true,
+			people: new Map(),
+			members: new Map(),
+			invited: new Map(),
+			...repository,
+		};
+		repositories.set(name, created);
+		mkdirSync(remote(name), { recursive: true });
+		execFileSync('git', ['init', '-q', '--bare', remote(name)]);
+		return created;
+	};
 	const answer = (value: unknown): GhResult => ({
 		stdout: typeof value === 'string' ? value : JSON.stringify(value),
 		stderr: '',
 		code: 0,
 	});
-	const notFound: GhResult = { stdout: '', stderr: 'gh: Not Found (HTTP 404)', code: 1 };
+	const failed = (stderr: string): GhResult => ({ stdout: '', stderr, code: 1 });
 	const run = async (args: readonly string[]): Promise<GhResult> => {
 		calls.push([...args]);
-		if (offline) return { stdout: '', stderr: 'error connecting to api.github.com', code: 1 };
+		if (offline) return failed('error connecting to api.github.com');
 		const [, path = ''] = args;
-		if (path === 'user') return answer(`${viewer}\n`);
-		const method = args[args.indexOf('-X') + 1] ?? 'GET';
-		const fields: Record<string, Field> = {};
+		if (path === 'user') return answer(`4242\t${VIEWER}\tKit Doe\n`);
+		const method = args.includes('-X') ? (args[args.indexOf('-X') + 1] ?? 'GET') : 'GET';
+		const fields = new Map<string, string>();
 		args.forEach((arg, index) => {
-			const flag = args[index - 1];
-			if (flag !== '-f' && flag !== '-F') return;
-			const [key = '', value = ''] = [
-				arg.slice(0, arg.indexOf('=')),
-				arg.slice(arg.indexOf('=') + 1),
-			];
-			fields[key] =
-				flag === '-f'
-					? value
-					: value === 'null'
-						? null
-						: value === 'true' || value === 'false'
-							? value === 'true'
-							: Number(value);
+			if (args[index - 1] === '-f' || args[index - 1] === '-F') {
+				fields.set(arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1));
+			}
 		});
 		const url = new URL(path, 'https://api.github.com/');
-		const [, scope, owner = viewer, name, collection, number, sub] = url.pathname.split('/');
+		const [, scope = '', owner = '', name = '', collection, item] = url.pathname.split('/');
 		if (method === 'POST' && (path === 'user/repos' || (scope === 'orgs' && name === 'repos'))) {
-			const created = `${scope === 'orgs' ? owner : viewer}/${String(fields['name'])}`;
-			repositories.set(created, {
-				...repository(fields['private'] === true, { [viewer]: 'admin' }),
-				organization: scope === 'orgs',
-			});
+			const created = `${scope === 'orgs' ? owner : VIEWER}/${fields.get('name') ?? ''}`;
+			if (repositories.has(created)) return failed('gh: Validation Failed (HTTP 422)');
+			add(created, { private: fields.get('private') === 'true', organization: scope === 'orgs' });
 			return answer({ full_name: created });
 		}
 		const found = repositories.get(`${owner}/${name}`);
-		if (found === undefined) return notFound;
-		const { milestones, issues, numbers } = found;
-		if (collection === undefined && !args.includes('-X')) {
+		if (scope !== 'repos' || found === undefined) return failed('gh: Not Found (HTTP 404)');
+		if (collection === undefined) {
 			return answer({
 				private: found.private,
 				owner: { type: found.organization ? 'Organization' : 'User' },
+				permissions: { admin: found.admin, push: true, pull: true },
 			});
 		}
-		if (url.searchParams.get('page') !== null && url.searchParams.get('page') !== '1') {
-			return answer([]);
-		}
+		if (method === 'GET' && url.searchParams.get('page') !== '1') return answer([]);
+		const login = item ?? '';
 		if (collection === 'collaborators' && method === 'PUT') {
-			found.invited.set(number ?? '', String(fields['permission']));
-			return answer({});
+			invitation += 1;
+			found.invited.set(invitation, { login, access: fields.get('permission') ?? null });
+			return answer({ id: invitation });
+		}
+		if (collection === 'collaborators' && method === 'DELETE') {
+			found.people.delete(login);
+			return answer('');
 		}
 		if (collection === 'collaborators') {
+			const direct = url.searchParams.get('affiliation') === 'direct';
+			const people = direct ? found.people : new Map([...found.members, ...found.people]);
 			return answer(
-				[...found.people].map(([login, access]) => ({ login, permissions: { [access]: true } })),
+				[...people].map(([person, access]) => ({
+					login: person,
+					permissions: { [access]: true },
+				})),
 			);
 		}
+		if (collection === 'invitations' && method === 'DELETE') {
+			found.invited.delete(Number(item));
+			return answer('');
+		}
 		if (collection === 'invitations') {
-			return answer([...found.invited.keys()].map((login) => ({ invitee: { login } })));
+			return answer(
+				[...found.invited].map(([id, invited]) => ({ id, invitee: { login: invited.login } })),
+			);
 		}
-		if (collection === 'milestones' && !args.includes('-X')) return answer(milestones);
-		if (collection === 'issues' && !args.includes('-X') && sub === 'events') {
-			return answer(events.get(Number(number)) ?? []);
-		}
-		if (collection === 'issues' && !args.includes('-X')) {
-			return answer(issues.filter((issue) => issue.milestone !== null));
-		}
-		if (collection === 'milestones' && method === 'POST') {
-			if (milestones.some(({ title }) => title === fields['title'])) {
-				return { stdout: '', stderr: 'gh: Validation Failed (HTTP 422)', code: 1 };
-			}
-			numbers.milestone += 1;
-			const milestone: Milestone = {
-				number: numbers.milestone,
-				title: String(fields['title']),
-				description: String(fields['description'] ?? ''),
-				due_on: null,
-				state: 'open',
-				creator: { login: viewer },
-			};
-			milestones.push(milestone);
-			Object.assign(milestone, dueOn(fields));
-			return answer(milestone);
-		}
-		if (collection === 'issues' && method === 'POST') {
-			numbers.issue += 1;
-			const issue: Issue = {
-				number: numbers.issue,
-				title: String(fields['title']),
-				body: String(fields['body'] ?? ''),
-				state: 'open',
-				milestone: { number: Number(fields['milestone']) },
-				user: { login: viewer },
-				assignees: [],
-			};
-			issues.push(issue);
-			return answer(issue);
-		}
-		if (collection === 'milestones') {
-			const index = milestones.findIndex((milestone) => milestone.number === Number(number));
-			if (index === -1) return notFound;
-			if (method === 'DELETE') {
-				milestones.splice(index, 1);
-				return answer('');
-			}
-			Object.assign(milestones[index] ?? {}, fields, dueOn(fields));
-			return answer(milestones[index]);
-		}
-		const issue = issues.find((candidate) => candidate.number === Number(number));
-		if (!issue) return notFound;
-		Object.assign(issue, fields);
-		return answer(issue);
-	};
-	const dueOn = (fields: Record<string, Field>) => {
-		if (!('due_on' in fields)) return {};
-		const due = fields['due_on'];
-		return { due_on: typeof due === 'string' ? `${pacificDay(due)}T08:00:00Z` : null };
+		return failed('gh: Not Found (HTTP 404)');
 	};
 	return {
 		run,
 		calls,
 		repositories,
-		makePublic: (name = REPOSITORY) => {
-			const found = repositories.get(name);
-			if (found) found.private = false;
+		add,
+		accept: (repository: string, login: string) => {
+			const found = repositories.get(repository);
+			for (const [id, invited] of found?.invited ?? []) {
+				if (invited.login !== login) continue;
+				found?.invited.delete(id);
+				found?.people.set(login, 'push');
+			}
 		},
-		milestones: source.milestones,
-		issues: source.issues,
-		events,
-		writes: () => calls.filter((args) => args.includes('-X')),
-		reads: (collection: string) =>
-			calls.filter((args) => !args.includes('-X') && (args[1] ?? '').includes(`/${collection}?`)),
+		invitees: (repository: string) =>
+			[...(repositories.get(repository)?.invited.values() ?? [])].map(
+				({ login, access }) => `${login}:${access ?? ''}`,
+			),
 		setOffline: (next: boolean) => {
 			offline = next;
-		},
-		addMilestone: (milestone: Omit<Milestone, 'number'>): Milestone => {
-			source.numbers.milestone += 1;
-			const added = { number: source.numbers.milestone, ...milestone };
-			source.milestones.push(added);
-			return added;
-		},
-		addIssue: (issue: Omit<Issue, 'number'>): Issue => {
-			source.numbers.issue += 1;
-			const added = { number: source.numbers.issue, ...issue };
-			source.issues.push(added);
-			return added;
 		},
 	};
 }
 
-let context: MainContext;
-let github: ReturnType<typeof fakeGithub>;
-let synced: PlanSyncedEvent[];
+function remote(repository: string): string {
+	return join(root, 'github', `${repository}.git`);
+}
+
+function git(directory: string, args: readonly string[], input?: string, author = VIEWER): string {
+	return execFileSync('git', ['-C', directory, '-c', 'commit.gpgsign=false', ...args], {
+		input,
+		encoding: 'utf8',
+		stdio: ['pipe', 'pipe', 'pipe'],
+		env: {
+			...process.env,
+			GIT_AUTHOR_NAME: author,
+			GIT_AUTHOR_EMAIL: `9+${author}@users.noreply.github.com`,
+			GIT_COMMITTER_NAME: author,
+			GIT_COMMITTER_EMAIL: `9+${author}@users.noreply.github.com`,
+		},
+	}).trim();
+}
+
+function remoteFile(file: string, repository = PLAN_REPOSITORY): string | null {
+	try {
+		return git(remote(repository), ['show', `main:${file}`]);
+	} catch {
+		return null;
+	}
+}
+
+function remotePlan(repository = PLAN_REPOSITORY): PlanFile {
+	const text = remoteFile('plan.json', repository);
+	if (text === null) throw new Error(`no plan.json in ${repository}`);
+	const plan: PlanFile = JSON.parse(text);
+	return plan;
+}
+
+function remoteSubject(repository = PLAN_REPOSITORY): string {
+	return git(remote(repository), ['log', '-1', '--format=%s %ae', 'main']);
+}
+
+function teammatePush(files: Readonly<Record<string, string>>, author = 'robin'): void {
+	const directory = remote(PLAN_REPOSITORY);
+	const parent = git(directory, ['rev-parse', 'main']);
+	const entries = new Map(
+		git(directory, ['ls-tree', 'main'])
+			.split('\n')
+			.filter((line) => line.length > 0)
+			.map((line) => [line.slice(line.indexOf('\t') + 1), line] as const),
+	);
+	for (const [file, text] of Object.entries(files)) {
+		const blob = git(directory, ['hash-object', '-w', '--stdin'], text);
+		entries.set(file, `100644 blob ${blob}\t${file}`);
+	}
+	const tree = git(directory, ['mktree'], `${[...entries.values()].join('\n')}\n`);
+	const commit = git(
+		directory,
+		['commit-tree', tree, '-p', parent, '-m', 'Edit by hand'],
+		'',
+		author,
+	);
+	git(directory, ['update-ref', 'refs/heads/main', commit, parent]);
+}
+
+function teammateEdits(edit: (plan: PlanFile) => void, author = 'robin'): void {
+	const plan = remotePlan();
+	edit(plan);
+	teammatePush({ 'plan.json': `${JSON.stringify(plan, null, '\t')}\n` }, author);
+}
+
+function fileOutcome(plan: PlanFile, title: string): FileOutcome {
+	const found = plan.outcomes.find((candidate) => candidate.title === title);
+	if (!found) throw new Error(`no outcome ${title} in plan.json`);
+	return found;
+}
 
 beforeEach(() => {
+	root = mkdtempSync(join(tmpdir(), 'malini-plan-sync-'));
+	vi.stubEnv('GIT_CONFIG_COUNT', '2');
+	vi.stubEnv('GIT_CONFIG_KEY_0', 'protocol.file.allow');
+	vi.stubEnv('GIT_CONFIG_VALUE_0', 'always');
+	vi.stubEnv('GIT_CONFIG_KEY_1', `url.file://${join(root, 'github')}/.insteadOf`);
+	vi.stubEnv('GIT_CONFIG_VALUE_1', 'https://github.com/');
 	context = {
 		db: openMigratedDatabase(':memory:'),
 		commands: new CommandRegistry(),
 		events: createEventBus({ forwardToWindows: false }),
-		appDataRoot: '/tmp/malini',
-		checkoutsRoot: '/tmp/malini',
-		resourcesRoot: '/tmp/malini',
+		appDataRoot: join(root, 'app'),
+		checkoutsRoot: join(root, 'app'),
+		resourcesRoot: join(root, 'app'),
 		isDev: false,
 		appVersion: '0.0.0',
 	};
-	github = fakeGithub('simon');
+	github = fakeGithub();
+	github.add(REPOSITORY, {
+		people: new Map([
+			[VIEWER, 'admin'],
+			['casey', 'push'],
+			['robin', 'pull'],
+		]),
+	});
 	synced = [];
+	clock = Date.parse('2026-11-23T10:00:00Z');
 	context.events.subscribe('initiatives:synced', (event) => synced.push(event));
-	registerInitiatives(context, { gh: github.run });
+	registerInitiatives(context, { gh: github.run, now: () => clock });
 });
 
-afterEach(() => context.db.close());
+afterEach(() => {
+	context.db.close();
+	vi.unstubAllEnvs();
+	rmSync(root, { recursive: true, force: true });
+});
 
 const call = {
-	sync: () => context.commands.call('initiatives.sync', { repositoryFullName: REPOSITORY }),
-	state: () => context.commands.call('initiatives.sync-state', { repositoryFullName: REPOSITORY }),
-	turn: (enabled: boolean) =>
-		context.commands.call('initiatives.set-sync', { repositoryFullName: REPOSITORY, enabled }),
-	create: (title: string, dueOn: string | null = null) =>
-		context.commands.call('initiatives.create', { repositoryFullName: REPOSITORY, title, dueOn }),
+	sync: (repositoryFullName = REPOSITORY) =>
+		context.commands.call('initiatives.sync', { repositoryFullName }),
+	state: (repositoryFullName = REPOSITORY) =>
+		context.commands.call('initiatives.sync-state', { repositoryFullName }),
+	turn: (enabled: boolean, repositoryFullName = REPOSITORY) =>
+		context.commands.call('initiatives.set-sync', { repositoryFullName, enabled }),
+	create: (title: string, dueOn: string | null = null, repositoryFullName = REPOSITORY) =>
+		context.commands.call('initiatives.create', { repositoryFullName, title, dueOn }),
+	rename: (id: string, title: string) => context.commands.call('initiatives.update', { id, title }),
 	addStep: async (initiativeId: string, title: string) => {
 		const plan = await context.commands.call('initiatives.add-dependency', { initiativeId, title });
 		const step = plan
@@ -266,24 +303,30 @@ function outcome(plan: readonly Initiative[], title: string): Initiative {
 	return found;
 }
 
-async function syncedPlan(): Promise<{ plan: Initiative[]; billing: Initiative }> {
+async function sharedPlan(): Promise<Initiative> {
 	const [created] = await call.create('Ship billing', '2026-12-01');
 	await call.addStep(created?.id ?? '', 'Schema');
 	await call.turn(true);
-	const plan = await call.sync();
-	return { plan, billing: outcome(plan, 'Ship billing') };
+	return outcome(await call.sync(), 'Ship billing');
 }
 
-describe('plan sync with GitHub', () => {
+async function offlineWhile(change: () => Promise<unknown>): Promise<void> {
+	github.setOffline(true);
+	await change();
+	await call.sync();
+	github.setOffline(false);
+}
+
+describe('a plan shared as one file in a private plan repository', () => {
 	it('stays off until turned on, and stops again once turned off', async () => {
 		const [created] = await call.create('Ship billing', '2026-12-01');
-		await context.commands.call('initiatives.update', { id: created?.id ?? '', title: 'Ship it' });
+		await call.rename(created?.id ?? '', 'Ship it');
 		await call.sync();
 		expect(github.calls).toEqual([]);
 		expect(await call.state()).toEqual({
 			repositoryFullName: REPOSITORY,
 			enabled: false,
-			home: REPOSITORY,
+			home: PLAN_REPOSITORY,
 			syncedAt: null,
 			error: null,
 			people: [],
@@ -291,13 +334,14 @@ describe('plan sync with GitHub', () => {
 
 		await call.turn(true);
 		await call.sync();
-		expect(github.milestones.map(({ title }) => title)).toEqual(['Ship it']);
+		expect(remotePlan().outcomes.map(({ title }) => title)).toEqual(['Ship it']);
 		expect(await call.turn(false)).toMatchObject({ enabled: false });
 		github.calls.length = 0;
 		await call.create('Later');
-		await context.commands.call('initiatives.update', { id: created?.id ?? '', title: 'Renamed' });
+		await call.rename(created?.id ?? '', 'Renamed');
 		await call.sync();
 		expect(github.calls).toEqual([]);
+		expect(remotePlan().outcomes.map(({ title }) => title)).toEqual(['Ship it']);
 		await expect(
 			context.commands.invoke({
 				command: 'initiatives.set-sync',
@@ -306,305 +350,250 @@ describe('plan sync with GitHub', () => {
 		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('GitHub owner/name') });
 	});
 
-	it('syncs a public repository to a private plan repository its people are invited to', async () => {
-		await call.create('Launch day', '2026-12-01');
-		github.makePublic();
-		expect(await call.state()).toMatchObject({ enabled: false, home: PLAN_REPOSITORY });
-		expect(await call.turn(true)).toMatchObject({ enabled: true, home: PLAN_REPOSITORY });
-		await call.sync();
-		expect(github.repositories.get(PLAN_REPOSITORY)).toMatchObject({
-			private: true,
-			organization: true,
-			invited: new Map([
-				['aleksander', 'push'],
-				['maja', 'pull'],
-			]),
-		});
-		const plan = github.repositories.get(PLAN_REPOSITORY);
-		expect(plan?.milestones.map(({ title }) => title)).toEqual(['Launch day']);
-		expect(github.milestones).toEqual([]);
-		const paths = github.calls
-			.map(([, path = '']) => path)
-			.filter((path) => /milestones|issues/u.test(path));
-		expect(paths.length).toBeGreaterThan(0);
-		expect(paths.filter((path) => !path.startsWith(`repos/${PLAN_REPOSITORY}/`))).toEqual([]);
-		expect(
-			github.writes().filter(([, path = '']) => path.startsWith(`repos/${REPOSITORY}/`)),
-		).toEqual([]);
+	it.each([
+		['private', true],
+		['public', false],
+	])(
+		'shares a %s repository to its own private plan repository, never the code repository',
+		async (_, isPrivate) => {
+			const source = github.repositories.get(REPOSITORY);
+			if (source) source.private = isPrivate;
+			const billing = await sharedPlan();
 
-		github.repositories.get(PLAN_REPOSITORY)?.invited.clear();
-		await call.turn(false);
-		await call.turn(true);
-		expect(github.repositories.get(PLAN_REPOSITORY)?.invited.size).toBe(2);
-		expect(github.writes().filter(([, path = '']) => path.includes('/repos'))).toHaveLength(1);
+			expect(github.repositories.get(PLAN_REPOSITORY)).toMatchObject({ private: true });
+			expect(remoteFile('plan.json', REPOSITORY)).toBeNull();
+			expect(remotePlan()).toEqual({
+				outcomes: [
+					{
+						id: billing.id,
+						title: 'Ship billing',
+						dueOn: '2026-12-01',
+						note: null,
+						createdAt: expect.stringMatching(/^2\d{3}-/u),
+						dependencies: [
+							{
+								id: billing.dependencies[0]?.id,
+								title: 'Schema',
+								done: false,
+								note: null,
+								assignee: null,
+							},
+						],
+					},
+				],
+			});
+			expect(remoteSubject()).toBe('Add Ship billing 4242+kit@users.noreply.github.com');
+			expect(await call.state()).toMatchObject({
+				enabled: true,
+				home: PLAN_REPOSITORY,
+				error: null,
+				people: [VIEWER],
+			});
+		},
+	);
+
+	it('keeps the people of the code repository in step with the plan repository', async () => {
+		const source = github.repositories.get(REPOSITORY);
+		source?.members.set('morgan', 'push');
+		const plan = github.add(PLAN_REPOSITORY, { members: new Map([['morgan', 'push']]) });
+		await sharedPlan();
+		expect(github.invitees(PLAN_REPOSITORY)).toEqual(['casey:push', 'robin:pull']);
+
+		github.accept(PLAN_REPOSITORY, 'casey');
+		plan.people.set('dana', 'push');
+		source?.people.delete('robin');
+		source?.people.set('noa', 'maintain');
+		github.calls.length = 0;
+		await call.sync();
+		expect(github.calls.filter(([, path = '']) => path.includes('/collaborators'))).toEqual([]);
+
+		clock += 11 * 60_000;
+		await call.sync();
+		expect(github.invitees(PLAN_REPOSITORY)).toEqual(['noa:maintain']);
+		expect([...plan.people.keys()]).toEqual(['casey']);
+		expect(github.repositories.get(REPOSITORY)?.people.has('robin')).toBe(false);
 	});
 
-	it('refuses a plan repository that is public and writes nothing', async () => {
-		await call.create('Launch day', '2026-12-01');
-		github.makePublic();
-		github.repositories.set(PLAN_REPOSITORY, {
-			private: false,
-			organization: true,
-			people: new Map(),
-			invited: new Map(),
-			milestones: [],
-			issues: [],
-			numbers: { milestone: 0, issue: 0 },
+	it('merges what a teammate pushed with your own edits, and says who changed what', async () => {
+		const billing = await sharedPlan();
+		await offlineWhile(() =>
+			context.commands.call('initiatives.update', { id: billing.id, dueOn: '2026-12-10' }),
+		);
+		teammateEdits((plan) => {
+			const shipping = fileOutcome(plan, 'Ship billing');
+			shipping.title = 'Ship billing v2';
+			const [schema] = shipping.dependencies;
+			if (schema) schema.done = true;
+			plan.outcomes.push({
+				id: 'docs-1',
+				title: 'Docs',
+				dueOn: null,
+				note: null,
+				createdAt: '2026-11-23T09:00:00.000Z',
+				dependencies: [],
+			});
 		});
+
+		const merged = await call.sync();
+		expect(outcome(merged, 'Ship billing v2')).toMatchObject({
+			dueOn: '2026-12-10',
+			dependencies: [{ title: 'Schema', done: true }],
+		});
+		expect(outcome(merged, 'Docs').id).toBe('docs-1');
+		expect(fileOutcome(remotePlan(), 'Ship billing v2')).toMatchObject({
+			dueOn: '2026-12-10',
+			dependencies: [{ title: 'Schema', done: true }],
+		});
+		expect(remoteSubject()).toBe('Move Ship billing v2 4242+kit@users.noreply.github.com');
+		expect(synced).toEqual([
+			{
+				repositoryFullName: REPOSITORY,
+				changes: [
+					{ actor: 'robin', kind: 'renamed', title: 'Ship billing v2' },
+					{ actor: 'robin', kind: 'closed', title: 'Schema' },
+					{ actor: 'robin', kind: 'added', title: 'Docs' },
+				],
+			},
+		]);
+		expect([...(await call.state()).people].sort()).toEqual([VIEWER, 'robin']);
+
+		await call.rename(billing.id, 'Ship billing v3');
+		await call.sync();
+		expect(fileOutcome(remotePlan(), 'Ship billing v3').id).toBe(billing.id);
+		expect(synced).toHaveLength(1);
+	});
+
+	it('drops what a teammate removed, and removes there what you removed here', async () => {
+		const billing = await sharedPlan();
+		const polish = outcome(await call.create('Polish'), 'Polish');
+		await call.sync();
+		await offlineWhile(() => context.commands.call('initiatives.delete', { id: polish.id }));
+		teammateEdits((plan) => {
+			fileOutcome(plan, 'Ship billing').dependencies = [];
+		});
+
+		const plan = await call.sync();
+		expect(plan.map(({ title }) => title)).toEqual(['Ship billing']);
+		expect(outcome(plan, 'Ship billing').dependencies).toEqual([]);
+		expect(remotePlan().outcomes.map(({ id, dependencies }) => [id, dependencies])).toEqual([
+			[billing.id, []],
+		]);
+		expect(synced.flatMap(({ changes }) => changes)).toEqual([
+			{ actor: 'robin', kind: 'removed', title: 'Schema' },
+		]);
+	});
+
+	it('keeps the other files of the plan repository, and writes back a plan file it cannot read', async () => {
+		const billing = await sharedPlan();
+		teammatePush({ 'README.md': '# Our plan\n', 'plan.json': '{ not json' });
+
+		const plan = await call.sync();
+		expect(plan.map(({ id }) => id)).toEqual([billing.id]);
+		expect(remoteFile('README.md')).toBe('# Our plan');
+		expect(remotePlan().outcomes.map(({ title }) => title)).toEqual(['Ship billing']);
+	});
+
+	it('tries again when a teammate pushes at the same moment', async () => {
+		const billing = await sharedPlan();
+		let raced = false;
+		const restore = installGitRunnerForTests((args, env, previous) => {
+			if (!raced && args.includes('push')) {
+				raced = true;
+				teammateEdits((plan) => {
+					plan.outcomes.push({
+						id: 'race-1',
+						title: 'Race',
+						dueOn: null,
+						note: null,
+						createdAt: '2026-11-23T09:00:00.000Z',
+						dependencies: [],
+					});
+				});
+			}
+			return previous(args, env);
+		});
+		try {
+			context.db.exec(
+				`UPDATE initiatives SET title = 'Ship billing now' WHERE id = '${billing.id}'`,
+			);
+			const plan = await call.sync();
+			expect(raced).toBe(true);
+			expect(plan.map(({ title }) => title).sort()).toEqual(['Race', 'Ship billing now']);
+			expect(remotePlan().outcomes.map(({ title }) => title)).toEqual(['Ship billing now', 'Race']);
+			expect(await call.state()).toMatchObject({ error: null });
+		} finally {
+			restore();
+		}
+	});
+
+	it('stops sharing once the plan repository turns public, and refuses to share there again', async () => {
+		const billing = await sharedPlan();
+		const plan = github.repositories.get(PLAN_REPOSITORY);
+		if (plan) plan.private = false;
+		await call.rename(billing.id, 'Leaked');
+		await call.sync();
+		expect(await call.state()).toMatchObject({ enabled: false });
+		expect(remotePlan().outcomes.map(({ title }) => title)).toEqual(['Ship billing']);
+
 		await expect(
 			context.commands.invoke({
 				command: 'initiatives.set-sync',
 				args: { repositoryFullName: REPOSITORY, enabled: true },
 			}),
 		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('is public') });
-		expect(github.writes()).toEqual([]);
-		expect(github.milestones).toEqual([]);
+
+		if (plan) plan.private = true;
+		await call.turn(true);
+		await call.sync();
+		github.repositories.delete(PLAN_REPOSITORY);
+		await call.sync();
 		expect(await call.state()).toMatchObject({ enabled: false });
 	});
 
-	it('stops syncing once a private repository turns public, and writes nothing after', async () => {
-		const [launch] = await call.create('Launch day', '2026-12-01');
-		await call.turn(true);
-		await call.sync();
-		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
-
-		github.makePublic();
-		github.calls.length = 0;
-		await context.commands.call('initiatives.update', { id: launch?.id ?? '', title: 'Secret' });
-		await call.create('Another secret');
-		await call.sync();
-		expect(github.writes()).toEqual([]);
-		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
-		expect(await call.state()).toMatchObject({ enabled: false, home: PLAN_REPOSITORY });
-
-		await call.turn(true);
-		await call.sync();
-		expect(github.repositories.get(PLAN_REPOSITORY)?.milestones.map(({ title }) => title)).toEqual([
-			'Secret',
-			'Another secret',
-		]);
-		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
-		expect(
-			github.writes().filter(([, path = '']) => path.startsWith(`repos/${REPOSITORY}/`)),
-		).toEqual([]);
-		expect(synced).toEqual([]);
-	});
-
-	it('syncs both ways at first, links by title and imports only open milestones', async () => {
-		const aleksander = { login: 'aleksander' };
-		const launch = github.addMilestone({
-			title: 'Launch',
-			description: 'Steam page live\r\n\r\nPress kit',
-			due_on: '2026-12-10T08:00:00Z',
-			state: 'open',
-			creator: aleksander,
+	it('asks the owner of a personal repository to make its plan repository', async () => {
+		github.add('casey/kite', {
+			organization: false,
+			admin: false,
+			people: new Map([['casey', 'admin']]),
 		});
-		github.addMilestone({
-			title: 'Old jam',
-			description: null,
-			due_on: null,
-			state: 'closed',
-			creator: aleksander,
-		});
-		github.addIssue({
-			title: 'Trailer',
-			body: 'Cut the gameplay trailer',
-			state: 'open',
-			milestone: { number: launch.number },
-			user: aleksander,
-			assignees: [aleksander],
-		});
-		github.addIssue({
-			title: 'Bump engine',
-			body: null,
-			state: 'open',
-			milestone: { number: launch.number },
-			user: aleksander,
-			assignees: [],
-			pull_request: {},
-		});
-		await call.create('Launch');
-		const created = outcome(await call.create('Ship billing', '2026-12-01'), 'Ship billing');
-		const schema = await call.addStep(created.id, 'Schema');
-		await context.commands.call('initiatives.update-dependency', { id: schema.id, done: true });
-
-		expect(await call.turn(true)).toMatchObject({ enabled: true });
-		const plan = await call.sync();
-
-		expect(plan.map(({ title }) => title).sort()).toEqual(['Launch', 'Ship billing']);
-		const launched = outcome(plan, 'Launch');
-		expect(launched).toMatchObject({ githubMilestone: launch.number, dueOn: '2026-12-10' });
-		expect(launched.note).toBe(
-			JSON.stringify({
-				type: 'doc',
-				content: [
-					{ type: 'paragraph', content: [{ type: 'text', text: 'Steam page live' }] },
-					{ type: 'paragraph' },
-					{ type: 'paragraph', content: [{ type: 'text', text: 'Press kit' }] },
-				],
+		await call.create('Fly', null, 'casey/kite');
+		await expect(
+			context.commands.invoke({
+				command: 'initiatives.set-sync',
+				args: { repositoryFullName: 'casey/kite', enabled: true },
 			}),
-		);
-		expect(launched.dependencies).toEqual([
-			expect.objectContaining({ title: 'Trailer', done: false, assignee: 'aleksander' }),
-		]);
-		const billing = outcome(plan, 'Ship billing');
-		expect(github.milestones.map(({ title }) => title)).toEqual([
-			'Launch',
-			'Old jam',
-			'Ship billing',
-		]);
-		expect(github.milestones[2]).toMatchObject({
-			number: billing.githubMilestone,
-			due_on: '2026-12-01T08:00:00Z',
-		});
-		expect(github.issues.find(({ title }) => title === 'Schema')).toMatchObject({
-			number: billing.dependencies[0]?.githubIssue,
-			state: 'closed',
-			milestone: { number: billing.githubMilestone },
-		});
-		expect(synced).toEqual([]);
-		expect(await call.state()).toMatchObject({
-			enabled: true,
-			syncedAt: expect.any(String),
-			error: null,
-			people: ['aleksander'],
+		).resolves.toMatchObject({
+			ok: false,
+			error: expect.stringContaining('Only casey can make the private `casey/kite-malini-plan`'),
 		});
 
-		const writes = github.writes().length;
-		await call.sync();
-		await call.sync();
-		expect(github.writes()).toHaveLength(writes);
+		github.add('casey/kite-malini-plan', { organization: false, admin: false });
+		await call.turn(true, 'casey/kite');
+		await call.sync('casey/kite');
+		expect(remotePlan('casey/kite-malini-plan').outcomes.map(({ title }) => title)).toEqual([
+			'Fly',
+		]);
+		expect(github.calls.filter((args) => args.includes('PUT'))).toEqual([]);
+
+		github.add(`${VIEWER}/notes`, { organization: false });
+		await call.create('Write', null, `${VIEWER}/notes`);
+		await call.turn(true, `${VIEWER}/notes`);
+		await call.sync(`${VIEWER}/notes`);
+		expect(github.repositories.get(`${VIEWER}/notes-malini-plan`)).toMatchObject({
+			private: true,
+			organization: false,
+		});
 	});
 
 	it('shares one run between calls made at once', async () => {
-		await call.turn(true);
-		await call.sync();
+		await sharedPlan();
 		github.calls.length = 0;
 		await Promise.all([call.sync(), call.sync(), call.sync()]);
-		expect(github.reads('milestones')).toHaveLength(1);
+		expect(github.calls.filter(([, path]) => path === `repos/${PLAN_REPOSITORY}`)).toHaveLength(1);
 	});
 
-	it('pulls a close and a reopen by someone else and never pushes them back', async () => {
-		const { billing } = await syncedPlan();
-		const issue = github.issues.find(({ title }) => title === 'Schema');
-		if (!issue) throw new Error('no Schema issue');
-		const writes = github.writes().length;
-
-		issue.state = 'closed';
-		issue.closed_by = { login: 'aleksander' };
-		const closed = await call.sync();
-		expect(outcome(closed, 'Ship billing').dependencies[0]?.done).toBe(true);
-		expect(synced).toEqual([
-			{
-				repositoryFullName: REPOSITORY,
-				changes: [{ actor: 'aleksander', kind: 'closed', title: 'Schema' }],
-			},
-		]);
-
-		issue.state = 'open';
-		github.events.set(issue.number, [
-			{ event: 'closed', actor: { login: 'aleksander' } },
-			{ event: 'reopened', actor: { login: 'maja' } },
-		]);
-		const reopened = await call.sync();
-		expect(outcome(reopened, 'Ship billing').dependencies[0]?.done).toBe(false);
-		expect(synced[1]?.changes).toEqual([{ actor: 'maja', kind: 'reopened', title: 'Schema' }]);
-		expect(github.writes()).toHaveLength(writes);
-		expect(billing.dependencies[0]?.githubIssue).toBe(issue.number);
-	});
-
-	it('pushes only the field you changed, and keeps quiet about your own GitHub edits', async () => {
-		const { billing } = await syncedPlan();
-		const writes = github.writes().length;
-		await context.commands.call('initiatives.update', { id: billing.id, title: 'Ship billing v2' });
-		await vi.waitFor(() => expect(github.milestones[0]?.title).toBe('Ship billing v2'));
-		expect(github.writes().slice(writes)).toEqual([
-			[
-				'api',
-				`repos/${REPOSITORY}/milestones/${billing.githubMilestone}`,
-				'-X',
-				'PATCH',
-				'-f',
-				'title=Ship billing v2',
-			],
-		]);
-
-		const milestone = github.milestones[0];
-		if (!milestone) throw new Error('no milestone');
-		milestone.title = 'Ship billing v3';
-		const renamed = await call.sync();
-		expect(outcome(renamed, 'Ship billing v3').id).toBe(billing.id);
-		expect(synced).toEqual([
-			{
-				repositoryFullName: REPOSITORY,
-				changes: [{ actor: null, kind: 'renamed', title: 'Ship billing v3' }],
-			},
-		]);
-
-		const issue = github.issues[0];
-		if (!issue) throw new Error('no issue');
-		issue.state = 'closed';
-		issue.closed_by = { login: 'simon' };
-		await call.sync();
-		expect(synced).toHaveLength(1);
-	});
-
-	it('keeps the day you picked through GitHub due dates both ways', async () => {
-		const { billing } = await syncedPlan();
-		expect(github.milestones[0]?.due_on).toBe('2026-12-01T08:00:00Z');
-		const writes = github.writes().length;
-		expect(outcome(await call.sync(), 'Ship billing').dueOn).toBe('2026-12-01');
-		expect(github.writes()).toHaveLength(writes);
-
-		await context.commands.call('initiatives.update', { id: billing.id, dueOn: '2027-01-15' });
-		await vi.waitFor(() => expect(github.milestones[0]?.due_on).toBe('2027-01-15T08:00:00Z'));
-		await context.commands.call('initiatives.update', { id: billing.id, dueOn: null });
-		await vi.waitFor(() => expect(github.milestones[0]?.due_on).toBeNull());
-		expect(github.writes().at(-1)).toContain('due_on=null');
-
-		const milestone = github.milestones[0];
-		if (!milestone) throw new Error('no milestone');
-		milestone.due_on = '2026-12-24T08:00:00Z';
-		expect(outcome(await call.sync(), 'Ship billing').dueOn).toBe('2026-12-24');
-		expect(synced.at(-1)?.changes).toEqual([{ actor: null, kind: 'dated', title: 'Ship billing' }]);
-	});
-
-	it('drops what was deleted on GitHub, and deletes there what you delete here', async () => {
-		const { billing } = await syncedPlan();
-		await call.addStep(outcome(await call.create('Launch'), 'Launch').id, 'Trailer');
-		await call.sync();
-		const writes = github.writes().length;
-
-		github.issues.splice(
-			github.issues.findIndex(({ title }) => title === 'Schema'),
-			1,
-		);
-		github.milestones.splice(
-			github.milestones.findIndex(({ title }) => title === 'Launch'),
-			1,
-		);
-		const left = await call.sync();
-		expect(left.map(({ title }) => title)).toEqual(['Ship billing']);
-		expect(left[0]?.dependencies).toEqual([]);
-		expect(synced.at(-1)?.changes).toEqual([
-			{ actor: null, kind: 'removed', title: 'Launch' },
-			{ actor: null, kind: 'removed', title: 'Schema' },
-		]);
-		expect(github.writes()).toHaveLength(writes);
-
-		const checkout = await call.addStep(billing.id, 'Checkout');
-		await call.sync();
-		await context.commands.call('initiatives.delete-dependency', { id: checkout.id });
-		await vi.waitFor(() =>
-			expect(github.issues.find(({ title }) => title === 'Checkout')?.state).toBe('closed'),
-		);
-		await context.commands.call('initiatives.delete', { id: billing.id });
-		await vi.waitFor(() => expect(github.milestones).toEqual([]));
-		expect(await call.sync()).toEqual([]);
-	});
-
-	it('closes the issue of a step whose workstream merged, once', async () => {
-		const { billing } = await syncedPlan();
+	it('closes the step whose workstream merged, once', async () => {
+		const billing = await sharedPlan();
 		const step = billing.dependencies[0];
 		context.db.exec(`
 			INSERT INTO projects (id, name, repo_path, default_branch, created_at)
@@ -616,20 +605,16 @@ describe('plan sync with GitHub', () => {
 			dependencyId: step?.id ?? '',
 			workstreamId: 'ws-schema',
 		});
-		const issue = github.issues[0];
-		if (!issue) throw new Error('no issue');
-		issue.state = 'open';
-		await call.sync();
-		expect(outcome(await call.sync(), 'Ship billing').dependencies[0]?.done).toBe(false);
-
 		recordMergedPullRequest(context.db, 'ws-schema', { number: 12, url: null });
-		const merged = await call.sync();
-		expect(outcome(merged, 'Ship billing').dependencies[0]?.done).toBe(true);
-		expect(issue.state).toBe('closed');
+		await call.sync();
+		expect(fileOutcome(remotePlan(), 'Ship billing').dependencies[0]?.done).toBe(true);
 
-		issue.state = 'open';
+		teammateEdits((plan) => {
+			const [schema] = fileOutcome(plan, 'Ship billing').dependencies;
+			if (schema) schema.done = false;
+		});
 		expect(outcome(await call.sync(), 'Ship billing').dependencies[0]?.done).toBe(false);
-		expect(issue.state).toBe('open');
+		expect(outcome(await call.sync(), 'Ship billing').dependencies[0]?.done).toBe(false);
 
 		const webhooks = await call.addStep(billing.id, 'Webhooks');
 		await context.commands.call('initiatives.link-workstream', {
@@ -643,32 +628,25 @@ describe('plan sync with GitHub', () => {
 			merged: { pullRequestNumber: 13, pullRequestUrl: null },
 		});
 		await vi.waitFor(() =>
-			expect(github.issues.find(({ title }) => title === 'Webhooks')?.state).toBe('closed'),
+			expect(
+				fileOutcome(remotePlan(), 'Ship billing').dependencies.find(
+					({ title }) => title === 'Webhooks',
+				)?.done,
+			).toBe(true),
 		);
 	});
 
 	it('keeps the plan when GitHub is unreachable and pushes what waited once it is back', async () => {
-		const { billing } = await syncedPlan();
+		const billing = await sharedPlan();
 		github.setOffline(true);
-		await context.commands.call('initiatives.update', { id: billing.id, title: 'Offline rename' });
+		await call.rename(billing.id, 'Offline rename');
 		const plan = await call.sync();
-		expect(outcome(plan, 'Offline rename').githubMilestone).toBe(billing.githubMilestone);
+		expect(outcome(plan, 'Offline rename').id).toBe(billing.id);
 		expect((await call.state()).error).toMatch(/.+/u);
 
 		github.setOffline(false);
 		await call.sync();
-		expect(github.milestones[0]?.title).toBe('Offline rename');
+		expect(remotePlan().outcomes.map(({ title }) => title)).toEqual(['Offline rename']);
 		expect(await call.state()).toMatchObject({ error: null });
-		expect(github.milestones).toHaveLength(1);
-	});
-
-	it('pushes the rest when GitHub refuses one outcome, and says why', async () => {
-		await call.create('Polish');
-		await call.create('Polish');
-		await call.create('Ship billing');
-		await call.turn(true);
-		await call.sync();
-		expect(github.milestones.map(({ title }) => title)).toEqual(['Polish', 'Ship billing']);
-		expect((await call.state()).error).toContain('Validation Failed');
 	});
 });

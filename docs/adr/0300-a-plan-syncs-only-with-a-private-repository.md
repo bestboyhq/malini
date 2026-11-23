@@ -1,6 +1,6 @@
 # 0300 - A plan syncs only with a private repository
 
-Status: accepted
+Status: superseded by 0303
 
 ## Context
 

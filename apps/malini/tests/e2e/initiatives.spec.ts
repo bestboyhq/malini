@@ -158,7 +158,7 @@ test('an initiative shows only on its repository page, keeps its dependencies an
 	}
 });
 
-test('a GitHub plan syncs once its switch is on and says what a teammate changed there', async () => {
+test('a shared plan lands as one file in its private plan repository and says what a teammate changed there', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -186,22 +186,29 @@ test('a GitHub plan syncs once its switch is on and says what a teammate changed
 		await sync.click();
 		await expect(sync).toBeChecked();
 		await expect
-			.poll(() => github.plan().issues.map(({ title }) => title), { timeout: 20_000 })
-			.toEqual([CHECKOUT]);
-		expect(github.plan().milestones.map(({ title }) => title)).toEqual([OUTCOME]);
+			.poll(() => github.plan().outcomes, { timeout: 20_000 })
+			.toEqual([
+				expect.objectContaining({
+					title: OUTCOME,
+					dependencies: [expect.objectContaining({ title: CHECKOUT, done: false })],
+				}),
+			]);
 		await expect(main.getByText(/^Shared /u)).toBeVisible();
 
-		const plan = github.plan();
-		github.setPlan({
-			...plan,
-			issues: plan.issues.map((issue) => ({
-				...issue,
-				state: 'closed',
-				closed_by: { login: 'aleksander' },
-			})),
-		});
+		github.editPlan(
+			(plan) => ({
+				outcomes: plan.outcomes.map((outcome) => ({
+					...outcome,
+					dependencies: [outcome['dependencies']].flat().map((step) => ({
+						...Object(step),
+						done: true,
+					})),
+				})),
+			}),
+			'robin',
+		);
 		await page.reload();
-		await expect(toastSaying(page, `aleksander closed ${CHECKOUT} on GitHub`)).toBeVisible({
+		await expect(toastSaying(page, `robin closed ${CHECKOUT}`)).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(checkout).toBeChecked();
@@ -239,15 +246,12 @@ test('a plan in a public repository syncs only to a private plan repository its 
 		await sync.click();
 		await expect(sync).toBeChecked();
 		await expect
-			.poll(() => github.plan(PLAN_REPOSITORY).milestones.map(({ title }) => title), {
-				timeout: 20_000,
-			})
+			.poll(() => github.plan().outcomes.map(({ title }) => title), { timeout: 20_000 })
 			.toEqual([OUTCOME]);
 		expect(github.repository(PLAN_REPOSITORY)).toEqual({
 			private: true,
-			invited: { aleksander: 'push' },
+			invited: { robin: 'push' },
 		});
-		expect(github.plan()).toEqual({ milestones: [], issues: [] });
 		await expect(
 			main.getByText(`Private repo ${PLAN_REPOSITORY}. Only collaborators`),
 		).toBeVisible();
@@ -303,7 +307,7 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 				() =>
 					github
 						.plan()
-						.milestones.map(({ title }) => title)
+						.outcomes.map(({ title }) => title)
 						.sort(),
 				{ timeout: 20_000 },
 			)

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
@@ -15,16 +15,15 @@ import {
 
 const REPOSITORY = 'e2e/hutch';
 const GITHUB_URL = `https://github.com/${REPOSITORY}.git`;
+const PLAN_REPOSITORY = `${REPOSITORY}-malini-plan`;
 const PULL_REQUEST_NUMBER = 7;
 export const WORKSTREAM_NAME = 'Pull request workstream';
 const GITHUB_IDENTITY = ['-c', 'user.name=GitHub', '-c', 'user.email=noreply@github.com'];
 
 export type FakePullRequest = Record<string, unknown>;
 
-export interface FakePlan {
-	readonly milestones: readonly Record<string, unknown>[];
-	readonly issues: readonly Record<string, unknown>[];
-	readonly events?: Readonly<Record<string, readonly Record<string, unknown>[]>>;
+export interface FakeSharedPlan {
+	readonly outcomes: readonly Record<string, unknown>[];
 }
 
 export interface FakeRepository {
@@ -58,8 +57,8 @@ export interface FakeGithub {
 	setOffline(offline: boolean): void;
 	answerWith(stderr: string | null): void;
 	approveDevice(): void;
-	plan(repository?: string): FakePlan;
-	setPlan(plan: FakePlan): void;
+	plan(): FakeSharedPlan;
+	editPlan(edit: (plan: FakeSharedPlan) => FakeSharedPlan, author: string): void;
 	answerGet(path: string, output: unknown): void;
 	makePublic(): void;
 	repository(name: string): FakeRepository | null;
@@ -222,6 +221,7 @@ async function fakeGithubFor(
 	const callsFile = join(state, 'gh-calls.log');
 	const offline = join(state, 'offline');
 	const failure = join(state, 'github-failure');
+	const planRemote = join(state, 'github', `${PLAN_REPOSITORY}.git`);
 	mkdirSync(state, { recursive: true });
 	await git(state, ['init', '-q', '--bare', '-b', 'main', remote]);
 	const branch = revParse(seeded.worktree, '--abbrev-ref', 'HEAD');
@@ -252,7 +252,7 @@ async function fakeGithubFor(
 	writeFileSync(ghProgram, ghStub(state, remote, revParse(seeded.basePath, 'main')));
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
 		writeExecutable(join(dir, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghProgram}" "$@"\n`);
-		writeExecutable(join(dir, 'git'), gitShim(remote, offline));
+		writeExecutable(join(dir, 'git'), gitShim(remote, offline, join(state, 'github')));
 	}
 
 	const mergeOnGithub = (pullRequest: FakePullRequest, head: string): void => {
@@ -326,8 +326,25 @@ async function fakeGithubFor(
 		answerWith: (stderr) =>
 			stderr === null ? rmSync(failure, { force: true }) : writeFileSync(failure, stderr),
 		approveDevice: () => writeFileSync(join(state, 'device-approved'), ''),
-		plan: (repository = REPOSITORY) => readPlan(state, repository),
-		setPlan: (plan) => writeAtomically(join(state, 'plan.json'), JSON.stringify(plan)),
+		plan: () => sharedPlan(planRemote),
+		editPlan: (edit, author) => {
+			const text = `${JSON.stringify(edit(sharedPlan(planRemote)), null, '\t')}\n`;
+			const blob = gitIn(planRemote, ['hash-object', '-w', '--stdin'], text);
+			const tree = gitIn(planRemote, ['mktree'], `100644 blob ${blob}\tplan.json\n`);
+			const parent = revParse(planRemote, 'main');
+			const email = `9+${author}@users.noreply.github.com`;
+			const identity = ['-c', `user.name=${author}`, '-c', `user.email=${email}`];
+			const commit = gitIn(planRemote, [
+				...identity,
+				'commit-tree',
+				tree,
+				'-p',
+				parent,
+				'-m',
+				'Edit the plan by hand',
+			]);
+			gitIn(planRemote, ['update-ref', 'refs/heads/main', commit, parent]);
+		},
 		answerGet: (path, output) => {
 			const file = join(state, 'get-answers.json');
 			const answers: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
@@ -352,23 +369,26 @@ function revParse(repo: string, ...args: string[]): string {
 	return execFileSync('git', ['-C', repo, 'rev-parse', ...args], { encoding: 'utf8' }).trim();
 }
 
-function planFile(repository: string): string {
-	return repository === REPOSITORY ? 'plan.json' : `plan-${repository.replace('/', '__')}.json`;
+function gitIn(repo: string, args: readonly string[], input = ''): string {
+	return execFileSync('git', ['-C', repo, '-c', 'commit.gpgsign=false', ...args], {
+		input,
+		encoding: 'utf8',
+	}).trim();
 }
 
-function readPlan(state: string, repository: string): FakePlan {
-	const file = join(state, planFile(repository));
-	const parsed: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
-	const records = (key: string): Record<string, unknown>[] => {
-		const value: unknown =
-			typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, key) : undefined;
-		return Array.isArray(value)
-			? value.filter(
+function sharedPlan(repo: string): FakeSharedPlan {
+	const shown = spawnSync('git', ['-C', repo, 'show', 'main:plan.json'], { encoding: 'utf8' });
+	const text = shown.status === 0 ? shown.stdout : '';
+	const parsed: unknown = text.length > 0 ? JSON.parse(text) : {};
+	const outcomes: unknown =
+		typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'outcomes') : undefined;
+	return {
+		outcomes: Array.isArray(outcomes)
+			? outcomes.filter(
 					(item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
 				)
-			: [];
+			: [],
 	};
-	return { milestones: records('milestones'), issues: records('issues') };
 }
 
 function writeAtomically(path: string, contents: string): void {
@@ -376,7 +396,7 @@ function writeAtomically(path: string, contents: string): void {
 	renameSync(`${path}.tmp`, path);
 }
 
-function gitShim(remote: string, offline: string): string {
+function gitShim(remote: string, offline: string, plans: string): string {
 	return `#!/bin/sh
 [ -f "${offline}" ] && exec '${REAL_GIT}' "$@"
 fetching=
@@ -384,6 +404,7 @@ for arg do
   shift
   [ "$arg" = "fetch" ] && fetching=1
   [ "$arg" = "${GITHUB_URL}" ] && arg="${remote}"
+  case "$arg" in https://github.com/*-malini-plan.git) arg="${plans}/\${arg#https://github.com/}" ;; esac
   [ -n "$fetching" ] && [ "$arg" = "origin" ] && arg="${remote}"
   set -- "$@" "$arg"
 done
@@ -487,6 +508,7 @@ if (command === 'auth' && sub === 'status') {
 } else if (command === 'api' && flag('-X') === 'POST' && /^orgs\\/[^/]+\\/repos$/u.test(sub)) {
 	const name = sub.split('/')[1] + '/' + field('name');
 	saveRepositories({ ...repositories(), [name]: { private: field('private') === 'true', invited: {} } });
+	execFileSync('git', ['init', '-q', '--bare', path.join(state, 'github', name + '.git')]);
 	out({ full_name: name });
 } else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+$/u.test(sub) && args.length === 2) {
 	const found = fakeRepository(sub.slice('repos/'.length));
@@ -494,73 +516,30 @@ if (command === 'auth' && sub === 'status') {
 		process.stderr.write('gh: Not Found (HTTP 404)\\n');
 		process.exit(1);
 	}
-	out({ private: found.private, owner: { type: 'Organization' } });
+	out({ private: found.private, owner: { type: 'Organization' }, permissions: { admin: true } });
 } else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+\\/(collaborators|invitations)/u.test(sub)) {
 	const [, owner, name, collection, login] = sub.split('?')[0].split('/');
 	const repository = owner + '/' + name;
+	const all = repositories();
 	const found = fakeRepository(repository) || { invited: {} };
+	const invitees = Object.keys(found.invited);
 	if (flag('-X') === 'PUT') {
-		const all = repositories();
 		all[repository].invited[login] = field('permission');
 		saveRepositories(all);
 		out({});
-	} else if (collection === 'invitations') {
-		out(Object.keys(found.invited).map((invitee) => ({ invitee: { login: invitee } })));
-	} else {
-		const people = { 'e2e-user': { admin: true }, ...(repository === ${JSON.stringify(REPOSITORY)} ? { aleksander: { push: true } } : {}) };
-		out(Object.entries(people).map(([person, permissions]) => ({ login: person, permissions })));
-	}
-} else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+\\/(milestones|issues)/u.test(sub)) {
-	const [, planOwner, planName] = sub.split('?')[0].split('/');
-	const planFile = path.join(state, planOwner + '/' + planName === ${JSON.stringify(REPOSITORY)} ? 'plan.json' : 'plan-' + planOwner + '__' + planName + '.json');
-	const plan = fs.existsSync(planFile)
-		? JSON.parse(fs.readFileSync(planFile, 'utf8'))
-		: { milestones: [], issues: [] };
-	const savePlan = () => {
-		fs.writeFileSync(planFile + '.tmp', JSON.stringify(plan));
-		fs.renameSync(planFile + '.tmp', planFile);
-	};
-	const method = flag('-X') || 'GET';
-	const fields = {};
-	args.forEach((arg, index) => {
-		const kind = args[index - 1];
-		if (kind !== '-f' && kind !== '-F') return;
-		const split = arg.indexOf('=');
-		const value = arg.slice(split + 1);
-		fields[arg.slice(0, split)] = kind === '-f' ? value : value === 'null' ? null : Number(value);
-	});
-	if (typeof fields.due_on === 'string') fields.due_on = fields.due_on.slice(0, 10) + 'T08:00:00Z';
-	const url = new URL(sub, 'https://api.github.com/');
-	const [, , , , collection, number, tail] = url.pathname.split('/');
-	const list = collection === 'milestones' ? plan.milestones : plan.issues;
-	const found = list.find((item) => String(item.number) === number);
-	const next = list.reduce((max, item) => Math.max(max, item.number), 0) + 1;
-	if (method === 'GET' && tail === 'events') {
-		out((plan.events || {})[number] || []);
-	} else if (method === 'GET' && number === undefined) {
-		const page = Number(url.searchParams.get('page') || '1');
-		out(page > 1 ? [] : collection === 'issues' ? list.filter((issue) => issue.milestone) : list);
-	} else if (method === 'POST' && collection === 'milestones') {
-		const created = { number: next, state: 'open', description: '', due_on: null, creator: { login: 'e2e-user' }, ...fields };
-		list.push(created);
-		savePlan();
-		out(created);
-	} else if (method === 'POST') {
-		const created = { number: next, state: 'open', body: '', user: { login: 'e2e-user' }, assignees: [], ...fields, milestone: { number: fields.milestone } };
-		list.push(created);
-		savePlan();
-		out(created);
-	} else if (!found) {
-		process.stderr.write('gh: Not Found (HTTP 404)\\n');
-		process.exit(1);
-	} else if (method === 'DELETE') {
-		list.splice(list.indexOf(found), 1);
-		savePlan();
+	} else if (flag('-X') === 'DELETE' && collection === 'invitations') {
+		delete all[repository].invited[invitees[Number(login) - 1]];
+		saveRepositories(all);
 		out('');
+	} else if (flag('-X') === 'DELETE') {
+		out('');
+	} else if (collection === 'invitations') {
+		out(invitees.map((invitee, index) => ({ id: index + 1, invitee: { login: invitee } })));
 	} else {
-		Object.assign(found, fields);
-		savePlan();
-		out(found);
+		const source = repository === ${JSON.stringify(REPOSITORY)};
+		const direct = sub.includes('affiliation=direct');
+		const people = source ? { 'e2e-user': { admin: true }, robin: { push: true } } : direct ? {} : { 'e2e-user': { admin: true } };
+		out(Object.entries(people).map(([person, permissions]) => ({ login: person, permissions })));
 	}
 } else if (command === 'api' && sub === 'graphql') {
 	const fields = {};

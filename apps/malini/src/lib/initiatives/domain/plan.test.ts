@@ -23,7 +23,6 @@ function dependency(done: boolean, workstreamIds: readonly string[] = []): Initi
 		done,
 		note: null,
 		workstreams: workstreamIds.map((workstreamId) => ({ workstreamId, needs: null })),
-		githubIssue: null,
 		assignee: null,
 	};
 }
@@ -35,12 +34,11 @@ function outcome(
 ): Initiative {
 	return {
 		id,
-		repositoryFullName: 'ablaszkiewicz/gardener-game',
+		repositoryFullName: 'acme/rocket',
 		title: id,
 		dueOn,
 		note: null,
 		dependencies,
-		githubMilestone: null,
 	};
 }
 
@@ -169,12 +167,12 @@ describe('syncedLabel', () => {
 });
 
 describe('remoteChangeLine', () => {
-	it('names who changed what on GitHub', () => {
-		expect(
-			remoteChangeLine({ actor: 'Aleksander', kind: 'closed', title: 'Privacy policy and ToS' }),
-		).toBe('Aleksander closed Privacy policy and ToS on GitHub');
+	it('names who changed what', () => {
+		expect(remoteChangeLine({ actor: 'Robin', kind: 'closed', title: 'Pick a name' })).toBe(
+			'Robin closed Pick a name',
+		);
 		expect(remoteChangeLine({ actor: null, kind: 'dated', title: 'Season 1 opens' })).toBe(
-			'Someone moved Season 1 opens on GitHub',
+			'Someone moved Season 1 opens',
 		);
 	});
 });

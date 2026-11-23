@@ -6,7 +6,6 @@ export type InitiativeDependency = Readonly<{
 	done: boolean;
 	note: string | null;
 	workstreams: readonly InitiativeWorkstream[];
-	githubIssue: number | null;
 	assignee: string | null;
 }>;
 
@@ -17,7 +16,6 @@ export type Initiative = Readonly<{
 	dueOn: string | null;
 	note: string | null;
 	dependencies: readonly InitiativeDependency[];
-	githubMilestone: number | null;
 }>;
 
 export type CreateInitiativeArgs = Readonly<{
