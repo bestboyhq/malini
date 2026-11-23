@@ -168,8 +168,8 @@ beforeEach(() => {
 	watchers = startWatchers();
 });
 
-afterEach(() => {
-	watchers.dispose();
+afterEach(async () => {
+	await watchers.dispose();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });
@@ -213,7 +213,7 @@ describe('createWorkstreamWatchers', () => {
 		await initRepo(path);
 		mkdirSync(join(path, '.context'));
 		seedRow('ws-1', path, 'active');
-		watchers.dispose();
+		await watchers.dispose();
 		watchers = startWatchers(1_000, 10_000);
 		await watchSettled('ws-1');
 
@@ -428,7 +428,7 @@ describe('createWorkstreamWatchers', () => {
 		seedRow('ws-plain', plainDirectory, 'active');
 
 		const starts = [watchers.watch('ws-plain'), watchers.watch('ws-missing')];
-		watchers.dispose();
+		await watchers.dispose();
 		await Promise.all(starts);
 
 		expect(watchers.isWatching('ws-plain')).toBe(false);

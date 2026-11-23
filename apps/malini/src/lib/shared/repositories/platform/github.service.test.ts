@@ -61,7 +61,7 @@ function fakeRunner(
 let root: string;
 let db: MaliniDatabase;
 let context: MainContext;
-const disposers: Array<() => void> = [];
+const disposers: Array<() => Promise<void>> = [];
 
 function boot(deps: RepositoriesDeps = {}): void {
 	const platform = registerRepositories(context, { startupReclaim: false, ...deps });
@@ -97,8 +97,8 @@ beforeEach(() => {
 	};
 });
 
-afterEach(() => {
-	for (const dispose of disposers.splice(0)) dispose();
+afterEach(async () => {
+	for (const dispose of disposers.splice(0)) await dispose();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });

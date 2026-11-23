@@ -110,7 +110,7 @@ afterEach(async () => {
 	restoreGit();
 	restoreGit = () => undefined;
 	platform.checkoutHealth.dispose();
-	platform.watchers.dispose();
+	await platform.watchers.dispose();
 	db.close();
 	await removeDir(root);
 });

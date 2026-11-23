@@ -48,7 +48,7 @@ export interface WorkstreamWatchers {
 	refresh(workstreamId: string): Promise<void>;
 	reportMergeConflict(conflict: MergeConflict): void;
 	whilePulling<T>(workstreamId: string, pull: () => Promise<T>): Promise<T>;
-	dispose(): void;
+	dispose(): Promise<void>;
 }
 
 interface GitFacts {
@@ -418,9 +418,11 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		refresh,
 		reportMergeConflict,
 		whilePulling,
-		dispose() {
+		async dispose() {
 			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
-			for (const set of [...sets.values()]) close(set);
+			const closed = [...sets.values()];
+			for (const set of closed) close(set);
+			await Promise.allSettled(closed.map((set) => set.reading));
 		},
 	};
 }

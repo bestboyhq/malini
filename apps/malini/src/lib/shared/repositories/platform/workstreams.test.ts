@@ -111,7 +111,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		...deps,
 	});
 	cleanups.push(async () => {
-		platform.watchers.dispose();
+		await platform.watchers.dispose();
 		await archivedLeftoversCleared();
 		context.db.close();
 	});
@@ -245,7 +245,7 @@ describe('retired chats', () => {
 			'acme/api',
 		]);
 
-		platform.watchers.dispose();
+		await platform.watchers.dispose();
 		const restarted = registerRepositories(
 			{ ...context, commands: new CommandRegistry() },
 			{ shell: silentShell, startupReclaim: false },

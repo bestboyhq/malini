@@ -90,8 +90,8 @@ beforeEach(() => {
 	platform = registerRepositories(context, { startupReclaim: false });
 });
 
-afterEach(() => {
-	platform.watchers.dispose();
+afterEach(async () => {
+	await platform.watchers.dispose();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });
