@@ -16,9 +16,7 @@ function setPlanSyncCommand(repositoryFullName: string, enabled: boolean): void 
 		} catch (error) {
 			if (before) planSyncAggregate.set(before);
 			const detail = sanitizeFailureDetail(error instanceof Error ? error.message : null);
-			toast.error(
-				`Sharing not turned ${enabled ? 'on' : 'off'}${detail ? ` · ${detail}` : ''}.`,
-			);
+			toast.error(`Sharing not turned ${enabled ? 'on' : 'off'}${detail ? ` · ${detail}` : ''}.`);
 		}
 	})();
 }
