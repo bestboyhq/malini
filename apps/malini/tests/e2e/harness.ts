@@ -613,10 +613,14 @@ async function sampleHelpers(pids: readonly number[]): Promise<string[]> {
 }
 
 const WINDOWS_PROCESS_TABLE = [
-	'Get-CimInstance Win32_Process | ForEach-Object {',
-	"'{0} {1} - {2} {3}' -f $_.ProcessId, $_.ParentProcessId,",
-	'$(if ($_.CreationDate) { $_.CreationDate.Ticks } else { 0 }),',
-	'$(if ($_.CommandLine) { $_.CommandLine } else { $_.Name })',
+	'$all = @{};',
+	'Get-CimInstance Win32_Process | ForEach-Object { $all[$_.ProcessId] = $_ };',
+	'foreach ($p in $all.Values) {',
+	'$up = $all[$p.ParentProcessId];',
+	'$ppid = if ($up -and $up.CreationDate -le $p.CreationDate) { $p.ParentProcessId } else { 0 };',
+	"'{0} {1} - {2} {3}' -f $p.ProcessId, $ppid,",
+	'$(if ($p.CreationDate) { $p.CreationDate.Ticks } else { 0 }),',
+	'$(if ($p.CommandLine) { $p.CommandLine } else { $p.Name })',
 	'}',
 ].join(' ');
 const STARTED_FIELDS = WINDOWS ? 1 : 5;
