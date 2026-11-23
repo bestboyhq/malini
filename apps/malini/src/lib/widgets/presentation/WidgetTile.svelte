@@ -29,6 +29,7 @@
 		sample?: WidgetData | null;
 		approved?: boolean;
 		plan?: Snippet<[WidgetSize]> | undefined;
+		planHeader?: Snippet | undefined;
 		author?: Snippet | undefined;
 		actions?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
@@ -42,6 +43,7 @@
 		sample = null,
 		approved = true,
 		plan,
+		planHeader,
 		author,
 		actions,
 		onopen,
@@ -206,6 +208,11 @@
 	>
 		<Icon name={iconOf(widget.icon)} size={12} class={['shrink-0', faded && 'opacity-60']} />
 		<span class={['min-w-0 flex-1 truncate', faded && 'opacity-60']}>{widget.title}</span>
+		{#if widget.source.kind === 'plan' && planHeader}
+			<span class="pointer-events-auto mr-1 flex min-w-0 items-center" data-widget-chrome>
+				{@render planHeader()}
+			</span>
+		{/if}
 		<span class="pointer-events-auto flex shrink-0 items-center gap-1.5">
 			{#if reading?.reading}
 				<span class="relative flex size-1.5" role="img" aria-label="Reading">

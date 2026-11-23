@@ -42,10 +42,12 @@
 	<Tooltip
 		content={sync.enabled ? whatOffDoes : whatOnDoes}
 		placement="top"
-		class="flex min-w-0 items-center gap-2"
+		class="flex min-w-0 items-center gap-1.5"
 	>
+		<label for={switchId} class="min-w-0 cursor-pointer truncate @max-[13rem]:sr-only">
+			{LABEL}
+		</label>
 		<Switch id={switchId} size="sm" checked={sync.enabled} {onchange} />
-		<label for={switchId} class="min-w-0 cursor-pointer truncate">{LABEL}</label>
 	</Tooltip>
 {:else if sync && home !== null}
 	<div class="mb-5 flex items-start gap-3">

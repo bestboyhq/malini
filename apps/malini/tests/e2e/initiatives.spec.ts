@@ -256,11 +256,11 @@ test('a plan in a public repository syncs only to a private plan repository its 
 	}
 });
 
-test('the Plan widget lists outcomes under the day they are due and the ones with no date last', async () => {
+test('the Plan widget lists outcomes under the day they are due, the ones with no date last, and its switch syncs them', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
-		const { page } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-days', null);
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-days', null);
 		await page.reload();
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -291,6 +291,22 @@ test('the Plan widget lists outcomes under the day they are due and the ones wit
 		});
 		await expect(undated.getByRole('group', { name: COPY, exact: true })).toBeVisible();
 		await expect(due.getByRole('group', { name: COPY, exact: true })).toHaveCount(0);
+
+		const sync = plan.getByRole('switch', { name: 'Sync with GitHub' });
+		await expect(sync).not.toBeChecked();
+		await sync.click();
+		await expect(sync).toBeChecked();
+		await expect
+			.poll(
+				() =>
+					github
+						.plan()
+						.milestones.map(({ title }) => title)
+						.sort(),
+				{ timeout: 20_000 },
+			)
+			.toEqual([OUTCOME, COPY].sort());
+		await expect(plan.getByText(/^Synced /u)).toBeVisible();
 		await captureFlow(app, 'plan-widget-days');
 		expectCleanConsole(app);
 	} finally {

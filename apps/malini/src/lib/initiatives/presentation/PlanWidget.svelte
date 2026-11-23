@@ -33,7 +33,6 @@
 	import { repositoryWebUrl, type Repository } from '$shared/repositories/repositories.api';
 	import PlanOutcome from './PlanOutcome.svelte';
 	import PlanSyncStatus from './PlanSyncStatus.svelte';
-	import PlanSyncSwitch from './PlanSyncSwitch.svelte';
 	import ProgressRing from './ProgressRing.svelte';
 	import QuietField from './QuietField.svelte';
 	import { dayName, weekdayOf } from './rail-labels';
@@ -263,13 +262,16 @@
 		>
 			{#if onGithub && sync?.enabled}
 				<PlanSyncStatus {sync} />
-			{:else if onGithub}
-				<PlanSyncSwitch repositoryFullName={repository.fullName} compact />
-				<span class="min-w-0 flex-1"></span>
+				{@render openPlan()}
 			{:else}
-				<span class="min-w-0 flex-1"></span>
+				<Button
+					bare
+					class="hover:text-fg-default focus-visible:ring-border-default/50 -mx-1.5 flex h-6 min-w-0 flex-1 cursor-pointer items-center justify-between rounded-md px-1.5 outline-0 transition-[color] focus-visible:ring-2"
+					onclick={onopen}
+				>
+					Open the plan<Icon name="arrow-right" size={12} />
+				</Button>
 			{/if}
-			{@render openPlan()}
 		</footer>
 	{/if}
 </div>

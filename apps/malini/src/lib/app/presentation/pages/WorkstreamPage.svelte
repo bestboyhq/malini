@@ -27,7 +27,7 @@
 	import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
 	import { inspectorPanelsQuery } from '$lib/extensions/application/queries/inspector-panels.query.svelte';
 	import { WorkstreamInspector } from '$lib/extensions/extensions.api';
-	import { PlanWidget } from '$lib/initiatives/initiatives.api';
+	import { PlanSyncSwitch, PlanWidget } from '$lib/initiatives/initiatives.api';
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
 	import { WidgetBoard } from '$lib/widgets/widgets.api';
 	import {
@@ -208,7 +208,14 @@
 		onask={(prompt) => fillWorkstreamComposerCommand(workstreamId, prompt)}
 		onopenfile={(path) => openRequestedFileCommand({ workstreamId, path, line: null })}
 		plan={repositoryContext ? planHere : undefined}
+		planHeader={repositoryContext ? planSyncHere : undefined}
 	/>
+{/snippet}
+
+{#snippet planSyncHere()}
+	{#if repositoryContext}
+		<PlanSyncSwitch repositoryFullName={repositoryContext.repo.fullName} compact />
+	{/if}
 {/snippet}
 
 {#snippet planHere(size: WidgetSize)}
