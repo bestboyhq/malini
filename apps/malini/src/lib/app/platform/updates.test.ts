@@ -74,6 +74,7 @@ vi.mock('electron-updater', async (importOriginal) => {
 	return { default: { autoUpdater, CancellationToken: actual.CancellationToken } };
 });
 
+import { autoUpdater as squirrel } from 'electron';
 import electronUpdater, { type CancellationToken, type UpdateInfo } from 'electron-updater';
 import type { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 import { APP_UPDATE_STATUS_CHANGED_CHANNEL, type UpdateStatus } from '$contract/events';
@@ -133,6 +134,41 @@ describe('updates', () => {
 
 		await vi.advanceTimersByTimeAsync(60 * 60_000);
 		await vi.waitFor(() => expect(downloads).toHaveBeenCalledTimes(2));
+	});
+
+	it('lists what changed since this version once an update is ready', async () => {
+		const resources = mkdtempSync(join(tmpdir(), 'malini-updates-'));
+		writeFileSync(join(resources, 'app-update.yml'), 'provider: github\n');
+		Object.defineProperty(process, 'resourcesPath', { value: resources, configurable: true });
+		releases.latest = () =>
+			Promise.resolve({
+				version: '1.2.0',
+				files: [],
+				path: '',
+				sha512: '',
+				releaseDate: '',
+				releaseNotes: [
+					{ version: '1.2.0', note: '<ul><li>feat(chat): pin a chat by @octo in #2</li></ul>' },
+					{ version: '1.1.0', note: '<ul><li>fix: keep the clock right by @octo in #1</li></ul>' },
+				],
+			});
+		const downloads = vi.spyOn(autoUpdater, 'downloadUpdate').mockResolvedValue([]);
+		const commands = new CommandRegistry();
+		const events = createEventBus({ forwardToWindows: false });
+		startUpdates({ commands, events }, () => undefined);
+
+		await vi.waitFor(() => expect(downloads).toHaveBeenCalledTimes(1));
+		squirrel.emit('update-downloaded');
+
+		expect(await commands.call('app.update-status', undefined)).toEqual({
+			state: 'ready',
+			version: '1.2.0',
+			installed: '1.0.0',
+			releases: [
+				{ version: '1.2.0', changes: [{ kind: 'feature', summary: 'Pin a chat' }] },
+				{ version: '1.1.0', changes: [{ kind: 'fix', summary: 'Keep the clock right' }] },
+			],
+		});
 	});
 
 	it('checks again after a check that never answers', async () => {

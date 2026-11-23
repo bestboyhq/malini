@@ -62,7 +62,7 @@
 		</Button>
 	</div>
 
-	<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Brain">
+	<ScrollableDiv class="min-h-0 flex-1" fadeEdges ariaLabel="Brain">
 		<nav class="flex flex-col gap-px px-2.5 pt-4 pb-4" aria-label="Brain">
 			{#if topics.length > 0}
 				<h2 class="text-fg-tertiary px-2 pt-1 pb-2.5 text-xs font-medium">Brain</h2>

@@ -21,3 +21,35 @@
 @utility text-disabled {
 	color: var(--fg-disabled);
 }
+
+:root {
+	--painting-loop:
+		#1957fa, #6365cd, #9e6594, #d35351, #ed3e11, #fb8400, #ed3e11, #d35351, #9e6594, #6365cd,
+		#1957fa;
+}
+
+@keyframes painting-slide {
+	to {
+		background-position-x: 200%;
+	}
+}
+
+@utility bg-painting {
+	background: linear-gradient(90deg, var(--painting-loop)) 0 0 / 200% 100% repeat-x;
+	animation: painting-slide 6s linear infinite;
+
+	@media (prefers-reduced-motion: reduce) {
+		animation: none;
+	}
+}
+
+@utility text-painting {
+	background: linear-gradient(90deg, var(--painting-loop)) 0 0 / 200% 100% repeat-x;
+	background-clip: text;
+	color: transparent;
+	animation: painting-slide 6s linear infinite;
+
+	@media (prefers-reduced-motion: reduce) {
+		animation: none;
+	}
+}

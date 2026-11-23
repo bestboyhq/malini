@@ -3,6 +3,7 @@
 	import { BrainNav } from '$lib/brain/brain.api';
 	import SidebarFooter from './SidebarFooter.svelte';
 	import SidebarFrame from './SidebarFrame.svelte';
+	import UpdateStatus from './UpdateStatus.svelte';
 
 	interface Props {
 		backHref: string;
@@ -14,5 +15,6 @@
 
 <SidebarFrame testId="brain-sidebar">
 	<BrainNav {backHref} {backLabel} selectedPath={page.params.path ?? null} />
+	<UpdateStatus />
 	<SidebarFooter />
 </SidebarFrame>

@@ -99,6 +99,7 @@
 	import SidebarFrame from './SidebarFrame.svelte';
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
+	import UpdateStatus from './UpdateStatus.svelte';
 	import { REPOSITORIES_HREF, repositoryHref, workstreamHref } from '$shared/router/routes-hrefs';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { RepositorySidebarSkeleton } from '$shared/repositories/repositories.api';
@@ -1692,6 +1693,7 @@
 	>
 		<ScrollableDiv
 			class="h-full"
+			fadeEdges
 			viewportClass="px-2 pb-3"
 			ariaLabel="Connected repositories"
 			testId="repository-scroll"
@@ -1856,6 +1858,8 @@
 		onclose={closeContextMenu}
 		onfind={() => openCommandCenterCommand('find')}
 	/>
+
+	<UpdateStatus />
 
 	{#if !momentQuery.data}
 		<SidebarArchived />

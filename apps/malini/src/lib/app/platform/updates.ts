@@ -11,12 +11,14 @@ import electronUpdater from 'electron-updater';
 import {
 	APP_UPDATE_STAGED_CHANNEL,
 	APP_UPDATE_STATUS_CHANGED_CHANNEL,
+	type UpdateRelease,
 	type UpdateStatus,
 } from '$contract/events';
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
 import { BACKGROUND_WINDOW } from '$main/window';
 import { AppError } from './app-error';
+import { updateReleases } from './update-releases';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const UP_TO_DATE_SHOWN_MS = 8_000;
@@ -60,9 +62,12 @@ export function startUpdates(
 	const { autoUpdater, CancellationToken } = electronUpdater;
 	autoUpdater.logger = null;
 	autoUpdater.autoDownload = false;
+	autoUpdater.fullChangelog = true;
 	let activity: UpdateStatus | null = null;
 	let outcome: UpdateStatus | null = null;
 	let staged = '';
+	let stagedReleases: readonly UpdateRelease[] = [];
+	let downloadingReleases: readonly UpdateRelease[] = [];
 	let asked = false;
 	let restartOnceLatest = false;
 	let restartRequested = false;
@@ -72,7 +77,14 @@ export function startUpdates(
 	const show = (): void => {
 		const next =
 			(asked && activity) ||
-			(staged ? { state: 'ready' as const, version: staged } : (outcome ?? IDLE));
+			(staged
+				? {
+						state: 'ready' as const,
+						version: staged,
+						installed: app.getVersion(),
+						releases: stagedReleases,
+					}
+				: (outcome ?? IDLE));
 		if (JSON.stringify(next) === JSON.stringify(shown)) return;
 		shown = next;
 		events.emit(APP_UPDATE_STATUS_CHANGED_CHANNEL, next);
@@ -129,6 +141,7 @@ export function startUpdates(
 			const latest = result?.isUpdateAvailable ? result.updateInfo.version : staged;
 			if (latest === staged) return settle({ state: 'up-to-date', version: app.getVersion() });
 			const downloading: UpdateStatus = { state: 'downloading', version: latest };
+			downloadingReleases = updateReleases(result?.updateInfo.releaseNotes);
 			activity = downloading;
 			const token = new CancellationToken();
 			cancellation = token;
@@ -158,6 +171,7 @@ export function startUpdates(
 	squirrel.on('update-downloaded', () => {
 		if (activity?.state !== 'downloading') return;
 		staged = activity.version;
+		stagedReleases = downloadingReleases;
 		events.emit(APP_UPDATE_STAGED_CHANNEL, { version: staged });
 		settle(null);
 	});

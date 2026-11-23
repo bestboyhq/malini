@@ -4,6 +4,7 @@
 	import { automationsView } from './automations-view';
 	import SidebarFooter from './SidebarFooter.svelte';
 	import SidebarFrame from './SidebarFrame.svelte';
+	import UpdateStatus from './UpdateStatus.svelte';
 
 	interface Props {
 		backHref: string;
@@ -18,5 +19,6 @@
 
 <SidebarFrame testId="automations-sidebar">
 	<AutomationsNav {backHref} {backLabel} {view} {selectedAutomationId} />
+	<UpdateStatus />
 	<SidebarFooter />
 </SidebarFrame>
