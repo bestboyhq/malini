@@ -13,6 +13,8 @@ export type WidgetsPlatform = Readonly<{
 
 const WORKSTREAM_ID_MAX_LENGTH = 200;
 
+const GITHUB_REPOSITORY = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/u;
+
 export function registerWidgets(context: MainContext, deps: WidgetsDeps): WidgetsPlatform {
 	const { commands } = context;
 	const boards = new WidgetBoards(context, deps);
@@ -40,6 +42,14 @@ export function registerWidgets(context: MainContext, deps: WidgetsDeps): Widget
 	commands.define('widgets.refresh', (args: unknown) =>
 		boards.refresh(workstreamId(args), widgetId(args)),
 	);
+
+	commands.define('widgets.pin-plan', (args: unknown) => {
+		const repository = field(args, 'repositoryFullName');
+		if (typeof repository !== 'string' || !GITHUB_REPOSITORY.test(repository)) {
+			throw invalid('`repositoryFullName` must be a GitHub owner/name');
+		}
+		boards.pinPlan(repository);
+	});
 
 	commands.define('widgets.watch', (args: unknown) => {
 		const watching = field(args, 'watching');

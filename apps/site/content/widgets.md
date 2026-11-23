@@ -126,3 +126,4 @@ An edit in either place shows in the other at once, and a click on the title **P
 
 Turn on **Share internally**, beside the widget's title, to share the plan with your team, as [one file in a private plan repository](/malini/docs/initiatives.md#share-internally).
 Its tooltip says who sees it.
+When a teammate [asks you to share](/malini/docs/initiatives.md#ask-the-owner) and you press **Share**, the Plan comes back first on your board, even after you removed it.

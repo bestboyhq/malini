@@ -4,6 +4,8 @@ import type {
 	PlanSync,
 	PlanSyncedEvent,
 	SetPlanSyncArgs,
+	ShareAcceptedEvent,
+	ShareRequest,
 	UpdateInitiativeArgs,
 	UpdateInitiativeDependencyArgs,
 } from '$contract/initiatives';
@@ -57,6 +59,22 @@ class InitiativesService {
 
 	onSynced(listener: (event: PlanSyncedEvent) => void): () => void {
 		return onPlatformEvent('initiatives:synced', listener);
+	}
+
+	shareRequests(): Promise<ShareRequest[]> {
+		return invoke('initiatives.share-requests', undefined);
+	}
+
+	async dismissShareRequest(repositoryFullName: string): Promise<void> {
+		await invoke('initiatives.dismiss-share-request', { repositoryFullName });
+	}
+
+	onShareRequested(listener: (request: ShareRequest) => void): () => void {
+		return onPlatformEvent('initiatives:share-requested', listener);
+	}
+
+	onShareAccepted(listener: (event: ShareAcceptedEvent) => void): () => void {
+		return onPlatformEvent('initiatives:share-accepted', listener);
 	}
 }
 

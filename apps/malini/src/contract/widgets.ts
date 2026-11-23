@@ -120,6 +120,8 @@ export type WidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
 
 export type WatchWidgetsArgs = Readonly<{ workstreamId: string; watching: boolean }>;
 
+export type PinPlanWidgetArgs = Readonly<{ repositoryFullName: string }>;
+
 export type WidgetBoardChangedEvent = Readonly<{ board: string }>;
 
 export function isWidgetSize(value: unknown): value is WidgetSize {

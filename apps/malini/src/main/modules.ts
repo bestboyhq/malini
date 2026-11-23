@@ -121,7 +121,7 @@ export async function registerModules(
 	});
 
 	registerScratchpad(context);
-	registerInitiatives(context, { gh: repositories.gh, log });
+	const initiatives = registerInitiatives(context, { gh: repositories.gh, log });
 
 	registerSounds(context, {
 		askForMicrophone,
@@ -229,6 +229,7 @@ export async function registerModules(
 	});
 	automations.start();
 	brain.start();
+	void initiatives.start();
 	repositories.overlaps.start();
 	repositories.checkoutHealth.start();
 	app.announceUpdate();
@@ -249,6 +250,7 @@ export async function registerModules(
 			pullRequests.dispose();
 			automations.dispose();
 			brain.dispose();
+			initiatives.dispose();
 			widgets.dispose();
 			repositories.watchers.dispose();
 			repositories.checkoutHealth.dispose();

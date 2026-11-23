@@ -15,6 +15,7 @@ import {
 const REPOSITORY = 'e2e/hutch';
 const GITHUB_URL = `https://github.com/${REPOSITORY}.git`;
 const PLAN_REPOSITORY = `${REPOSITORY}-malini-plan`;
+const SHARE_ASKS = 'refs/malini/plan-requests';
 const PULL_REQUEST_NUMBER = 7;
 export const WORKSTREAM_NAME = 'Pull request workstream';
 const GITHUB_IDENTITY = ['-c', 'user.name=GitHub', '-c', 'user.email=noreply@github.com'];
@@ -61,6 +62,8 @@ export interface FakeGithub {
 	answerGet(path: string, output: unknown): void;
 	makePublic(): void;
 	repository(name: string): FakeRepository | null;
+	askToShare(login: string): void;
+	shareAsks(): string[];
 }
 
 export interface PullRequestWorkstream {
@@ -353,6 +356,15 @@ async function fakeGithubFor(
 			writeAtomically(file, JSON.stringify({ ...Object(answers), [path]: output }));
 		},
 		makePublic: () => writeFileSync(join(state, 'public'), ''),
+		askToShare: (login) => {
+			const tree = gitIn(remote, ['mktree']);
+			const commit = gitIn(remote, [...GITHUB_IDENTITY, 'commit-tree', tree, '-m', 'Share']);
+			gitIn(remote, ['update-ref', `${SHARE_ASKS}/${login}`, commit]);
+		},
+		shareAsks: () =>
+			gitIn(remote, ['for-each-ref', '--format=%(refname)', SHARE_ASKS])
+				.split('\n')
+				.flatMap((ref) => (ref.length > 0 ? [ref.slice(SHARE_ASKS.length + 1)] : [])),
 		repository: (name) => {
 			const file = join(state, 'repositories.json');
 			const created: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};

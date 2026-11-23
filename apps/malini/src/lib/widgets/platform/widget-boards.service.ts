@@ -141,6 +141,20 @@ export class WidgetBoards {
 		return this.#changed(opened);
 	}
 
+	pinPlan(repositoryFullName: string): void {
+		const { db } = this.#context;
+		startBoard(db, repositoryFullName);
+		const placed = listPlacements(db, repositoryFullName);
+		if (placed.some(({ widgetId }) => widgetId === PLAN_WIDGET_ID)) return;
+		placeWidget(db, repositoryFullName, {
+			widgetId: PLAN_WIDGET_ID,
+			before: placed[0]?.widgetId ?? null,
+			span: WIDGET_SIZE_SPANS.large,
+			approvedFingerprint: PLAN_WIDGET.fingerprint,
+		});
+		this.#replan(repositoryFullName);
+	}
+
 	async remove(workstreamId: string, widgetId: string): Promise<WidgetBoard> {
 		const opened = await this.#open(workstreamId);
 		removePlacement(this.#context.db, opened.board, widgetId);

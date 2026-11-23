@@ -34,6 +34,10 @@ class WidgetsService {
 		return invoke('widgets.refresh', args);
 	}
 
+	async pinPlan(repositoryFullName: string): Promise<void> {
+		await invoke('widgets.pin-plan', { repositoryFullName });
+	}
+
 	async watch(workstreamId: string, watching: boolean): Promise<void> {
 		await invoke('widgets.watch', { workstreamId, watching });
 	}

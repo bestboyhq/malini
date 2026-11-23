@@ -2101,6 +2101,16 @@ ALTER TABLE initiative_dependencies DROP COLUMN github_done;
 ALTER TABLE initiative_dependencies DROP COLUMN github_note;
 DROP TABLE initiative_github_deletions;
 `,
+	`
+ALTER TABLE initiative_syncs ADD COLUMN waiting_for TEXT;
+CREATE TABLE initiative_share_requests (
+  repository_full_name TEXT NOT NULL COLLATE NOCASE,
+  login TEXT NOT NULL COLLATE NOCASE,
+  found_at TEXT NOT NULL,
+  dismissed_at TEXT,
+  PRIMARY KEY (repository_full_name, login)
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

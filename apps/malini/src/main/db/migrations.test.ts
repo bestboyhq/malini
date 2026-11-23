@@ -54,6 +54,7 @@ const ALL_TABLES = [
 	'hidden_repositories',
 	'initiative_dependencies',
 	'initiative_dependency_workstreams',
+	'initiative_share_requests',
 	'initiative_syncs',
 	'initiatives',
 	'installed_extensions',
@@ -1549,6 +1550,7 @@ describe('migrate', () => {
 				people: '[]',
 				home: null,
 				synced_commit: null,
+				waiting_for: null,
 			},
 		]);
 		db.close();

@@ -321,3 +321,43 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 		await app.close();
 	}
 });
+
+test('a teammate asks to share the plan, and Share in the toast makes its private plan repository and pins the Plan', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-ask', null);
+		await openWorkstream(page, 'e2e-plan-ask');
+		const board = page.getByRole('region', { name: 'Widgets' });
+		const plan = board.getByRole('article', { name: 'Plan, Large' });
+		await expect(plan).toBeVisible({ timeout: 20_000 });
+		await board.getByRole('button', { name: 'Options for Plan' }).click();
+		await page.getByRole('menu').getByRole('menuitem', { name: 'Remove' }).click();
+		await expect(plan).toHaveCount(0);
+
+		github.askToShare('robin');
+		await page.reload();
+		const toast = toastSaying(
+			page,
+			'robin wants to share a plan. Only collaborators of e2e/hutch see it',
+		);
+		await expect(toast).toBeVisible({ timeout: 20_000 });
+		await captureFlow(app, 'plan-share-ask-toast');
+		await toast.getByRole('button', { name: 'Share' }).click();
+
+		await expect(plan).toBeVisible({ timeout: 20_000 });
+		await expect(plan.getByRole('switch', { name: 'Share internally' })).toBeChecked();
+		await expect
+			.poll(() => github.repository(PLAN_REPOSITORY), { timeout: 20_000 })
+			.toEqual({
+				private: true,
+				invited: { robin: 'push' },
+			});
+		await expect.poll(() => github.shareAsks()).toEqual([]);
+		await expect(toast).toHaveCount(0);
+		await captureFlow(app, 'plan-share-ask');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

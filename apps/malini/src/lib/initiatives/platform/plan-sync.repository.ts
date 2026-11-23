@@ -1,6 +1,6 @@
-import type { PlanSync } from '$contract/initiatives';
+import type { PlanSync, ShareRequest } from '$contract/initiatives';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, intToBool, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
+import { all, column, get, intToBool, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 import { canonicalNote, type SharedDependency, type SharedPlan } from './plan-file';
 
 export type MergeLink = Readonly<{
@@ -16,6 +16,7 @@ type SyncRow = {
 	synced_commit: string | null;
 	error: string | null;
 	people: string;
+	waiting_for: string | null;
 };
 
 type OutcomeRow = {
@@ -48,6 +49,8 @@ export function planSync(db: MaliniDatabase, repositoryFullName: string): PlanSy
 		people: Array.isArray(people)
 			? people.filter((login): login is string => typeof login === 'string')
 			: [],
+		waitingFor: row?.waiting_for ?? null,
+		requestedBy: requesters(db, repositoryFullName, false),
 	};
 }
 
@@ -71,7 +74,7 @@ export function setPlanSyncEnabled(
 			db,
 			`INSERT INTO initiative_syncs (repository_full_name, enabled, home) VALUES (?, ?, ?)
 			 ON CONFLICT (repository_full_name) DO UPDATE SET enabled = excluded.enabled, error = NULL,
-			 home = COALESCE(excluded.home, home)`,
+			 home = COALESCE(excluded.home, home), waiting_for = NULL`,
 			repositoryFullName,
 			enabled,
 			home ?? null,
@@ -85,6 +88,116 @@ export function setPlanSyncEnabled(
 			);
 		}
 	});
+}
+
+export function setPlanSyncWaiting(
+	db: MaliniDatabase,
+	repositoryFullName: string,
+	home: string,
+	owner: string,
+): void {
+	run(
+		db,
+		`INSERT INTO initiative_syncs (repository_full_name, enabled, home, waiting_for) VALUES (?, 1, ?, ?)
+		 ON CONFLICT (repository_full_name) DO UPDATE SET enabled = 1, error = NULL, home = excluded.home,
+		 waiting_for = excluded.waiting_for`,
+		repositoryFullName,
+		home,
+		owner,
+	);
+}
+
+export function waitingRepositories(db: MaliniDatabase): string[] {
+	return column(
+		db,
+		`SELECT repository_full_name FROM initiative_syncs
+		 WHERE enabled = 1 AND waiting_for IS NOT NULL ORDER BY repository_full_name`,
+	);
+}
+
+export function recordShareRequests(
+	db: MaliniDatabase,
+	repositoryFullName: string,
+	logins: readonly string[],
+): string[] {
+	return db.transaction(() => {
+		const known = new Set(
+			requesters(db, repositoryFullName, false).map((login) => login.toLowerCase()),
+		);
+		const wanted = new Set(logins.map((login) => login.toLowerCase()));
+		for (const login of known) {
+			if (!wanted.has(login)) {
+				run(
+					db,
+					'DELETE FROM initiative_share_requests WHERE repository_full_name = ? AND login = ?',
+					repositoryFullName,
+					login,
+				);
+			}
+		}
+		const added = logins.filter((login) => !known.has(login.toLowerCase()));
+		for (const login of added) {
+			run(
+				db,
+				`INSERT OR IGNORE INTO initiative_share_requests (repository_full_name, login, found_at)
+				 VALUES (?, ?, ?)`,
+				repositoryFullName,
+				login,
+				nowIso8601(),
+			);
+		}
+		return added;
+	});
+}
+
+export function pendingShareRequests(db: MaliniDatabase): ShareRequest[] {
+	const requests = new Map<string, string[]>();
+	for (const row of all<{ repository_full_name: string; login: string }>(
+		db,
+		`SELECT repository_full_name, login FROM initiative_share_requests
+		 WHERE dismissed_at IS NULL ORDER BY repository_full_name, found_at, login`,
+	)) {
+		requests.set(row.repository_full_name, [
+			...(requests.get(row.repository_full_name) ?? []),
+			row.login,
+		]);
+	}
+	return [...requests].map(([repositoryFullName, people]) => ({ repositoryFullName, people }));
+}
+
+export function pendingShareRequest(
+	db: MaliniDatabase,
+	repositoryFullName: string,
+): ShareRequest | null {
+	const people = requesters(db, repositoryFullName, true);
+	return people.length === 0 ? null : { repositoryFullName, people };
+}
+
+export function dismissShareRequests(db: MaliniDatabase, repositoryFullName: string): void {
+	run(
+		db,
+		`UPDATE initiative_share_requests SET dismissed_at = ?
+		 WHERE repository_full_name = ? AND dismissed_at IS NULL`,
+		nowIso8601(),
+		repositoryFullName,
+	);
+}
+
+export function forgetShareRequests(db: MaliniDatabase, repositoryFullName: string): void {
+	run(
+		db,
+		'DELETE FROM initiative_share_requests WHERE repository_full_name = ?',
+		repositoryFullName,
+	);
+}
+
+function requesters(db: MaliniDatabase, repositoryFullName: string, pending: boolean): string[] {
+	return column(
+		db,
+		`SELECT login FROM initiative_share_requests WHERE repository_full_name = ?
+		 ${pending ? 'AND dismissed_at IS NULL' : ''} ORDER BY found_at, login`,
+		repositoryFullName,
+	);
 }
 
 export function recordPlanBase(
@@ -290,8 +403,8 @@ function groupedDependencies(
 function syncRow(db: MaliniDatabase, repositoryFullName: string): SyncRow | null {
 	return get<SyncRow>(
 		db,
-		`SELECT enabled, home, synced_at, synced_commit, error, people FROM initiative_syncs
-		 WHERE repository_full_name = ?`,
+		`SELECT enabled, home, synced_at, synced_commit, error, people, waiting_for
+		 FROM initiative_syncs WHERE repository_full_name = ?`,
 		repositoryFullName,
 	);
 }

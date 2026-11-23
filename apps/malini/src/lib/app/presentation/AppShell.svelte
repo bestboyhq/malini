@@ -20,7 +20,9 @@
 	import { watchBrowserStateHook } from '$lib/browser/application/hooks/watch-browser-state.hook';
 	import { forgetRemovedWorkstreamChatsHook } from '$lib/chat/application/hooks/forget-removed-workstream-chats.hook';
 	import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
+	import { watchShareRequestsHook } from '$lib/initiatives/application/hooks/watch-share-requests.hook';
 	import { watchShipStatesHook } from '$lib/pull-requests/application/hooks/watch-ship-states.hook';
+	import { pinPlanWidgetCommand } from '$lib/widgets/application/commands/pin-plan-widget.command';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 
 	interface Props {
@@ -51,7 +53,9 @@
 		const stopWatchingBrowsers = watchBrowserStateHook();
 		const stopFollowingVariants = followChosenVariantsHook();
 		const stopOpeningRequestedFiles = openRequestedFilesHook();
+		const stopAskingToShare = watchShareRequestsHook(pinPlanWidgetCommand);
 		return () => {
+			stopAskingToShare();
 			stopOpeningRequestedFiles();
 			stopFollowingVariants();
 			stopWatchingBrowsers();

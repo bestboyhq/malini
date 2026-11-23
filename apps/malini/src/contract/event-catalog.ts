@@ -654,6 +654,16 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 			"Fires when a repository's shared plan syncs with its private plan repository and someone else changed it there, with the repository and each change: who made it, what kind and the title it touched.",
 		facts: ['repositoryFullName', 'changes'],
 	},
+	'initiatives:share-requested': {
+		description:
+			'Fires when someone asks to share the plan of a repository you own, with the repository and the GitHub login of each person who asks.',
+		facts: ['repositoryFullName', 'people'],
+	},
+	'initiatives:share-accepted': {
+		description:
+			"Fires when the owner you asked shares a repository's plan and Malini joins its private plan repository, with the repository and the owner's GitHub login.",
+		facts: ['repositoryFullName', 'owner'],
+	},
 };
 
 export function eventFacts(channel: EventChannel, payload: unknown): Record<string, unknown> {

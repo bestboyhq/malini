@@ -3,6 +3,8 @@ import type {
 	InitiativeDependency,
 	PlanRemoteChange,
 	PlanRemoteChangeKind,
+	ShareAcceptedEvent,
+	ShareRequest,
 } from '$contract/initiatives';
 import type { WidgetSize } from '$contract/widgets';
 import { dateOf, initiativeFinished, initiativesOn, type StandingOf } from './initiative';
@@ -110,4 +112,18 @@ export function syncedLabel(syncedAt: string | null, now: number): string {
 
 export function remoteChangeLine(change: PlanRemoteChange): string {
 	return `${change.actor ?? 'Someone'} ${CHANGE_VERBS[change.kind]} ${change.title}`;
+}
+
+export function peopleLine(people: readonly string[]): string {
+	const last = people.at(-1) ?? 'Someone';
+	return people.length < 2 ? last : `${people.slice(0, -1).join(', ')} and ${last}`;
+}
+
+export function shareRequestLine(request: ShareRequest): string {
+	const verb = request.people.length > 1 ? 'want' : 'wants';
+	return `${peopleLine(request.people)} ${verb} to share a plan. Only collaborators of ${request.repositoryFullName} see it`;
+}
+
+export function shareAcceptedLine(event: ShareAcceptedEvent): string {
+	return `${event.owner} said yes. The plan of ${event.repositoryFullName} is shared`;
 }
