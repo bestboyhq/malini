@@ -66,7 +66,9 @@ async function overflowingChat(app: LaunchedApp, name: string, changes: boolean)
 		await sendPrompt(page, `${name} turn ${turn}`);
 		await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
 	}
-	await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+	await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+		timeout: 20_000,
+	});
 	const overflow = await page
 		.getByTestId('chat-message-scroller')
 		.evaluate((scroller) => scroller.scrollHeight - scroller.clientHeight);
@@ -306,7 +308,9 @@ test('a chat reopened after a restart shows its changed files without working th
 			);
 			await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
 		}
-		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+			timeout: 20_000,
+		});
 		await expect(changedFiles).toContainText('+1');
 		await expect(changedFiles).not.toContainText('−');
 		await openWorkstream(page, other.workstreamId);

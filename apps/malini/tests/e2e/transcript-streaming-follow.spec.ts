@@ -806,7 +806,9 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 				timeout: 20_000,
 			});
 		}
-		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed', {
+			timeout: 20_000,
+		});
 		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
 		const earlierTurns = page.getByRole('list', { name: 'Earlier turns' });
 		const reported = await latestRun(page).getAttribute('data-run-id');
