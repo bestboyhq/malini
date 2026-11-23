@@ -1629,11 +1629,11 @@ function signInNote(outcome: SignInOutcome, again: string): string {
 function signInRowNote(outcome: SignInOutcome): string {
 	switch (outcome.kind) {
 		case 'connected':
-			return 'Needed a sign-in. You signed in';
+			return 'Sign-in needed. Done';
 		case 'unfinished':
-			return 'Needed a sign-in. Not finished in 5 minutes';
+			return 'Sign-in needed. Not done in 5 minutes';
 		case 'not-started':
-			return `Needed a sign-in. Could not start: ${outcome.reason}`;
+			return `Sign-in needed. Could not start: ${outcome.reason}`;
 	}
 }
 

@@ -1437,7 +1437,7 @@ describe('ClaudeSession', () => {
 			},
 		});
 		expect(ofType(events, 'tool.failed')).toContainEqual(
-			expect.objectContaining({ toolCallId: call, error: 'Needed a sign-in. You signed in' }),
+			expect.objectContaining({ toolCallId: call, error: 'Sign-in needed. Done' }),
 		);
 		expect(ofType(events, 'mcp.status').at(-1)?.servers).toContainEqual({
 			name: 'producthunt',
