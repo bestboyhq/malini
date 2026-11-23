@@ -440,7 +440,7 @@ describe('registerApp', () => {
 		expect(host.openedWindows).toBe(2);
 	});
 
-	it('focuses the window on a click of the menu bar icon and shows how many chats are unread beside it', async () => {
+	it('focuses the window on a click of the menu bar icon and badges it with how many chats are unread', async () => {
 		const main = createFakeWindow();
 		boot(context, { getMainWindow: () => asBrowserWindow(main.window) });
 
@@ -448,16 +448,28 @@ describe('registerApp', () => {
 		expect(main.calls).toEqual(['show', 'focus']);
 		expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: null });
 
-		expect(await invoke('app.unread-chats', { count: 3 })).toEqual({ ok: true, value: null });
-		expect(host.tray?.count).toBe(3);
-		for (const count of [-1, 1.5, '2']) {
-			expect(await invoke('app.unread-chats', { count })).toMatchObject({ ok: false });
+		const badge = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+		expect(await invoke('app.unread-chats', { count: 3, icon: badge })).toEqual({
+			ok: true,
+			value: null,
+		});
+		expect(host.tray).toMatchObject({ count: 3, badge });
+		for (const args of [
+			{ count: -1, icon: null },
+			{ count: 1.5, icon: null },
+			{ count: '2', icon: null },
+			{ count: 4 },
+			{ count: 4, icon: 'badge.png' },
+			{ count: 4, icon: new Uint8Array([0x47, 0x49, 0x46, 0x38]) },
+			{ count: 4, icon: new Uint8Array(64 * 1024 + 1).fill(0x89) },
+		]) {
+			expect(await invoke('app.unread-chats', args)).toMatchObject({ ok: false });
 		}
-		expect(host.tray?.count).toBe(3);
+		expect(host.tray).toMatchObject({ count: 3, badge });
 
 		for (const created of host.windowCreated) created(asBrowserWindow(main.window));
 		main.emit('closed');
-		expect(host.tray?.count).toBe(0);
+		expect(host.tray).toMatchObject({ count: 0, badge: null });
 	});
 
 	it('shows a File menu that starts workstreams and chats, reopens closed chats and adds repositories, outside a packaged build too', () => {

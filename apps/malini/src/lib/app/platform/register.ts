@@ -225,9 +225,9 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		() => window.focusMainWindow(),
 	);
 	commands.define('app.unread-chats', (args: UnreadChatsArgs) =>
-		host.showTrayCount(unreadCount(args?.count)),
+		host.showTrayCount(unreadCount(args?.count), trayBadge(args?.icon)),
 	);
-	host.onWindowCreated((created) => created.on('closed', () => host.showTrayCount(0)));
+	host.onWindowCreated((created) => created.on('closed', () => host.showTrayCount(0, null)));
 	commands.define('app.notification-permission-granted', () =>
 		window.isNotificationPermissionGranted(),
 	);
@@ -288,6 +288,7 @@ function defineShutdownCommands(
 const MAX_RECENT_DIAGNOSTICS = 200;
 const PNG_DATA_URL = 'data:image/png;base64,';
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const TRAY_BADGE_LIMIT = 64 * 1024;
 
 function recentDiagnosticsLimit(requested: unknown): number {
 	if (typeof requested !== 'number' || !Number.isInteger(requested) || requested < 1) {
@@ -304,6 +305,21 @@ function unreadCount(count: unknown): number {
 		);
 	}
 	return count;
+}
+
+function trayBadge(icon: unknown): Uint8Array | null {
+	if (icon === null) return null;
+	if (
+		!(icon instanceof Uint8Array) ||
+		icon.byteLength > TRAY_BADGE_LIMIT ||
+		!Buffer.from(icon.subarray(0, PNG_SIGNATURE.length)).equals(PNG_SIGNATURE)
+	) {
+		throw new AppError(
+			'invalid-argument',
+			'invalid args: `icon` must be PNG bytes of 64 KB or less, or null',
+		);
+	}
+	return icon;
 }
 
 function requireString(args: unknown, key: string): string {

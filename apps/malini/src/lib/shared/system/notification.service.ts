@@ -1,12 +1,14 @@
 import { APP_NOTIFICATION_OPENED_CHANNEL, type NotificationTarget } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
+import { drawTrayBadge } from './tray-badge';
 
 type NotificationOpenListener = (target: NotificationTarget) => void;
 
 class NotificationService {
 	private permissionChecked = false;
 	private permissionAvailable = false;
+	private shownCount = 0;
 
 	async notify(
 		title: string,
@@ -24,8 +26,11 @@ class NotificationService {
 		}
 	}
 
-	showUnreadCount(count: number): Promise<void> {
-		return invoke('app.unread-chats', { count });
+	async showUnreadCount(count: number): Promise<void> {
+		this.shownCount = count;
+		const icon = await drawTrayBadge(count);
+		if (count !== this.shownCount) return;
+		await invoke('app.unread-chats', { count, icon });
 	}
 
 	onOpen(listener: NotificationOpenListener): () => void {
