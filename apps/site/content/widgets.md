@@ -124,5 +124,5 @@ An edit in either place shows in the other at once, and a click on the title **P
 - **Start workstream** on a dependency starts one in this repository.
 - **This chat** marks the dependency the workstream you are in serves, and **Needs you** marks one waiting on you.
 
-Turn on **Share internally**, beside the widget's title, to share the plan with your team, as [milestones and issues in a private repository](/malini/docs/initiatives.md#share-internally).
+Turn on **Share internally**, beside the widget's title, to share the plan with your team, as [one file in a private plan repository](/malini/docs/initiatives.md#share-internally).
 Its tooltip says who sees it.

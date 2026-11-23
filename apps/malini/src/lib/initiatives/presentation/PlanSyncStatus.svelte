@@ -33,7 +33,11 @@
 	</Tooltip>
 </span>
 {#if people.length > 0}
-	<span class="flex shrink-0 items-center -space-x-1" role="group" aria-label="People on GitHub">
+	<span
+		class="flex shrink-0 items-center -space-x-1"
+		role="group"
+		aria-label="People who edited the plan"
+	>
 		{#each people as login (login)}
 			<GitHubUserAvatar {login} label={login} />
 		{/each}

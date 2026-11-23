@@ -54,7 +54,6 @@ const ALL_TABLES = [
 	'hidden_repositories',
 	'initiative_dependencies',
 	'initiative_dependency_workstreams',
-	'initiative_github_deletions',
 	'initiative_syncs',
 	'initiatives',
 	'installed_extensions',
@@ -1503,6 +1502,55 @@ describe('migrate', () => {
 				(board, widget_id, position, span_columns, span_rows, placed_at)
 				VALUES ('b', 'wide', 3, 13, 1, '${at}')`),
 		).toThrow(/CHECK constraint failed/u);
+		db.close();
+	});
+
+	it('turns every shared plan off and keeps the plan without its milestones and issues', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const before = MIGRATIONS.findIndex((migration) => migration.includes('synced_commit'));
+		for (const migration of MIGRATIONS.slice(0, before)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + before};`);
+		const at = '2026-11-23T00:00:00Z';
+		db.exec(`INSERT INTO initiatives
+			(id, repository_full_name, title, due_on, created_at, updated_at, github_milestone)
+			VALUES ('o', 'acme/rocket', 'Launch', '2026-12-01', '${at}', '${at}', 1);
+			INSERT INTO initiative_dependencies
+			(id, initiative_id, title, done, position, created_at, github_issue, github_done, assignee)
+			VALUES ('d', 'o', 'Pick a name', 1, 0, '${at}', 2, 1, 'casey');
+			INSERT INTO initiative_syncs (repository_full_name, enabled, home, synced_at, people)
+			VALUES ('acme/rocket', 1, 'acme/rocket', '${at}', '["casey"]');
+			INSERT INTO initiative_github_deletions (repository_full_name, kind, number)
+			VALUES ('acme/rocket', 'issue', 3);`);
+
+		migrate(db);
+
+		expect(tableNames(db)).not.toContain('initiative_github_deletions');
+		expect(all(db, 'SELECT * FROM initiatives')).toEqual([
+			{
+				id: 'o',
+				repository_full_name: 'acme/rocket',
+				title: 'Launch',
+				due_on: '2026-12-01',
+				created_at: at,
+				updated_at: at,
+				note: null,
+			},
+		]);
+		expect(all(db, 'SELECT id, done, assignee FROM initiative_dependencies')).toEqual([
+			{ id: 'd', done: 1, assignee: 'casey' },
+		]);
+		expect(all(db, 'SELECT * FROM initiative_syncs')).toEqual([
+			{
+				repository_full_name: 'acme/rocket',
+				enabled: 0,
+				synced_at: null,
+				error: null,
+				people: '[]',
+				home: null,
+				synced_commit: null,
+			},
+		]);
 		db.close();
 	});
 });
