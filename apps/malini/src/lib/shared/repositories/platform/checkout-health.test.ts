@@ -211,11 +211,9 @@ describe('checkout health', () => {
 		await rename(`${root}-unplugged`, root);
 		platform.checkoutHealth.probeBroken();
 
-		await expect
-			.poll(() =>
-				context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
-			)
-			.toEqual(HEALTHY);
+		expect(
+			await context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+		).toEqual(HEALTHY);
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([
 			['broken', 'checkouts-folder-missing'],
 			['repairing', 'admin-missing'],
