@@ -30,6 +30,7 @@
 		approved?: boolean;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
+		titleHref?: string | undefined;
 		author?: Snippet | undefined;
 		actions?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
@@ -44,6 +45,7 @@
 		approved = true,
 		plan,
 		planHeader,
+		titleHref,
 		author,
 		actions,
 		onopen,
@@ -207,7 +209,19 @@
 		class="text-fg-tertiary text-2xs pointer-events-none relative mb-2 flex h-4 shrink-0 items-center gap-1.5"
 	>
 		<Icon name={iconOf(widget.icon)} size={12} class={['shrink-0', faded && 'opacity-60']} />
-		<span class={['min-w-0 flex-1 truncate', faded && 'opacity-60']}>{widget.title}</span>
+		<span class={['min-w-0 flex-1 truncate', faded && 'opacity-60']}>
+			{#if titleHref}
+				<a
+					href={titleHref}
+					class="hover:text-fg-default focus-visible:text-fg-default pointer-events-auto underline-offset-2 outline-none hover:underline focus-visible:underline"
+					draggable="false"
+				>
+					{widget.title}
+				</a>
+			{:else}
+				{widget.title}
+			{/if}
+		</span>
 		{#if widget.source.kind === 'plan' && planHeader}
 			<span class="pointer-events-auto mr-1 flex min-w-0 items-center" data-widget-chrome>
 				{@render planHeader()}

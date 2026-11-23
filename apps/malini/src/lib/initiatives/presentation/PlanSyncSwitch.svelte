@@ -3,6 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { setPlanSyncCommand } from '$lib/initiatives/application/commands/set-plan-sync.command';
 	import { planSyncQuery } from '$lib/initiatives/application/queries/plan-sync.query.svelte';
+	import { syncedLabel } from '$lib/initiatives/domain/plan';
 	import PlanSyncStatus from './PlanSyncStatus.svelte';
 
 	interface Props {
@@ -33,18 +34,38 @@
 		`Syncs with ${where}. Turning it off stops syncing, and GitHub keeps what it has.`,
 	);
 
+	let now: number = $state(Date.now());
+
+	const failed = $derived(sync?.enabled === true && sync.error !== null);
+	const status = $derived(
+		sync === null
+			? ''
+			: sync.error === null
+				? syncedLabel(sync.syncedAt, now)
+				: `Not synced · ${sync.error}`,
+	);
+	const compactTip = $derived(sync?.enabled ? `${status}. ${whatOffDoes}` : whatOnDoes);
+
+	$effect(() => {
+		if (!compact || sync?.enabled !== true) return;
+		const timer = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(timer);
+	});
+
 	function onchange(checked: boolean): void {
 		setPlanSyncCommand(repositoryFullName, checked);
 	}
 </script>
 
 {#if sync && home !== null && compact}
-	<Tooltip
-		content={sync.enabled ? whatOffDoes : whatOnDoes}
-		placement="top"
-		class="flex min-w-0 items-center gap-1.5"
-	>
-		<label for={switchId} class="min-w-0 cursor-pointer truncate @max-[13rem]:sr-only">
+	<Tooltip content={compactTip} placement="top" class="flex min-w-0 items-center gap-1.5">
+		<label
+			for={switchId}
+			class={[
+				'min-w-0 cursor-pointer truncate @max-[13rem]:sr-only',
+				failed && 'text-error-content',
+			]}
+		>
 			{LABEL}
 		</label>
 		<Switch id={switchId} size="sm" checked={sync.enabled} {onchange} />

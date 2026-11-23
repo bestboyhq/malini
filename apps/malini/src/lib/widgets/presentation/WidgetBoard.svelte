@@ -42,6 +42,7 @@
 		onopenfile?: ((path: string) => void) | undefined;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
+		planHref?: string | undefined;
 	}
 
 	type Tile = Readonly<{ widget: WidgetDefinition; placement: WidgetPlacement; index: number }>;
@@ -61,7 +62,7 @@
 
 	type Sizing = Readonly<{ widgetId: string; size: WidgetSize; basis: Basis | null }>;
 
-	let { workstreamId, onopen, onask, onopenfile, plan, planHeader }: Props = $props();
+	let { workstreamId, onopen, onask, onopenfile, plan, planHeader, planHref }: Props = $props();
 
 	const LAND_MS = 200;
 	const SETTLE_MS = 2000;
@@ -561,6 +562,7 @@
 									approved={placement.approved}
 									{plan}
 									{planHeader}
+									titleHref={widget.source.kind === 'plan' ? planHref : undefined}
 									{onopen}
 									author={madeBy === null ? undefined : authorMark}
 									actions={placement.approved || widget.source.kind !== 'command'

@@ -113,7 +113,7 @@ A narrow chat shows one size, with a switch for the others.
 ## The Plan widget
 
 Every board of a GitHub repository starts with **Plan**: the repository's [initiatives](/malini/docs/initiatives.md), the same outcomes and dependencies as its page.
-An edit in either place shows in the other at once.
+An edit in either place shows in the other at once, and a click on the title **Plan** opens that page.
 
 - Small shows the next outcome and how much of it is done.
 - Medium lists the next three outcomes.

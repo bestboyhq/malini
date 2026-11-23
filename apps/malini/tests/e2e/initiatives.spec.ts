@@ -256,7 +256,7 @@ test('a plan in a public repository syncs only to a private plan repository its 
 	}
 });
 
-test('the Plan widget lists outcomes under the day they are due, the ones with no date last, and its switch syncs them', async () => {
+test('the Plan widget lists outcomes under the day they are due, the ones with no date last, its switch syncs them, and its title opens the plan', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -306,8 +306,10 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 				{ timeout: 20_000 },
 			)
 			.toEqual([OUTCOME, COPY].sort());
-		await expect(plan.getByText(/^Synced /u)).toBeVisible();
 		await captureFlow(app, 'plan-widget-days');
+
+		await plan.getByRole('link', { name: 'Plan', exact: true }).click();
+		await expect(page.getByRole('main').getByRole('region', { name: 'Initiatives' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

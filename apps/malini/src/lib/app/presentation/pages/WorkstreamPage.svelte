@@ -209,6 +209,7 @@
 		onopenfile={(path) => openRequestedFileCommand({ workstreamId, path, line: null })}
 		plan={repositoryContext ? planHere : undefined}
 		planHeader={repositoryContext ? planSyncHere : undefined}
+		planHref={repositoryContext ? repositoryHref(repositoryContext.repo.id) : undefined}
 	/>
 {/snippet}
 

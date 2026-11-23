@@ -3,16 +3,13 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { WidgetSize } from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
-	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { createInitiativeCommand } from '$lib/initiatives/application/commands/create-initiative.command';
 	import { loadInitiativesCommand } from '$lib/initiatives/application/commands/load-initiatives.command';
 	import { keepPlanSyncedHook } from '$lib/initiatives/application/hooks/keep-plan-synced.hook';
 	import { initiativesQuery } from '$lib/initiatives/application/queries/initiatives.query.svelte';
-	import { planSyncQuery } from '$lib/initiatives/application/queries/plan-sync.query.svelte';
 	import {
 		dateOf,
 		initiativeFinished,
@@ -32,7 +29,6 @@
 	} from '$lib/initiatives/domain/plan';
 	import { repositoryWebUrl, type Repository } from '$shared/repositories/repositories.api';
 	import PlanOutcome from './PlanOutcome.svelte';
-	import PlanSyncStatus from './PlanSyncStatus.svelte';
 	import ProgressRing from './ProgressRing.svelte';
 	import QuietField from './QuietField.svelte';
 	import { dayName, weekdayOf } from './rail-labels';
@@ -51,7 +47,6 @@
 	const initiatives = $derived(initiativesQuery.inRepository(repository.fullName));
 	const loaded = $derived(initiativesQuery.loaded);
 	const error = $derived(initiativesQuery.error);
-	const sync = $derived(planSyncQuery.data(repository.fullName));
 
 	let today: string = $state(localDay(new Date()));
 	let adding: string | null = $state(null);
@@ -103,20 +98,6 @@
 			onsubmit={name}
 		/>
 	</div>
-{/snippet}
-
-{#snippet openPlan()}
-	<Tooltip content="Open the plan" placement="top" class="flex shrink-0">
-		<IconButton
-			variant="ghost"
-			size="xs"
-			ariaLabel="Open the plan"
-			class="text-fg-tertiary"
-			onclick={onopen}
-		>
-			<Icon name="arrow-right" size={12} />
-		</IconButton>
-	</Tooltip>
 {/snippet}
 
 <div class="flex h-full min-h-0 flex-col">
@@ -257,21 +238,5 @@
 				/>
 			</div>
 		</ScrollableDiv>
-		<footer
-			class="border-surface-50-border text-3xs text-fg-tertiary flex h-[30px] shrink-0 items-center gap-2 border-t-[0.5px]"
-		>
-			{#if onGithub && sync?.enabled}
-				<PlanSyncStatus {sync} />
-				{@render openPlan()}
-			{:else}
-				<Button
-					bare
-					class="hover:text-fg-default focus-visible:ring-border-default/50 -mx-1.5 flex h-6 min-w-0 flex-1 cursor-pointer items-center justify-between rounded-md px-1.5 outline-0 transition-[color] focus-visible:ring-2"
-					onclick={onopen}
-				>
-					Open the plan<Icon name="arrow-right" size={12} />
-				</Button>
-			{/if}
-		</footer>
 	{/if}
 </div>
