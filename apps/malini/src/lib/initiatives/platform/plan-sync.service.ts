@@ -374,10 +374,12 @@ export class PlanSyncService {
 
 	async #findRequests(): Promise<void> {
 		const { db, events } = this.#context;
-		const viewer = await this.#viewerOf();
+		const unshared = (await listRepositoryCatalog(db))
+			.filter(onGithub)
+			.filter(({ fullName }) => !isPlanSyncEnabled(db, fullName));
+		const viewer = unshared.length === 0 ? null : await this.#viewerOf();
 		if (viewer === null) return;
-		for (const { fullName } of (await listRepositoryCatalog(db)).filter(onGithub)) {
-			if (isPlanSyncEnabled(db, fullName)) continue;
+		for (const { fullName } of unshared) {
 			try {
 				const asking = (await shareRequests(fullName)).filter(
 					(login) => login.toLowerCase() !== viewer.login.toLowerCase(),
