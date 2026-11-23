@@ -55,10 +55,9 @@
 						{#snippet leading()}
 							<Icon name="gift" size={14} />
 						{/snippet}
-						<span class="text-painting">Restart to update</span>
-						{#snippet trailing()}
-							<span class="tabular-nums opacity-70">{status.version}</span>
-						{/snippet}
+						<span class="text-painting">
+							Restart to update <span class="ml-1 font-normal tabular-nums">{status.version}</span>
+						</span>
 					</Button>
 				{/snippet}
 
