@@ -19,7 +19,7 @@ test('a workstream whose base clone is gone clones it again and links back, aski
 	test.setTimeout(180_000);
 	const options = {
 		allowedDiagnostics: [
-			/not a git repository|io error: ENOENT|Invalid path '[^']+': No such file|current branch appears to be broken|is missing\./u,
+			/not a git repository|gitfile does not point to a valid repository|io error: ENOENT|Invalid path '[^']+': No such file|current branch appears to be broken|is missing\./u,
 		],
 	};
 	let app = await launchMalini(options);
