@@ -37,6 +37,7 @@ export class ClaudeTranscript {
 	#heldReply: AssistantMessage | null = null;
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #autoModeBlocks = new Map<string, string>();
+	readonly #failureNotes = new Map<string, string>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
 	readonly #unsettledBlocks = new Map<string, StreamBlock>();
 	readonly #streamedText = new Map<string, string>();
@@ -140,6 +141,10 @@ export class ClaudeTranscript {
 
 	markUnchecked(toolCallId: string): void {
 		this.#autoModeBlocks.set(toolCallId, AUTO_MODE_UNAVAILABLE);
+	}
+
+	noteFailure(toolCallId: string, note: string): void {
+		this.#failureNotes.set(toolCallId, note);
 	}
 
 	interruptTurn(): void {
@@ -602,13 +607,15 @@ export class ClaudeTranscript {
 			const parent = parentToolUseId ? { parentToolCallId: parentToolUseId } : {};
 			const autoModeReason = this.#autoModeBlocks.get(toolCallId);
 			this.#autoModeBlocks.delete(toolCallId);
+			const note = this.#failureNotes.get(toolCallId);
+			this.#failureNotes.delete(toolCallId);
 			if (block['is_error'] === true && !handedOffPlan) {
 				this.#emit({
 					type: 'tool.failed',
 					runId: this.#runId,
 					name,
 					toolCallId,
-					error: output || `${name} failed`,
+					error: note ?? (output || `${name} failed`),
 					...(autoModeReason ? { autoModeReason } : {}),
 					...parent,
 				});

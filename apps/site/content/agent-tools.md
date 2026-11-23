@@ -167,6 +167,9 @@ The agent adds a server with Malini's tool instead.
 - Every other open chat loads it on its next prompt, and so does `claude` in your terminal.
 - A server that needs a sign-in opens its sign-in page in your browser, and the call waits up to 5 minutes for you to finish, so the agent uses its tools in the same turn.
   Closed the page? **Sign in** in the [MCP panel](/malini/docs/chat.md#mcp-servers) opens it again.
+- Some servers connect without a sign-in and ask for one only on some tools, such as Product Hunt's account tools.
+  The first call that fails for that reason opens the sign-in page the same way, waits up to 5 minutes, and the agent calls the tool again once you finish.
+  That call's row reads "Sign-in needed. Done", "Sign-in needed. Not done in 5 minutes", or why the sign-in could not start.
 - The card shows what the server runs or reaches and the names in `env` and `headers`, never their values.
 - An automation that cannot reach the internet cannot add one.
 
