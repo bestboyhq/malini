@@ -158,7 +158,7 @@
 		/>
 	{/each}
 	{#if adding}
-		<div class="ml-5 flex h-[26px] items-center pl-[30px]">
+		<div class="ml-3 flex h-[26px] items-center pl-[30px]">
 			<QuietField
 				label={`Add a dependency to ${initiative.title}`}
 				placeholder="Add a dependency"
