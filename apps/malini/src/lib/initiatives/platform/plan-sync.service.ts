@@ -110,7 +110,7 @@ export class PlanSyncService {
 		if (source === null) {
 			throw new InitiativeError(
 				'not-on-github',
-				`\`${repositoryFullName}\` is not on GitHub, or this gh account cannot see it`,
+				`${repositoryFullName} is not on GitHub, or this gh account cannot see it`,
 			);
 		}
 		const home = planRepositoryOf(repositoryFullName);
@@ -118,7 +118,7 @@ export class PlanSyncService {
 		if (!plan.private) {
 			throw new InitiativeError(
 				'public-repository',
-				`\`${home}\` is public, and a plan goes only to a private repository`,
+				`${home} is public, and a plan goes only to a private repository`,
 			);
 		}
 		if (plan.admin) await this.#keepAccess(repositoryFullName, home, plan, true);
@@ -294,7 +294,7 @@ export class PlanSyncService {
 		if (path === null) {
 			throw new InitiativeError(
 				'no-plan-repository',
-				`Only ${owner} can make the private \`${home}\`. Once they make it and add you, turn on Share internally again.`,
+				`Only ${owner} can make the private ${home}. Ask them to make it and add you, then try again`,
 			);
 		}
 		const fields = { name, private: true, has_issues: false, has_wiki: false, has_projects: false };
@@ -302,7 +302,7 @@ export class PlanSyncService {
 		if (result.code !== 0 && TAKEN.test(result.stderr)) {
 			throw new InitiativeError(
 				'no-plan-repository',
-				`\`${home}\` already exists, and this gh account cannot see it. Once its owner adds you, turn on Share internally again.`,
+				`${home} already exists, and this gh account cannot see it. Ask its owner to add you, then try again`,
 			);
 		}
 		if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, ['api', path]);

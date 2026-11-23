@@ -564,7 +564,8 @@ describe('a plan shared as one file in a private plan repository', () => {
 			}),
 		).resolves.toMatchObject({
 			ok: false,
-			error: expect.stringContaining('Only casey can make the private `casey/kite-malini-plan`'),
+			error:
+				'Only casey can make the private casey/kite-malini-plan. Ask them to make it and add you, then try again',
 		});
 
 		github.add('casey/kite-malini-plan', { organization: false, admin: false });
