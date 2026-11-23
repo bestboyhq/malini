@@ -10,15 +10,16 @@ Malini draws every tile, so a widget your agent made looks like the rest of Mali
 ## The board
 
 There is one board per repository, and every workstream of that repository shows it.
-Widgets come in three sizes, the way they do on a phone: **Small** is one cell, **Medium** is two cells wide, and **Large** is two cells tall and as wide as the panel.
-A tile shows what fits its size: a number or a ring when small, a few rows when medium, everything when large.
+A widget takes any span of whole cells, from one cell to as wide as the panel and 12 cells tall.
+Three presets come from the phone: **Small** is one cell, **Medium** is two cells wide, and **Large** is two cells tall and as wide as the panel.
+A tile shows what fits its span: a number or a ring in one column, a few rows in one row of cells, and more rows the taller it gets.
 
 - Click a tile to open what it reads, such as the deploy run, in a Browser tab.
   A row with a link opens that link.
 - Drag a tile to move it.
 - Drag its corner to resize it.
-  It snaps to Small, Medium or Large.
-- **⋯**, or a right-click, opens its menu: the three sizes, **Refresh now**, **Ask to change it**, **Open file**, and **Remove**.
+  It snaps to whole cells, and a tile as wide as the panel stays that wide when only its height changes.
+- **⋯**, or a right-click, opens its menu: the three presets, **Refresh now**, **Ask to change it**, **Open file**, and **Remove**.
   The top of the menu says where the widget reads from and when it last did.
 - **Ask for a widget**, the last tile, puts a prompt in the chat's composer for you to finish.
 
@@ -115,9 +116,10 @@ A narrow chat shows one size, with a switch for the others.
 Every board of a GitHub repository starts with **Plan**: the repository's [initiatives](/malini/docs/initiatives.md), the same outcomes and dependencies as its page.
 An edit in either place shows in the other at once, and a click on the title **Plan** opens that page.
 
-- Small shows the next outcome and how much of it is done.
-- Medium lists the next three outcomes.
-- Large spans the panel and lists every outcome under its day, with its dependencies under it, and the outcomes with no date last.
+- One column wide, it shows the next outcome and how much of it is done.
+- One cell tall, it lists the next three outcomes.
+- Any bigger, it lists every outcome under its day, with its dependencies under it, and the outcomes with no date last.
+  It starts at Large, as wide as the panel.
 - Tick a dependency to finish it, click a title to rename it, and add a dependency under an outcome.
 - **Start workstream** on a dependency starts one in this repository.
 - **This chat** marks the dependency the workstream you are in serves, and **Needs you** marks one waiting on you.

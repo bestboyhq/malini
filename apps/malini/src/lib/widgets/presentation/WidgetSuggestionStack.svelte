@@ -3,12 +3,18 @@
 	import type { Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fly } from 'svelte/transition';
-	import type { WidgetDefinition, WidgetReading, WidgetSize } from '$contract/widgets';
+	import {
+		WIDGET_SIZE_SPANS,
+		type WidgetDefinition,
+		type WidgetReading,
+		type WidgetSize,
+	} from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
+	import { WIDGET_MIN_COLUMNS } from '$lib/widgets/domain/widget-grid';
 	import WidgetTile from './WidgetTile.svelte';
 
 	interface Props {
@@ -102,7 +108,14 @@
 				}}
 				data-widget-suggestion={widget.id}
 			>
-				<WidgetTile {widget} reading={readingOf(widget.id)} size="medium" faded {plan}>
+				<WidgetTile
+					{widget}
+					reading={readingOf(widget.id)}
+					span={WIDGET_SIZE_SPANS.medium}
+					columns={WIDGET_MIN_COLUMNS}
+					faded
+					{plan}
+				>
 					{#snippet author()}
 						{#if madeBy !== null}
 							<span

@@ -7,12 +7,14 @@
 		WidgetRow,
 		WidgetScope,
 		WidgetSize,
+		WidgetSpan,
 		WidgetState,
 	} from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import { glyphs } from '$hyper-ui/icons/glyphs.generated';
+	import { shownSpan, spanLook } from '$lib/widgets/domain/widget-grid';
 	import { rowShare, widgetLayout } from '$lib/widgets/domain/widget-layout';
 	import {
 		WIDGET_STATE_NAMES,
@@ -24,7 +26,8 @@
 	interface Props {
 		widget: WidgetDefinition;
 		reading: WidgetReading | null;
-		size: WidgetSize;
+		span: WidgetSpan;
+		columns: number;
 		faded?: boolean;
 		sample?: WidgetData | null;
 		approved?: boolean;
@@ -39,7 +42,8 @@
 	let {
 		widget,
 		reading,
-		size,
+		span,
+		columns,
 		faded = false,
 		sample = null,
 		approved = true,
@@ -81,7 +85,10 @@
 	const HOT_SHARE = 85;
 
 	const data = $derived(reading?.data ?? sample);
-	const layout = $derived(widgetLayout(data, size));
+	const shown = $derived(shownSpan(span, columns));
+	const size = $derived(spanLook(shown));
+	const tall = $derived(shown.rows > 1);
+	const layout = $derived(widgetLayout(data, shown));
 	const rows = $derived(data?.rows.slice(0, layout.rowCount) ?? []);
 	const stale = $derived(reading !== null && reading.error !== null && reading.data !== null);
 	const tileUrl = $derived(data?.url ?? widget.url);
@@ -192,9 +199,8 @@
 			? 'border-border-default border-dashed'
 			: 'border-border-default/60 hover:border-border-default',
 	]}
-	aria-label={tileName(widget, size)}
+	aria-label={tileName(widget, span, columns)}
 	data-widget-id={widget.id}
-	data-widget-size={size}
 >
 	{#if tileUrl && onopen}
 		<Button
@@ -246,7 +252,7 @@
 	<div
 		class={[
 			'pointer-events-none relative flex min-h-0 flex-1 flex-col',
-			size === 'large' ? 'justify-start' : 'justify-end',
+			tall ? 'justify-start' : 'justify-end',
 			faded ? 'opacity-40' : stale && 'opacity-50',
 		]}
 	>
@@ -360,7 +366,7 @@
 					class={[
 						'text-2xs flex min-h-0 flex-col flex-wrap content-start gap-x-0 overflow-hidden',
 						layout.headline === null ? 'flex-1' : 'mt-3 flex-1',
-						size === 'large' ? 'justify-start' : 'justify-end',
+						tall ? 'justify-start' : 'justify-end',
 					]}
 				>
 					{#each rows as row, index (index)}

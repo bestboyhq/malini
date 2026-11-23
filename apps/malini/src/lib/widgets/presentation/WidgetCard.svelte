@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { WIDGET_DRAG_TYPE, type WidgetSize } from '$contract/widgets';
+	import {
+		WIDGET_DRAG_TYPE,
+		WIDGET_SIZE_SPANS,
+		WIDGET_SPAN_MAX,
+		type WidgetSize,
+		type WidgetSpan,
+	} from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
 	import { Strip } from '$hyper-ui/components/strip';
 	import { Icon } from '$hyper-ui/icons';
@@ -9,7 +15,13 @@
 	import { watchWidgetsHook } from '$lib/widgets/application/hooks/watch-widgets.hook';
 	import { widgetBoardQuery } from '$lib/widgets/application/queries/widget-board.query.svelte';
 	import { savedWidget } from '$lib/widgets/domain/saved-widget';
-	import { WIDGET_GAP, WIDGET_SPANS } from '$lib/widgets/domain/widget-grid';
+	import {
+		WIDGET_GAP,
+		WIDGET_MIN_COLUMNS,
+		presetOf,
+		shownSpan,
+		spanLook,
+	} from '$lib/widgets/domain/widget-grid';
 	import { gallerySizes } from '$lib/widgets/domain/widget-layout';
 	import { WIDGET_SIZE_NAMES, sourceLine } from '$lib/widgets/domain/widget-text';
 	import WidgetTile from './WidgetTile.svelte';
@@ -37,9 +49,12 @@
 	const widget = $derived(board?.widgets.find(({ id }) => id === widgetId) ?? saved.widget);
 	const reading = $derived(widgetBoardQuery.reading(workstreamId, widgetId) ?? saved.reading);
 	const placement = $derived(board?.placements.find((each) => each.widgetId === widgetId) ?? null);
-	const size = $derived(placement?.size ?? chosen ?? widget?.size ?? 'medium');
+	const span = $derived(placement?.span ?? WIDGET_SIZE_SPANS[chosen ?? widget?.size ?? 'medium']);
+	const size = $derived(presetOf(span, WIDGET_SPAN_MAX));
 	const fit = $derived(gallerySizes(width));
-	const shown = $derived(fit.paged ? [size] : SIZES);
+	const shown = $derived(
+		fit.paged ? [size ?? spanLook(shownSpan(span, WIDGET_MIN_COLUMNS))] : SIZES,
+	);
 	const blocked = $derived(blockedReason());
 	const pendingRun = $derived(
 		placement === null && widget?.source.kind === 'command' ? widget.source.run : null,
@@ -53,23 +68,21 @@
 		return null;
 	}
 
-	function tileWidth(each: WidgetSize): number {
-		const { columns } = WIDGET_SPANS[each];
-		return fit.cell * columns + WIDGET_GAP * (columns - 1);
+	function cells(count: number): number {
+		return fit.cell * count + WIDGET_GAP * (count - 1);
 	}
 
-	function tileHeight(each: WidgetSize): number {
-		const { rows } = WIDGET_SPANS[each];
-		return fit.cell * rows + WIDGET_GAP * (rows - 1);
+	function gallerySpan(each: WidgetSize): WidgetSpan {
+		return shownSpan(WIDGET_SIZE_SPANS[each], WIDGET_MIN_COLUMNS);
 	}
 
 	function choose(next: WidgetSize): void {
 		if (placement === null) chosen = next;
-		else if (next !== placement.size) resizeWidgetCommand(workstreamId, widgetId, next);
+		else if (next !== size) resizeWidgetCommand(workstreamId, widgetId, WIDGET_SIZE_SPANS[next]);
 	}
 
 	function pin(): void {
-		placeWidgetCommand(workstreamId, widgetId, null, size);
+		placeWidgetCommand(workstreamId, widgetId, null, span);
 	}
 
 	function startDrag(event: DragEvent): void {
@@ -92,13 +105,19 @@
 					{#each shown as each (each)}
 						<div
 							class="shrink-0 cursor-grab active:cursor-grabbing"
-							style:width="{tileWidth(each)}px"
-							style:height="{tileHeight(each)}px"
+							style:width="{cells(gallerySpan(each).columns)}px"
+							style:height="{cells(gallerySpan(each).rows)}px"
 							role="presentation"
 							draggable={blocked === null && placement === null}
 							ondragstart={startDrag}
 						>
-							<WidgetTile {widget} {reading} size={each} sample={saved.sample} />
+							<WidgetTile
+								{widget}
+								{reading}
+								span={gallerySpan(each)}
+								columns={WIDGET_MIN_COLUMNS}
+								sample={saved.sample}
+							/>
 						</div>
 					{/each}
 				</div>
@@ -112,7 +131,10 @@
 					aria-label="Size"
 				>
 					{#each SIZES as each (each)}
-						<span class="flex" style:width={fit.paged ? undefined : `${tileWidth(each)}px`}>
+						<span
+							class="flex"
+							style:width={fit.paged ? undefined : `${cells(gallerySpan(each).columns)}px`}
+						>
 							<Button
 								size="sm"
 								variant="ghost"

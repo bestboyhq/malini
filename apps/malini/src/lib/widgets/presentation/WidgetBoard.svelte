@@ -5,10 +5,12 @@
 	import { cubicOut } from 'svelte/easing';
 	import {
 		WIDGET_DRAG_TYPE,
+		WIDGET_SIZE_SPANS,
 		type WidgetDefinition,
 		type WidgetPlacement,
 		type WidgetReading,
 		type WidgetSize,
+		type WidgetSpan,
 	} from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
@@ -22,11 +24,18 @@
 	import { resizeWidgetCommand } from '$lib/widgets/application/commands/resize-widget.command';
 	import { watchWidgetsHook } from '$lib/widgets/application/hooks/watch-widgets.hook';
 	import { widgetBoardQuery } from '$lib/widgets/application/queries/widget-board.query.svelte';
-	import { WIDGET_GAP, widgetGrid, widgetSpan } from '$lib/widgets/domain/widget-grid';
+	import {
+		WIDGET_GAP,
+		WIDGET_MIN_COLUMNS,
+		presetOf,
+		sameSpan,
+		shownSpan,
+		snappedSpan,
+		widgetGrid,
+	} from '$lib/widgets/domain/widget-grid';
 	import {
 		DRAG_THRESHOLD,
 		slotIndex,
-		snappedSize,
 		withPlaceholder,
 		type Box,
 		type Point,
@@ -52,7 +61,7 @@
 	type Lift = Readonly<{
 		kind: 'tile' | 'suggestion' | 'file';
 		widget: WidgetDefinition | null;
-		size: WidgetSize;
+		span: WidgetSpan;
 		from: Box | null;
 		offset: Point;
 		at: number | null;
@@ -60,7 +69,7 @@
 		basis: Basis | null;
 	}>;
 
-	type Sizing = Readonly<{ widgetId: string; size: WidgetSize; basis: Basis | null }>;
+	type Sizing = Readonly<{ widgetId: string; span: WidgetSpan; basis: Basis | null }>;
 
 	let { workstreamId, onopen, onask, onopenfile, plan, planHeader, planHref }: Props = $props();
 
@@ -135,8 +144,8 @@
 		return basis !== null && board?.placements !== basis;
 	}
 
-	function sizeOf(tile: Tile): WidgetSize {
-		return shownSizing?.widgetId === tile.widget.id ? shownSizing.size : tile.placement.size;
+	function spanOf(tile: Tile): WidgetSpan {
+		return shownSizing?.widgetId === tile.widget.id ? shownSizing.span : tile.placement.span;
 	}
 
 	function homeOf(widget: WidgetDefinition | null): number | null {
@@ -235,7 +244,7 @@
 		event: PointerEvent,
 		kind: 'tile' | 'suggestion',
 		widget: WidgetDefinition,
-		size: WidgetSize,
+		span: WidgetSpan,
 		node: HTMLElement,
 	): void {
 		if (event.button !== 0 || shownLift !== null || shownSizing !== null) return;
@@ -253,7 +262,7 @@
 					lift = {
 						kind,
 						widget,
-						size,
+						span,
 						from: node.getBoundingClientRect(),
 						offset,
 						at: homeOf(widget),
@@ -304,28 +313,29 @@
 		const start: Point = { x: event.clientX, y: event.clientY };
 		const from = node.getBoundingClientRect();
 		menu = null;
-		sizing = { widgetId: tile.widget.id, size: tile.placement.size, basis: null };
+		sizing = { widgetId: tile.widget.id, span: tile.placement.span, basis: null };
 		follow(
 			event,
 			(moved) => {
 				if (sizing === null) return;
-				const size = snappedSize(
+				const span = snappedSpan(
 					from.width + moved.clientX - start.x,
 					from.height + moved.clientY - start.y,
-					cell,
+					grid,
+					tile.placement.span,
 				);
-				if (size !== sizing.size) sizing = { ...sizing, size };
+				if (!sameSpan(span, sizing.span)) sizing = { ...sizing, span };
 			},
 			(cancelled) => {
 				swallowClick();
 				const done = sizing;
-				if (done === null || cancelled || done.size === tile.placement.size) {
+				if (done === null || cancelled || sameSpan(done.span, tile.placement.span)) {
 					sizing = null;
 					return;
 				}
 				const basis = board?.placements ?? [];
 				sizing = { ...done, basis };
-				resizeWidgetCommand(workstreamId, done.widgetId, done.size);
+				resizeWidgetCommand(workstreamId, done.widgetId, done.span);
 				settleLater(basis);
 			},
 		);
@@ -339,7 +349,8 @@
 	function openMenu(tile: Tile, anchor: HTMLElement, point: Point | null): void {
 		menu = {
 			widget: tile.widget,
-			size: tile.placement.size,
+			span: tile.placement.span,
+			columns: grid.columns,
 			reading: reading(tile.widget.id),
 			approved: tile.placement.approved,
 			anchor,
@@ -370,7 +381,7 @@
 				if (!(event.target instanceof Element) || event.button !== 0) return;
 				if (event.target.closest('[data-widget-corner]')) startResize(event, tile, node);
 				else if (startsDrag(event.target, tile.widget))
-					press(event, 'tile', tile.widget, tile.placement.size, node);
+					press(event, 'tile', tile.widget, tile.placement.span, node);
 			};
 			const context = (event: MouseEvent): void => {
 				if (event.target instanceof Element && event.target.closest(FIELDS)) return;
@@ -408,7 +419,7 @@
 			lift = {
 				kind: 'file',
 				widget: null,
-				size: 'medium',
+				span: WIDGET_SIZE_SPANS.medium,
 				from: null,
 				offset: ORIGIN,
 				at,
@@ -461,9 +472,11 @@
 	}
 
 	function resizeFromMenu(widget: WidgetDefinition, size: WidgetSize): void {
-		const current = tiles.find((tile) => tile.widget.id === widget.id)?.placement.size;
+		const current = tiles.find((tile) => tile.widget.id === widget.id)?.placement.span;
 		fromMenu(() => {
-			if (size !== current) resizeWidgetCommand(workstreamId, widget.id, size);
+			if (current === undefined || presetOf(current, grid.columns) !== size) {
+				resizeWidgetCommand(workstreamId, widget.id, WIDGET_SIZE_SPANS[size]);
+			}
 		});
 	}
 </script>
@@ -502,7 +515,7 @@
 					aria-hidden="true"
 				>
 					{#each { length: gridCells }, index (index)}
-						<span class="border-accent/15 rounded-2xl border border-dashed"></span>
+						<span class="border-border-default/60 rounded-2xl border border-dashed"></span>
 					{/each}
 				</div>
 				<div
@@ -512,18 +525,20 @@
 					style:grid-auto-rows="{cell}px"
 				>
 					{#each entries as tile (tile?.widget.id ?? '')}
-						{@const size = tile ? sizeOf(tile) : (shownLift?.size ?? 'medium')}
-						{@const span = widgetSpan(size, grid.columns)}
+						{@const span = tile ? spanOf(tile) : (shownLift?.span ?? WIDGET_SIZE_SPANS.medium)}
+						{@const shown = shownSpan(span, grid.columns)}
 						{@const box = tile && tile === liftedTile && shownLift ? liftedBox(shownLift) : null}
 						<div
 							class={[
 								'group/slot widget-slot rounded-2xl',
-								tile === null && 'border-border-default bg-accent/[3.5%] border border-dashed',
+								tile === null && 'border-border-default bg-surface-root border border-dashed',
 								box ? liftedClass(shownLift?.landing) : 'relative',
-								tile !== null && shownSizing?.widgetId === tile.widget.id && 'ring-accent ring-1',
+								tile !== null &&
+									shownSizing?.widgetId === tile.widget.id &&
+									"after:border-surface-150-border after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border after:content-['']",
 							]}
-							style:grid-column="span {span.columns}"
-							style:grid-row="span {span.rows}"
+							style:grid-column="span {shown.columns}"
+							style:grid-row="span {shown.rows}"
 							style:left={box ? `${box.left}px` : undefined}
 							style:top={box ? `${box.top}px` : undefined}
 							style:width={box ? `${box.width}px` : undefined}
@@ -549,7 +564,7 @@
 											variant="secondary"
 											size="xs"
 											onclick={() =>
-												placeWidgetCommand(workstreamId, widget.id, tile.index, placement.size)}
+												placeWidgetCommand(workstreamId, widget.id, tile.index, placement.span)}
 										>
 											Allow
 										</Button>
@@ -558,7 +573,8 @@
 								<WidgetTile
 									{widget}
 									reading={reading(widget.id)}
-									{size}
+									{span}
+									columns={grid.columns}
 									approved={placement.approved}
 									{plan}
 									{planHeader}
@@ -608,7 +624,8 @@
 						{plan}
 						onadd={(widget) => placeWidgetCommand(workstreamId, widget.id)}
 						onhide={(widget) => hideWidgetCommand(workstreamId, widget.id)}
-						onpress={(event, widget, card) => press(event, 'suggestion', widget, widget.size, card)}
+						onpress={(event, widget, card) =>
+							press(event, 'suggestion', widget, WIDGET_SIZE_SPANS[widget.size], card)}
 					/>
 					<Button
 						bare
@@ -632,7 +649,8 @@
 						<WidgetTile
 							widget={shownLift.widget}
 							reading={reading(shownLift.widget.id)}
-							size="medium"
+							span={WIDGET_SIZE_SPANS.medium}
+							columns={WIDGET_MIN_COLUMNS}
 							{plan}
 						/>
 					</div>

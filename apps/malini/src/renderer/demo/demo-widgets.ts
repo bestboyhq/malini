@@ -1,12 +1,13 @@
 import type { Initiative } from '$contract/initiatives';
 import {
 	PLAN_WIDGET_ID,
+	WIDGET_SIZE_SPANS,
 	type WidgetBoard,
 	type WidgetData,
 	type WidgetDefinition,
 	type WidgetPlacement,
 	type WidgetReading,
-	type WidgetSize,
+	type WidgetSpan,
 } from '$contract/widgets';
 import type { DemoEmit, DemoHandlers } from './demo-bridge';
 import { OWNER } from './demo-data';
@@ -104,13 +105,15 @@ const WIDGETS: readonly DemoWidget[] = [
 ];
 
 const PLACED: readonly WidgetPlacement[] = ['plan', 'deploy', 'reviews', 'release'].map(
-	(widgetId) => ({ widgetId, size: sizeOf(widgetId), approved: true }),
+	(widgetId) => ({ widgetId, span: spanOf(widgetId), approved: true }),
 );
 
 const boards = new Map<string, { placements: WidgetPlacement[]; hidden: string[] }>();
 
-function sizeOf(widgetId: string): WidgetSize {
-	return WIDGETS.find(({ widget }) => widget.id === widgetId)?.widget.size ?? 'small';
+function spanOf(widgetId: string): WidgetSpan {
+	return WIDGET_SIZE_SPANS[
+		WIDGETS.find(({ widget }) => widget.id === widgetId)?.widget.size ?? 'small'
+	];
 }
 
 function boardKey(workstreamId: string): string {
@@ -205,20 +208,20 @@ export const widgetHandlers = (emit: DemoEmit): DemoHandlers => ({
 		const entry = WIDGETS.find(({ widget }) => widget.id === widgetId) ?? WIDGETS[0];
 		return entry ? reading(boardKey(workstreamId), entry) : Promise.reject(new Error(widgetId));
 	},
-	'widgets.place': ({ workstreamId, widgetId, index, size }) => {
+	'widgets.place': ({ workstreamId, widgetId, index, span }) => {
 		const layout = layoutOf(boardKey(workstreamId));
 		const current = layout.placements.find((placement) => placement.widgetId === widgetId);
 		const rest = layout.placements.filter((placement) => placement.widgetId !== widgetId);
-		const placed = { widgetId, size: size ?? current?.size ?? sizeOf(widgetId), approved: true };
+		const placed = { widgetId, span: span ?? current?.span ?? spanOf(widgetId), approved: true };
 		rest.splice(index ?? rest.length, 0, placed);
 		layout.placements = rest;
 		layout.hidden = layout.hidden.filter((id) => id !== widgetId);
 		return changed(emit, workstreamId);
 	},
-	'widgets.resize': ({ workstreamId, widgetId, size }) => {
+	'widgets.resize': ({ workstreamId, widgetId, span }) => {
 		const layout = layoutOf(boardKey(workstreamId));
 		layout.placements = layout.placements.map((placement) =>
-			placement.widgetId === widgetId ? { ...placement, size } : placement,
+			placement.widgetId === widgetId ? { ...placement, span } : placement,
 		);
 		return changed(emit, workstreamId);
 	},

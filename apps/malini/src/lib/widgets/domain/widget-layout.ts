@@ -1,5 +1,12 @@
-import type { WidgetData, WidgetRow, WidgetSize, WidgetState } from '$contract/widgets';
-import { WIDGET_GAP } from './widget-grid';
+import {
+	WIDGET_SIZE_SPANS,
+	type WidgetData,
+	type WidgetRow,
+	type WidgetSize,
+	type WidgetSpan,
+	type WidgetState,
+} from '$contract/widgets';
+import { WIDGET_GAP, spanLook } from './widget-grid';
 
 export type WidgetHeadline = 'number' | 'ring' | 'status';
 
@@ -24,6 +31,8 @@ export const GALLERY_MAX_CELL = 140;
 
 const STRIP_RUNS: Readonly<Record<WidgetSize, number>> = { small: 10, medium: 20, large: 30 };
 
+const ROWS_PER_CELL = 6;
+
 const EMPTY_LAYOUT: WidgetLayout = {
 	headline: null,
 	status: null,
@@ -33,14 +42,18 @@ const EMPTY_LAYOUT: WidgetLayout = {
 	rowCount: 0,
 };
 
-export function widgetLayout(data: WidgetData | null, size: WidgetSize): WidgetLayout {
+export function widgetLayout(data: WidgetData | null, span: WidgetSpan): WidgetLayout {
 	if (data === null) return EMPTY_LAYOUT;
+	const size = spanLook(span);
+	const taller = Math.max(0, span.rows - WIDGET_SIZE_SPANS[size].rows) * ROWS_PER_CELL;
 	const headline = headlineOf(data);
 	const status = data.state ?? data.history.at(-1) ?? null;
 	const runs = headline === 'status' || size !== 'small' ? runsOf(data, STRIP_RUNS[size]) : [];
 	const rows = data.rows.length === 0 ? null : data.rows.every(isBar) ? 'bars' : 'list';
 	const rowCount =
-		rows === null ? 0 : Math.min(data.rows.length, rowRoom(size, headline, runs.length > 0));
+		rows === null
+			? 0
+			: Math.min(data.rows.length, rowRoom(size, headline, runs.length > 0) + taller);
 	return {
 		headline,
 		status,
