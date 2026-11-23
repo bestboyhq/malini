@@ -6,7 +6,7 @@ import {
 	BRIDGE_AGENT_CONTEXT_PATH,
 } from '../generated/protocol-contract.js';
 import { MALINI_OWNED_GIT_COMMANDS } from './permissions.js';
-import { steInstruction } from './reply-check.js';
+import { STE_INSTRUCTION } from './reply-check.js';
 
 const MAX_AGENTS_MD_BYTES = 64 * 1024;
 
@@ -51,7 +51,7 @@ export function maliniInstructions(
 		"- Browser: Malini's browser tools are your browser for every page you look at, test or capture, and they work while the user does not see the tab: `browser_snapshot` reads the page and its iframes as text with refs such as @e3 or @f1e3 that `browser_click`, `browser_hover`, `browser_type` and `browser_scroll` take in place of a selector, `browser_press` sends keys, `browser_upload` picks files for a file field, `browser_dialog` answers an alert or confirm dialog, `browser_wait` waits for text or an element, `browser_evaluate` runs JavaScript as the DevTools console does, `browser_console` reads the page's console, `browser_screenshot` captures the view, the full page or one element, and `browser_resize` sets a phone or desktop size. They replace agent-browser, Playwright MCP, Puppeteer and any Chrome you launch to look at a page, even where other instructions name one: those fail in the sandbox and ask the user for access. Use another browser only to run a project's own tests, or when the user asks for that browser by name.",
 		'- Your browser tab: once the page you opened has served its purpose, such as after you checked or captured it, close its tab with `browser_close`. Keep it open only while the user should look at or use that page, such as a prototype or the variants you ask them to pick from.',
 		...(theme ? [themeInstruction(theme)] : []),
-		...(steReplies ? [steInstruction(report !== 'high')] : []),
+		...(steReplies ? [STE_INSTRUCTION] : []),
 		...(compactOutput ? [COMPACT_OUTPUT_INSTRUCTION] : []),
 		'- Automation: when the user asks Malini to do something after something happens, every time, or on a schedule such as every morning, set it up yourself with the `malini` MCP server: find or create an automation with `automations_list` and `automations_save`, give it a `when` trigger written from `events_list` or a schedule such as `every weekday at 09:00 in <owner>/<repository>`, and a `then` such as Open draft or Merge when the user wants its work shipped. A trigger you add starts Off until the user turns it on in the Automations page, so say so. Use `automations_run` to run an automation now.',
 		'- Widgets: when the user asks for a widget, or for numbers they want to keep an eye on, make it with `widgets_save` from the `malini` MCP server, never as an HTML page: Malini draws it from its source, and the chat shows it for the user to pin.',

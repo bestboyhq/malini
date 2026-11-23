@@ -728,7 +728,7 @@ describe('ClaudeSession', () => {
 				: [],
 		);
 		expect(checkReply).toHaveBeenCalledExactlyOnceWith(
-			{ request: 'What is a git tag?', reply: rejected, ste: true, terse: true },
+			{ request: 'What is a git tag?', reply: rejected, ste: true },
 			expect.any(AbortSignal),
 		);
 		expect(claude.runs[0]?.hookOutputs).toEqual([
@@ -738,7 +738,7 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 		expect(claude.runs[0]?.options.systemPrompt).toEqual(
 			expect.objectContaining({
-				append: expect.stringContaining('Write every reply in ASD-STE100'),
+				append: expect.stringContaining('Write every chat reply in ASD-STE100'),
 			}),
 		);
 	});
@@ -786,7 +786,7 @@ describe('ClaudeSession', () => {
 
 		expect(plain.claude.runs[0]?.hookOutputs).toEqual([]);
 		expect(checkReply).toHaveBeenCalledExactlyOnceWith(
-			{ request: 'What is a git tag?', reply: asking, ste: false, terse: true },
+			{ request: 'What is a git tag?', reply: asking, ste: false },
 			expect.any(AbortSignal),
 		);
 		expect(asks.claude.runs[0]?.hookOutputs).toEqual([

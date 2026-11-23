@@ -126,14 +126,16 @@ describe('systemPromptAppend', () => {
 		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('- Theme:');
 	});
 
-	it('asks for Simplified Technical English only when the user turned it on, and for short replies below the high resolution', () => {
+	it('asks for Simplified Technical English in chat replies only while the switch is on, at every length', () => {
 		const ste = (report: AgentReport) =>
 			systemPromptAppend('/nonexistent/worktree', report, 'dark', undefined, true);
 
-		expect(ste('medium')).toContain('Write every reply in ASD-STE100');
-		expect(ste('medium')).toContain('135 words or fewer');
-		expect(ste('high')).toContain('Write every reply in ASD-STE100');
-		expect(ste('high')).not.toContain('135 words or fewer');
+		for (const report of ['low', 'medium', 'high'] as const) {
+			expect(ste(report)).toContain('Write every chat reply in ASD-STE100');
+			expect(ste(report)).toContain('never how much');
+			expect(ste(report)).toContain('keep the style their project asks for');
+			expect(ste(report)).not.toContain('135 words');
+		}
 		expect(systemPromptAppend('/nonexistent/worktree', 'medium', 'dark')).not.toContain(
 			'ASD-STE100',
 		);

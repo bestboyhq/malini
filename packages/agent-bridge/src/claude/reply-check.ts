@@ -23,11 +23,24 @@ const VERDICT_SCHEMA = {
 	additionalProperties: false,
 };
 
+const STE_RULES = [
+	'The STE rule: Malini asks for ASD-STE100 Simplified Technical English in every chat reply. For this rule, ignore fenced code blocks, inline code, file paths, URLs, commands, image embeds, quoted text, and lines that start with "Outcome:", "Needs:", "Commit:" or "Pull request:".',
+	'- Each sentence has 20 words or fewer and makes one statement.',
+	'- Each sentence uses the active voice.',
+	'- Verbs use the simple present, simple past or simple future tense. No progressive ("is running") and no perfect ("has changed") forms.',
+	'- No contractions ("isn\'t", "you\'ll").',
+	'- No idioms and no slang ("go ahead", "under the hood", "a bit").',
+	'- Words are simple and common, with one meaning each. Technical names, product names and code identifiers are allowed.',
+	'- List items, headings and table cells can be phrases.',
+	'- A fix rewrites the words and keeps every fact: never ask the reply to drop content or get shorter.',
+	'Skip the STE rule when the request explicitly asks for another style or tone, such as "reply casually".',
+	'',
+];
+
 export interface ReplyCheck {
 	readonly request: string;
 	readonly reply: string;
 	readonly ste: boolean;
-	readonly terse: boolean;
 }
 
 export type ReplyChecker = (check: ReplyCheck, signal: AbortSignal) => Promise<string | null>;
@@ -36,7 +49,7 @@ export function claudeReplyChecker(
 	executable: string,
 	env: Readonly<Record<string, string>>,
 ): ReplyChecker {
-	return async ({ request, reply, ste, terse }, signal) => {
+	return async ({ request, reply, ste }, signal) => {
 		const abortController = new AbortController();
 		const abort = (): void => abortController.abort();
 		signal.addEventListener('abort', abort, { once: true });
@@ -50,7 +63,7 @@ export function claudeReplyChecker(
 					pathToClaudeCodeExecutable: executable,
 					env: { ...env },
 					model: CHECK_MODEL,
-					systemPrompt: replyCheckInstructions(ste, terse),
+					systemPrompt: replyCheckInstructions(ste),
 					tools: [],
 					maxTurns: STRUCTURED_OUTPUT_TURNS,
 					thinking: { type: 'disabled' },
@@ -75,7 +88,7 @@ export function claudeReplyChecker(
 	};
 }
 
-export function replyCheckInstructions(ste: boolean, terse: boolean): string {
+export function replyCheckInstructions(ste: boolean): string {
 	return [
 		'You check the final reply of a coding agent against the rules below before the user reads it. Check only these rules: style, length and content are free unless a rule names them.',
 		'',
@@ -87,7 +100,7 @@ export function replyCheckInstructions(ste: boolean, terse: boolean): string {
 		'- A question the reply quotes, answers itself or asks only for effect passes.',
 		'- For each question that fails, quote it in "fix" and add: Ask it with AskUserQuestion, or decide it yourself and say which way you went.',
 		'',
-		...(ste ? steRules(terse) : []),
+		...(ste ? STE_RULES : []),
 		'Fail the reply only for clear violations, not for borderline word choice.',
 		'When the reply passes, set "ok" to true. When it fails, set "ok" to false and list in "fix" each violation, quoted, with how to fix it.',
 	].join('\n');
@@ -111,17 +124,12 @@ export function sentBack(fix: string): string {
 	return `${SENT_BACK}\n${fix}\nFix each one, then write the whole reply again, footer included.`;
 }
 
-export function steInstruction(terse: boolean): string {
-	return [
-		'- Replies: the user turned on Simplified Technical English. Write every reply in ASD-STE100: common words with one meaning each, active voice, simple present, past or future tenses, one statement per sentence of 20 words or fewer, and no contractions, idioms or slang.',
-		...(terse
-			? [
-					'Keep the prose of a reply to 135 words or fewer, with no greetings, filler or recaps; code, paths, commands, embeds and the footer do not count.',
-				]
-			: []),
-		'A small model checks each final reply and sends one that breaks these rules back to you once, with what to fix: write the whole reply again then, footer included.',
-	].join(' ');
-}
+export const STE_INSTRUCTION = [
+	'- Replies: Malini asks for Simplified Technical English. Write every chat reply in ASD-STE100: common words with one meaning each, active voice, simple present, past or future tenses, one statement per sentence of 20 words or fewer, and no contractions, idioms or slang.',
+	'The standard sets how you write, never how much: say everything the reply needs.',
+	'It covers your chat replies only. Files you write, such as docs, copy, code comments, commit messages and pull requests, keep the style their project asks for.',
+	'A small model checks each final reply and sends one that breaks these rules back to you once, with what to fix: write the whole reply again then, footer included.',
+].join(' ');
 
 export function rejectsReply(message: SDKMessage): boolean {
 	if (message.type !== 'user' || message.parent_tool_use_id !== null) return false;
@@ -132,33 +140,6 @@ export function replyFix(output: unknown): string | null {
 	if (!isRecord(output) || output['ok'] !== false) return null;
 	const fix = output['fix'];
 	return typeof fix === 'string' && fix.trim() ? fix.trim() : null;
-}
-
-function steRules(terse: boolean): string[] {
-	return [
-		'The STE rule: the user turned on ASD-STE100 Simplified Technical English for every reply. For this rule, ignore fenced code blocks, inline code, file paths, URLs, commands, image embeds, quoted text, and lines that start with "Outcome:", "Needs:", "Commit:" or "Pull request:".',
-		'- Each sentence has 20 words or fewer and makes one statement.',
-		'- Each sentence uses the active voice.',
-		'- Verbs use the simple present, simple past or simple future tense. No progressive ("is running") and no perfect ("has changed") forms.',
-		'- No contractions ("isn\'t", "you\'ll").',
-		'- No idioms and no slang ("go ahead", "under the hood", "a bit").',
-		'- Words are simple and common, with one meaning each. Technical names, product names and code identifiers are allowed.',
-		'- List items, headings and table cells can be phrases.',
-		'',
-		...(terse
-			? [
-					'The length rule: the remaining prose has 135 words or fewer, with no greetings, no filler and no recap of earlier turns.',
-					'',
-				]
-			: []),
-		'Skip the STE rule when the request explicitly asks for another style or tone, such as "reply casually".',
-		...(terse
-			? [
-					'Skip the length rule when the request explicitly asks for a length or for verbatim text, such as "in detail", "in 300 words", a document or a translation.',
-				]
-			: []),
-		'',
-	];
 }
 
 function userText(content: unknown): string {

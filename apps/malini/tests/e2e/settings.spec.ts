@@ -377,7 +377,7 @@ test('Settings → Models picks the model new chats start with for each mode, an
 	}
 });
 
-test('Settings → Models turns on plain replies for the next prompt of every chat', async () => {
+test('Settings → Models turns off Plain English, on by default, for the next prompt of every chat', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -391,21 +391,21 @@ test('Settings → Models turns on plain replies for the next prompt of every ch
 		);
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'WHICH_STYLE');
-		await expect(page.getByText('Replies as they come')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByText('Replies in STE')).toBeVisible({ timeout: 30_000 });
 
 		await openSettingsFromMenu(page);
 		await settingsSection(page, 'Models').click();
-		const ste = page.getByRole('switch', { name: 'Plain replies' });
-		await expect(ste).not.toBeChecked();
-		await ste.click();
+		const ste = page.getByRole('switch', { name: 'Plain English' });
 		await expect(ste).toBeChecked();
-		await expect.poll(async () => (await storedSettings(page))[STE_REPLIES_SETTING]).toBe('on');
 		await captureFlow(app, 'settings-ste-replies');
+		await ste.click();
+		await expect(ste).not.toBeChecked();
+		await expect.poll(async () => (await storedSettings(page))[STE_REPLIES_SETTING]).toBe('off');
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
 
 		await sendPrompt(page, 'WHICH_STYLE');
-		await expect(page.getByText('Replies in STE')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByText('Replies as they come')).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
