@@ -6,13 +6,18 @@ import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
 export { setPlanSyncCommand };
 
-function setPlanSyncCommand(repositoryFullName: string, enabled: boolean): void {
+function setPlanSyncCommand(
+	repositoryFullName: string,
+	enabled: boolean,
+	onDone: () => void = () => undefined,
+): void {
 	const before = planSyncAggregate.states[repositoryFullName];
 	if (before) planSyncAggregate.set({ ...before, enabled, error: null });
 	void (async () => {
 		try {
 			planSyncAggregate.set(await initiativesService.setSync({ repositoryFullName, enabled }));
 			if (enabled) syncPlanCommand(repositoryFullName);
+			onDone();
 		} catch (error) {
 			if (before) planSyncAggregate.set(before);
 			const detail = sanitizeFailureDetail(error instanceof Error ? error.message : null);

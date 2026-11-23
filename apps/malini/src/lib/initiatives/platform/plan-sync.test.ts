@@ -3,15 +3,23 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Initiative, PlanSyncedEvent } from '$contract/initiatives';
+import type {
+	Initiative,
+	PlanSyncedEvent,
+	ShareAcceptedEvent,
+	ShareRequest,
+} from '$contract/initiatives';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus } from '$main/events';
 import { installGitRunnerForTests } from '$main/git/run';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
-import { recordMergedPullRequest } from '$shared/repositories/repositories.platform';
-import { registerInitiatives } from './register';
+import {
+	recordMergedPullRequest,
+	upsertConnectedRepository,
+} from '$shared/repositories/repositories.platform';
+import { registerInitiatives, type InitiativesPlatform } from './register';
 
 const REPOSITORY = 'acme/rocket';
 
@@ -19,12 +27,14 @@ const PLAN_REPOSITORY = 'acme/rocket-malini-plan';
 
 const VIEWER = 'kit';
 
+const IDS: Readonly<Record<string, number>> = { kit: 4242, casey: 77 };
+
 type Access = 'pull' | 'triage' | 'push' | 'maintain' | 'admin';
 
 type Repository = {
 	private: boolean;
 	organization: boolean;
-	admin: boolean;
+	admins: Set<string>;
 	people: Map<string, Access>;
 	members: Map<string, Access>;
 	invited: Map<number, { login: string; access: string | null }>;
@@ -51,20 +61,23 @@ type PlanFile = { outcomes: FileOutcome[] };
 
 let root: string;
 let context: MainContext;
+let platform: InitiativesPlatform;
 let github: ReturnType<typeof fakeGithub>;
 let synced: PlanSyncedEvent[];
 let clock: number;
+let closers: (() => void)[];
 
 function fakeGithub() {
 	const calls: string[][] = [];
 	const repositories = new Map<string, Repository>();
+	const closed = new Set<string>();
 	let offline = false;
 	let invitation = 0;
 	const add = (name: string, repository: Partial<Repository> = {}): Repository => {
 		const created: Repository = {
 			private: true,
 			organization: true,
-			admin: true,
+			admins: new Set([VIEWER]),
 			people: new Map(),
 			members: new Map(),
 			invited: new Map(),
@@ -75,75 +88,109 @@ function fakeGithub() {
 		execFileSync('git', ['init', '-q', '--bare', remote(name)]);
 		return created;
 	};
+	const sees = (repository: Repository, viewer: string): boolean =>
+		!repository.private ||
+		repository.admins.has(viewer) ||
+		repository.people.has(viewer) ||
+		repository.members.has(viewer);
 	const answer = (value: unknown): GhResult => ({
 		stdout: typeof value === 'string' ? value : JSON.stringify(value),
 		stderr: '',
 		code: 0,
 	});
 	const failed = (stderr: string): GhResult => ({ stdout: '', stderr, code: 1 });
-	const run = async (args: readonly string[]): Promise<GhResult> => {
-		calls.push([...args]);
-		if (offline) return failed('error connecting to api.github.com');
-		const [, path = ''] = args;
-		if (path === 'user') return answer(`4242\t${VIEWER}\tKit Doe\n`);
-		const method = args.includes('-X') ? (args[args.indexOf('-X') + 1] ?? 'GET') : 'GET';
-		const fields = new Map<string, string>();
-		args.forEach((arg, index) => {
-			if (args[index - 1] === '-f' || args[index - 1] === '-F') {
-				fields.set(arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1));
-			}
-		});
-		const url = new URL(path, 'https://api.github.com/');
-		const [, scope = '', owner = '', name = '', collection, item] = url.pathname.split('/');
-		if (method === 'POST' && (path === 'user/repos' || (scope === 'orgs' && name === 'repos'))) {
-			const created = `${scope === 'orgs' ? owner : VIEWER}/${fields.get('name') ?? ''}`;
-			if (repositories.has(created)) return failed('gh: Validation Failed (HTTP 422)');
-			add(created, { private: fields.get('private') === 'true', organization: scope === 'orgs' });
-			return answer({ full_name: created });
-		}
-		const found = repositories.get(`${owner}/${name}`);
-		if (scope !== 'repos' || found === undefined) return failed('gh: Not Found (HTTP 404)');
-		if (collection === undefined) {
-			return answer({
-				private: found.private,
-				owner: { type: found.organization ? 'Organization' : 'User' },
-				permissions: { admin: found.admin, push: true, pull: true },
+	const as =
+		(viewer: string) =>
+		async (args: readonly string[]): Promise<GhResult> => {
+			calls.push([...args]);
+			if (offline) return failed('error connecting to api.github.com');
+			const [, path = ''] = args;
+			if (path === 'user') return answer(`${IDS[viewer] ?? 1}\t${viewer}\t${viewer} Doe\n`);
+			const method = args.includes('-X') ? (args[args.indexOf('-X') + 1] ?? 'GET') : 'GET';
+			const fields = new Map<string, string>();
+			args.forEach((arg, index) => {
+				if (args[index - 1] === '-f' || args[index - 1] === '-F') {
+					fields.set(arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1));
+				}
 			});
-		}
-		if (method === 'GET' && url.searchParams.get('page') !== '1') return answer([]);
-		const login = item ?? '';
-		if (collection === 'collaborators' && method === 'PUT') {
-			invitation += 1;
-			found.invited.set(invitation, { login, access: fields.get('permission') ?? null });
-			return answer({ id: invitation });
-		}
-		if (collection === 'collaborators' && method === 'DELETE') {
-			found.people.delete(login);
-			return answer('');
-		}
-		if (collection === 'collaborators') {
-			const direct = url.searchParams.get('affiliation') === 'direct';
-			const people = direct ? found.people : new Map([...found.members, ...found.people]);
-			return answer(
-				[...people].map(([person, access]) => ({
-					login: person,
-					permissions: { [access]: true },
-				})),
-			);
-		}
-		if (collection === 'invitations' && method === 'DELETE') {
-			found.invited.delete(Number(item));
-			return answer('');
-		}
-		if (collection === 'invitations') {
-			return answer(
-				[...found.invited].map(([id, invited]) => ({ id, invitee: { login: invited.login } })),
-			);
-		}
-		return failed('gh: Not Found (HTTP 404)');
-	};
+			const url = new URL(path, 'https://api.github.com/');
+			const [, scope = '', owner = '', name = '', collection, item] = url.pathname.split('/');
+			if (method === 'POST' && (path === 'user/repos' || (scope === 'orgs' && name === 'repos'))) {
+				if (closed.has(owner)) return failed('gh: You need admin access (HTTP 403)');
+				const created = `${scope === 'orgs' ? owner : viewer}/${fields.get('name') ?? ''}`;
+				if (repositories.has(created)) return failed('gh: Validation Failed (HTTP 422)');
+				add(created, {
+					private: fields.get('private') === 'true',
+					organization: scope === 'orgs',
+					admins: new Set([viewer]),
+				});
+				return answer({ full_name: created });
+			}
+			const later = method === 'GET' && url.searchParams.get('page') !== '1';
+			if (scope === 'user' && owner === 'repository_invitations') {
+				if (later) return answer([]);
+				const mine = [...repositories].flatMap(([fullName, repository]) =>
+					[...repository.invited]
+						.filter(([, invited]) => invited.login === viewer)
+						.map(([id, invited]) => ({ id, fullName, repository, invited })),
+				);
+				if (method === 'GET') {
+					return answer(
+						mine.map(({ id, fullName }) => ({ id, repository: { full_name: fullName } })),
+					);
+				}
+				const accepted = mine.find(({ id }) => String(id) === name);
+				if (method !== 'PATCH' || accepted === undefined) return failed('gh: Not Found (HTTP 404)');
+				accepted.repository.invited.delete(accepted.id);
+				accepted.repository.people.set(viewer, 'push');
+				return answer('');
+			}
+			const found = repositories.get(`${owner}/${name}`);
+			if (scope !== 'repos' || found === undefined || !sees(found, viewer)) {
+				return failed('gh: Not Found (HTTP 404)');
+			}
+			if (collection === undefined) {
+				return answer({
+					private: found.private,
+					owner: { type: found.organization ? 'Organization' : 'User' },
+					permissions: { admin: found.admins.has(viewer), push: true, pull: true },
+				});
+			}
+			if (later) return answer([]);
+			const login = item ?? '';
+			if (collection === 'collaborators' && method === 'PUT') {
+				invitation += 1;
+				found.invited.set(invitation, { login, access: fields.get('permission') ?? null });
+				return answer({ id: invitation });
+			}
+			if (collection === 'collaborators' && method === 'DELETE') {
+				found.people.delete(login);
+				return answer('');
+			}
+			if (collection === 'collaborators') {
+				const direct = url.searchParams.get('affiliation') === 'direct';
+				const people = direct ? found.people : new Map([...found.members, ...found.people]);
+				return answer(
+					[...people].map(([person, access]) => ({
+						login: person,
+						permissions: { [access]: true },
+					})),
+				);
+			}
+			if (collection === 'invitations' && method === 'DELETE') {
+				found.invited.delete(Number(item));
+				return answer('');
+			}
+			if (collection === 'invitations') {
+				return answer(
+					[...found.invited].map(([id, invited]) => ({ id, invitee: { login: invited.login } })),
+				);
+			}
+			return failed('gh: Not Found (HTTP 404)');
+		};
 	return {
-		run,
+		run: as(VIEWER),
+		as,
 		calls,
 		repositories,
 		add,
@@ -162,11 +209,38 @@ function fakeGithub() {
 		setOffline: (next: boolean) => {
 			offline = next;
 		},
+		closeOrganization: (organization: string) => {
+			closed.add(organization);
+		},
 	};
 }
 
 function remote(repository: string): string {
 	return join(root, 'github', `${repository}.git`);
+}
+
+function requestRefs(repository: string): string[] {
+	return git(remote(repository), ['for-each-ref', '--format=%(refname)', 'refs/malini/'])
+		.split('\n')
+		.filter((ref) => ref.length > 0);
+}
+
+function malini(login: string) {
+	const other: MainContext = {
+		...context,
+		db: openMigratedDatabase(':memory:'),
+		commands: new CommandRegistry(),
+		events: createEventBus({ forwardToWindows: false }),
+		appDataRoot: join(root, login),
+		checkoutsRoot: join(root, login),
+		resourcesRoot: join(root, login),
+	};
+	const started = registerInitiatives(other, { gh: github.as(login), now: () => clock });
+	closers.push(() => {
+		started.dispose();
+		other.db.close();
+	});
+	return { context: other, platform: started };
 }
 
 function git(directory: string, args: readonly string[], input?: string, author = VIEWER): string {
@@ -264,12 +338,15 @@ beforeEach(() => {
 		]),
 	});
 	synced = [];
+	closers = [];
 	clock = Date.parse('2026-11-23T10:00:00Z');
 	context.events.subscribe('initiatives:synced', (event) => synced.push(event));
-	registerInitiatives(context, { gh: github.run, now: () => clock });
+	platform = registerInitiatives(context, { gh: github.run, now: () => clock });
 });
 
 afterEach(() => {
+	for (const close of closers) close();
+	platform.dispose();
 	context.db.close();
 	vi.unstubAllEnvs();
 	rmSync(root, { recursive: true, force: true });
@@ -330,6 +407,8 @@ describe('a plan shared as one file in a private plan repository', () => {
 			syncedAt: null,
 			error: null,
 			people: [],
+			waitingFor: null,
+			requestedBy: [],
 		});
 
 		await call.turn(true);
@@ -550,31 +629,105 @@ describe('a plan shared as one file in a private plan repository', () => {
 		expect(await call.state()).toMatchObject({ enabled: false });
 	});
 
-	it('asks the owner of a personal repository to make its plan repository', async () => {
-		github.add('casey/kite', {
+	it('asks the owner through a hidden ref, and joins by itself once they share', async () => {
+		const KITE = 'casey/kite';
+		const HOME = 'casey/kite-malini-plan';
+		github.add(KITE, {
 			organization: false,
-			admin: false,
-			people: new Map([['casey', 'admin']]),
+			admins: new Set(['casey']),
+			people: new Map([
+				['casey', 'admin'],
+				[VIEWER, 'push'],
+			]),
 		});
-		await call.create('Fly', null, 'casey/kite');
+		const casey = malini('casey');
+		upsertConnectedRepository(casey.context.db, {
+			id: 'repo-kite',
+			fullName: KITE,
+			defaultBranch: 'main',
+			localPath: null,
+			remoteUrl: 'https://github.com/casey/kite.git',
+			createdAt: '2026-11-23T09:00:00.000Z',
+		});
+		const asked: ShareRequest[] = [];
+		casey.context.events.subscribe('initiatives:share-requested', (request) => asked.push(request));
+		const accepted: ShareAcceptedEvent[] = [];
+		context.events.subscribe('initiatives:share-accepted', (event) => accepted.push(event));
+		const caseyState = () =>
+			casey.context.commands.call('initiatives.sync-state', { repositoryFullName: KITE });
+
+		await call.create('Fly', null, KITE);
+		await call.turn(true, KITE);
+		expect(await call.state(KITE)).toMatchObject({
+			enabled: true,
+			waitingFor: 'casey',
+			home: HOME,
+		});
+		expect(requestRefs(KITE)).toEqual([`refs/malini/plan-requests/${VIEWER}`]);
+		expect(github.repositories.has(HOME)).toBe(false);
+		await platform.start();
+		expect(await call.state(KITE)).toMatchObject({ waitingFor: 'casey' });
+		expect(accepted).toEqual([]);
+
+		await casey.platform.start();
+		expect(asked).toEqual([{ repositoryFullName: KITE, people: [VIEWER] }]);
+		await casey.context.commands.call('initiatives.dismiss-share-request', {
+			repositoryFullName: KITE,
+		});
+		expect(await casey.context.commands.call('initiatives.share-requests', undefined)).toEqual([]);
+		expect(await caseyState()).toMatchObject({ enabled: false, requestedBy: [VIEWER] });
+		casey.platform.dispose();
+		await casey.platform.start();
+		expect(asked).toHaveLength(1);
+
+		await casey.context.commands.call('initiatives.set-sync', {
+			repositoryFullName: KITE,
+			enabled: true,
+		});
+		await casey.context.commands.call('initiatives.sync', { repositoryFullName: KITE });
+		expect(github.repositories.get(HOME)).toMatchObject({ private: true, organization: false });
+		expect(github.invitees(HOME)).toEqual([`${VIEWER}:`]);
+		expect(requestRefs(KITE)).toEqual([]);
+		expect(await caseyState()).toMatchObject({ enabled: true, requestedBy: [] });
+
+		platform.dispose();
+		await platform.start();
+		expect(accepted).toEqual([{ repositoryFullName: KITE, owner: 'casey' }]);
+		expect(github.invitees(HOME)).toEqual([]);
+		expect(await call.state(KITE)).toMatchObject({ enabled: true, waitingFor: null, error: null });
+		expect(remotePlan(HOME).outcomes.map(({ title }) => title)).toEqual(['Fly']);
+		const theirs = await casey.context.commands.call('initiatives.sync', {
+			repositoryFullName: KITE,
+		});
+		expect(theirs.map(({ title }) => title)).toEqual(['Fly']);
+	});
+
+	it('asks when an organization lets only its admins make repositories, and takes it back', async () => {
+		github.add('guild/forge', { admins: new Set(['casey']), people: new Map([[VIEWER, 'push']]) });
+		github.closeOrganization('guild');
+		await call.turn(true, 'guild/forge');
+		expect(await call.state('guild/forge')).toMatchObject({ enabled: true, waitingFor: 'guild' });
+		expect(requestRefs('guild/forge')).toEqual([`refs/malini/plan-requests/${VIEWER}`]);
+
+		await call.turn(false, 'guild/forge');
+		expect(requestRefs('guild/forge')).toEqual([]);
+		expect(await call.state('guild/forge')).toMatchObject({ enabled: false, waitingFor: null });
+
+		rmSync(remote('guild/forge'), { recursive: true, force: true });
 		await expect(
 			context.commands.invoke({
 				command: 'initiatives.set-sync',
-				args: { repositoryFullName: 'casey/kite', enabled: true },
+				args: { repositoryFullName: 'guild/forge', enabled: true },
 			}),
 		).resolves.toMatchObject({
 			ok: false,
-			error: expect.stringContaining('Only casey can make the private `casey/kite-malini-plan`'),
+			error:
+				'Only guild can make the private guild/forge-malini-plan. Ask them to make it and add you, then try again',
 		});
+		expect(await call.state('guild/forge')).toMatchObject({ enabled: false });
+	});
 
-		github.add('casey/kite-malini-plan', { organization: false, admin: false });
-		await call.turn(true, 'casey/kite');
-		await call.sync('casey/kite');
-		expect(remotePlan('casey/kite-malini-plan').outcomes.map(({ title }) => title)).toEqual([
-			'Fly',
-		]);
-		expect(github.calls.filter((args) => args.includes('PUT'))).toEqual([]);
-
+	it('makes the plan repository in your own account for a repository you own', async () => {
 		github.add(`${VIEWER}/notes`, { organization: false });
 		await call.create('Write', null, `${VIEWER}/notes`);
 		await call.turn(true, `${VIEWER}/notes`);
@@ -634,6 +787,7 @@ describe('a plan shared as one file in a private plan repository', () => {
 				)?.done,
 			).toBe(true),
 		);
+		await call.sync();
 	});
 
 	it('keeps the plan when GitHub is unreachable and pushes what waited once it is back', async () => {

@@ -215,7 +215,7 @@
 
 {#snippet planSyncHere()}
 	{#if repositoryContext}
-		<PlanSyncSwitch repositoryFullName={repositoryContext.repo.fullName} compact />
+		<PlanSyncSwitch repositoryFullName={repositoryContext.repo.fullName} withPeople={false} />
 	{/if}
 {/snippet}
 

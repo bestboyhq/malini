@@ -1,18 +1,25 @@
 import type { PlanRemoteChange } from '$contract/initiatives';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
-import { describeError, GhError } from '$main/errors';
+import { describeError, GhError, isGhError } from '$main/errors';
 import { parseGhJson, type GhResult } from '$main/process/gh';
 import {
+	githubFullNameFromRemote,
+	listRepositoryCatalog,
+	LOCAL_REPOSITORY_ID_PREFIX,
 	mergedPullRequestOf,
+	type CatalogRepository,
 	type RepositoriesPlatform,
 } from '$shared/repositories/repositories.platform';
 import {
 	accessChanges,
 	collaboratorAccess,
 	invitations,
+	invitationTo,
+	isGithubLogin,
 	isGithubRepository,
 	loginOfEmail,
+	ownerOf,
 	planRepositoryOf,
 } from './github-plan';
 import { InitiativeError } from './initiatives.repository';
@@ -25,6 +32,8 @@ import {
 	type SharedPlan,
 } from './plan-file';
 import {
+	askToShare,
+	clearShareRequests,
 	commitOf,
 	commitPlan,
 	fetchPlan,
@@ -32,21 +41,27 @@ import {
 	planAuthors,
 	planTextAt,
 	pushPlan,
+	shareRequests,
 	type CommitIdentity,
 	type PlanClone,
 } from './plan-git';
 import {
 	applyPlan,
 	closeOnMerge,
+	forgetShareRequests,
 	isPlanSyncEnabled,
 	localPlan,
 	openMergeLinks,
+	pendingShareRequest,
 	planSync,
 	recordPlanBase,
 	recordPlanSynced,
 	recordPlanSyncError,
+	recordShareRequests,
 	setPlanSyncEnabled,
+	setPlanSyncWaiting,
 	syncedCommit,
+	waitingRepositories,
 } from './plan-sync.repository';
 
 export type PlanSyncDeps = Readonly<{
@@ -75,9 +90,13 @@ const PUSH_ROUNDS = 3;
 
 const ACCESS_EVERY_MS = 10 * 60_000;
 
+const WATCH_EVERY_MS = 10 * 60_000;
+
 const GONE = /HTTP 404|HTTP 410/u;
 
 const TAKEN = /HTTP 422/u;
+
+const NOT_ALLOWED = /HTTP 403|HTTP 404/u;
 
 export class PlanSyncService {
 	readonly #context: MainContext;
@@ -86,6 +105,8 @@ export class PlanSyncService {
 	readonly #homes = new Map<string, string | null>();
 	readonly #accessCheckedAt = new Map<string, number>();
 	#viewer: Viewer | null = null;
+	#watching: NodeJS.Timeout | null = null;
+	#finding: Promise<void> | null = null;
 
 	constructor(context: MainContext, deps: PlanSyncDeps) {
 		this.#context = context;
@@ -110,21 +131,61 @@ export class PlanSyncService {
 		if (source === null) {
 			throw new InitiativeError(
 				'not-on-github',
-				`\`${repositoryFullName}\` is not on GitHub, or this gh account cannot see it`,
+				`${repositoryFullName} is not on GitHub, or this gh account cannot see it`,
 			);
 		}
 		const home = planRepositoryOf(repositoryFullName);
-		const plan = (await this.#repository(home)) ?? (await this.#createPlanRepository(home, source));
+		const plan =
+			(await this.#repository(home)) ??
+			(await this.#join(home)) ??
+			(await this.#createPlanRepository(home, source));
+		if (plan === null) {
+			await this.#askAdmin(repositoryFullName, home);
+			return;
+		}
 		if (!plan.private) {
 			throw new InitiativeError(
 				'public-repository',
-				`\`${home}\` is public, and a plan goes only to a private repository`,
+				`${home} is public, and a plan goes only to a private repository`,
 			);
 		}
 		if (plan.admin) await this.#keepAccess(repositoryFullName, home, plan, true);
 		this.#homes.set(repositoryFullName.toLowerCase(), home);
 		setPlanSyncEnabled(this.#context.db, repositoryFullName, true, home);
 		void this.sync(repositoryFullName);
+	}
+
+	async turnOff(repositoryFullName: string): Promise<void> {
+		const { db } = this.#context;
+		const { waitingFor, home } = planSync(db, repositoryFullName);
+		setPlanSyncEnabled(db, repositoryFullName, false);
+		const viewer = waitingFor === null ? null : await this.#viewerOf();
+		if (viewer === null) return;
+		const clone = await openPlanClone(
+			this.#context.appDataRoot,
+			home ?? planRepositoryOf(repositoryFullName),
+		);
+		await clearShareRequests(clone, repositoryFullName, [viewer.login]).catch((error: unknown) => {
+			this.#deps.log?.(
+				`initiatives: take back the ask of ${repositoryFullName}: ${describeError(error)}`,
+			);
+		});
+	}
+
+	start(): Promise<void> {
+		if (this.#watching !== null) return Promise.resolve();
+		const watch = (): Promise<void> =>
+			this.#watch().catch((error: unknown) => {
+				this.#deps.log?.(`initiatives: watch the plans: ${describeError(error)}`);
+			});
+		this.#watching = setInterval(() => void watch(), WATCH_EVERY_MS);
+		this.#watching.unref();
+		return watch();
+	}
+
+	dispose(): void {
+		if (this.#watching !== null) clearInterval(this.#watching);
+		this.#watching = null;
 	}
 
 	sync(repositoryFullName: string): Promise<void> {
@@ -189,14 +250,18 @@ export class PlanSyncService {
 		if (!isGithubRepository(repositoryFullName) || !isPlanSyncEnabled(db, repositoryFullName)) {
 			return;
 		}
-		const home = planSync(db, repositoryFullName).home ?? planRepositoryOf(repositoryFullName);
+		const { home: known, waitingFor } = planSync(db, repositoryFullName);
+		const home = known ?? planRepositoryOf(repositoryFullName);
 		try {
-			const plan = await this.#repository(home);
+			const plan =
+				(await this.#repository(home)) ?? (waitingFor === null ? null : await this.#join(home));
+			if (plan === null && waitingFor !== null) return;
 			if (plan?.private !== true) {
 				this.#homes.delete(repositoryFullName.toLowerCase());
 				setPlanSyncEnabled(db, repositoryFullName, false);
 				return;
 			}
+			if (waitingFor !== null) setPlanSyncEnabled(db, repositoryFullName, true, home);
 			if (plan.admin) await this.#keepAccess(repositoryFullName, home, plan, false);
 			const clone = await openPlanClone(this.#context.appDataRoot, home);
 			const head = await this.#exchange(repositoryFullName, clone);
@@ -205,6 +270,12 @@ export class PlanSyncService {
 					? []
 					: (await planAuthors(clone, null, head)).flatMap((email) => loginOfEmail(email) ?? []);
 			recordPlanSynced(db, repositoryFullName, [...new Set(people)]);
+			if (waitingFor !== null) {
+				this.#context.events.emit('initiatives:share-accepted', {
+					repositoryFullName,
+					owner: waitingFor,
+				});
+			}
 		} catch (error) {
 			recordPlanSyncError(db, repositoryFullName, describeError(error));
 		}
@@ -283,7 +354,95 @@ export class PlanSyncService {
 		}
 	}
 
-	async #createPlanRepository(home: string, source: GithubRepository): Promise<GithubRepository> {
+	findRequests(): Promise<void> {
+		this.#finding ??= (async () => {
+			try {
+				await this.#findRequests();
+			} catch (error) {
+				this.#deps.log?.(`initiatives: read the asks to share: ${describeError(error)}`);
+			} finally {
+				this.#finding = null;
+			}
+		})();
+		return this.#finding;
+	}
+
+	async #watch(): Promise<void> {
+		for (const repository of waitingRepositories(this.#context.db)) await this.sync(repository);
+		await this.findRequests();
+	}
+
+	async #findRequests(): Promise<void> {
+		const { db, events } = this.#context;
+		const unshared = (await listRepositoryCatalog(db))
+			.filter(onGithub)
+			.filter(({ fullName }) => !isPlanSyncEnabled(db, fullName));
+		const viewer = unshared.length === 0 ? null : await this.#viewerOf();
+		if (viewer === null) return;
+		for (const { fullName } of unshared) {
+			try {
+				const asking = (await shareRequests(fullName)).filter(
+					(login) => login.toLowerCase() !== viewer.login.toLowerCase(),
+				);
+				const admin = asking.length > 0 && (await this.#repository(fullName))?.admin === true;
+				const added = recordShareRequests(db, fullName, admin ? asking : []);
+				const request = pendingShareRequest(db, fullName);
+				if (added.length > 0 && request !== null)
+					events.emit('initiatives:share-requested', request);
+			} catch (error) {
+				this.#deps.log?.(
+					`initiatives: read the asks to share ${fullName}: ${describeError(error)}`,
+				);
+			}
+		}
+	}
+
+	async #askAdmin(repositoryFullName: string, home: string): Promise<void> {
+		const owner = ownerOf(repositoryFullName);
+		const viewer = await this.#viewerOf();
+		try {
+			if (viewer === null) throw new GhError('failed', 'read your GitHub login');
+			const clone = await openPlanClone(this.#context.appDataRoot, home);
+			await askToShare(clone, repositoryFullName, viewer.login, viewer.identity);
+		} catch (error) {
+			this.#deps.log?.(
+				`initiatives: ask ${owner} to share ${repositoryFullName}: ${describeError(error)}`,
+			);
+			throw new InitiativeError(
+				'no-plan-repository',
+				`Only ${owner} can make the private ${home}. Ask them to make it and add you, then try again`,
+			);
+		}
+		setPlanSyncWaiting(this.#context.db, repositoryFullName, home, owner);
+	}
+
+	async #answerRequests(repositoryFullName: string, home: string): Promise<void> {
+		try {
+			const asking = await shareRequests(repositoryFullName);
+			const clone = await openPlanClone(this.#context.appDataRoot, home);
+			await clearShareRequests(clone, repositoryFullName, asking);
+		} catch (error) {
+			this.#deps.log?.(
+				`initiatives: clear the asks to share ${repositoryFullName}: ${describeError(error)}`,
+			);
+		}
+		forgetShareRequests(this.#context.db, repositoryFullName);
+	}
+
+	async #join(home: string): Promise<GithubRepository | null> {
+		const id = invitationTo(
+			await this.#list(`user/repository_invitations?per_page=${PAGE_SIZE}`),
+			home,
+		);
+		if (id === null) return null;
+		await this.#write(`user/repository_invitations/${id}`, 'PATCH', {});
+		return this.#repository(home);
+	}
+
+	async #createPlanRepository(
+		home: string,
+		source: GithubRepository,
+	): Promise<GithubRepository | null> {
 		const [owner = '', name = ''] = home.split('/');
 		const viewer = (await this.#viewerOf())?.login;
 		const path = source.organization
@@ -291,18 +450,14 @@ export class PlanSyncService {
 			: owner.toLowerCase() === viewer?.toLowerCase()
 				? 'user/repos'
 				: null;
-		if (path === null) {
-			throw new InitiativeError(
-				'no-plan-repository',
-				`Only ${owner} can make the private \`${home}\`. Once they make it and add you, turn on Share internally again.`,
-			);
-		}
+		if (path === null) return null;
 		const fields = { name, private: true, has_issues: false, has_wiki: false, has_projects: false };
 		const result = await this.#gh(['api', path, '-X', 'POST', ...fieldArgs(fields)]);
+		if (result.code !== 0 && source.organization && NOT_ALLOWED.test(result.stderr)) return null;
 		if (result.code !== 0 && TAKEN.test(result.stderr)) {
 			throw new InitiativeError(
 				'no-plan-repository',
-				`\`${home}\` already exists, and this gh account cannot see it. Once its owner adds you, turn on Share internally again.`,
+				`${home} already exists, and this gh account cannot see it. Ask its owner to add you, then try again`,
 			);
 		}
 		if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code, ['api', path]);
@@ -349,6 +504,7 @@ export class PlanSyncService {
 			for (const id of changes.cancel) {
 				await write(`repos/${home}/invitations/${id}`, 'DELETE', {});
 			}
+			await this.#answerRequests(source, home);
 		} catch (error) {
 			this.#deps.log?.(`initiatives: keep the people of ${home} in step: ${describeError(error)}`);
 		}
@@ -356,10 +512,19 @@ export class PlanSyncService {
 
 	async #viewerOf(): Promise<Viewer | null> {
 		if (this.#viewer !== null) return this.#viewer;
-		const result = await this.#gh(['api', 'user', '--jq', '[.id, .login, .name // ""] | @tsv']);
+		const result = await this.#gh([
+			'api',
+			'user',
+			'--jq',
+			'[.id, .login, .name // ""] | @tsv',
+		]).catch((error: unknown) => {
+			if (isGhError(error, 'not-installed')) return null;
+			throw error;
+		});
+		if (result === null) return null;
 		const [id = '', login = '', name = ''] =
 			result.code === 0 ? result.stdout.trim().split('\t') : [];
-		if (!/^\d+$/u.test(id) || !/^[A-Za-z0-9-]{1,39}$/u.test(login)) return null;
+		if (!/^\d+$/u.test(id) || !isGithubLogin(login)) return null;
 		this.#viewer = {
 			login,
 			identity: {
@@ -405,7 +570,7 @@ export class PlanSyncService {
 
 	async #write(
 		path: string,
-		method: 'PUT' | 'DELETE',
+		method: 'PUT' | 'PATCH' | 'DELETE',
 		fields: Readonly<Record<string, Field>>,
 	): Promise<void> {
 		const args = ['api', path, '-X', method, ...fieldArgs(fields)];
@@ -416,6 +581,12 @@ export class PlanSyncService {
 	#gh(args: readonly string[]): Promise<GhResult> {
 		return this.#deps.gh(args, { timeoutMs: GH_TIMEOUT_MS });
 	}
+}
+
+function onGithub(repository: CatalogRepository): boolean {
+	if (repository.hidden || !isGithubRepository(repository.fullName)) return false;
+	if (!repository.id.startsWith(LOCAL_REPOSITORY_ID_PREFIX)) return true;
+	return repository.remoteUrl !== null && githubFullNameFromRemote(repository.remoteUrl) !== null;
 }
 
 function fieldArgs(fields: Readonly<Record<string, Field>>): string[] {

@@ -55,7 +55,9 @@ A finished initiative leaves the rail once its day has passed.
 
 ## Share internally
 
-A plan lives on your Mac until you turn on **Share internally**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
+A plan lives on your Mac until you turn on **Share internally**, in the repository page's top bar or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
+Hover it to see where the plan goes and who sees it.
+Once it is shared, the top bar shows the people who edited the plan beside the switch.
 Sharing is per repository and off until you turn it on.
 
 A shared plan never goes into the repository itself.
@@ -63,7 +65,7 @@ It goes to a private repository of its own, named after it with `-malini-plan`, 
 So a private repository that turns public later takes no plan with it.
 
 - Turning sharing on makes the plan repository when it is not there yet.
-  In a repository of another person's account, only they can make it.
+  In a repository of another person's account, only they can make it, so Malini asks them for you.
 - The plan is one file, `plan.json`, on `main`.
   Each change is a commit that names it, such as `Rename Launch`, so the plan's history is the repository's history.
 - Malini fetches, merges and pushes the file with git.
@@ -81,6 +83,23 @@ A change someone else pushed shows as a line at the bottom of the window, such a
 The scratchpad stays on your Mac.
 
 Turning sharing off stops it, and the plan repository keeps its file and history.
+
+### Ask the owner
+
+When only the owner can make the plan repository, turning sharing on asks their Malini instead, and the switch reads **Asked** and their login, such as **Asked casey**.
+The ask is a hidden git ref in the code repository, `refs/malini/plan-requests/<your login>`, which names who asked and holds no plan.
+No clone, branch list or pull request shows it.
+
+The owner's Malini looks for asks at launch, every 10 minutes and each time its window loads, in every GitHub repository it lists whose plan is not shared.
+When they are an admin of that repository, a toast says who wants to share the plan and who would see it, with **Share** and **Not now**.
+
+- **Share** turns sharing on, invites you, deletes the ask and puts the Plan widget first on their board.
+- **Not now** keeps the toast away, and a dot beside their switch stays until they share.
+
+Your Malini then accepts the invitation to that one plan repository by itself, turns sharing on and tells you the owner said yes.
+It accepts no other invitation.
+Turning your switch off while you wait takes the ask back.
+The owner sees nothing until they run Malini.
 
 ## Notes
 

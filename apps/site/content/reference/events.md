@@ -1820,3 +1820,27 @@ type PlanSyncedEvent = Readonly<{
 	changes: readonly PlanRemoteChange[];
 }>;
 ```
+
+## `initiatives:share-requested`
+
+Fires when someone asks to share the plan of a repository you own, with the repository and the GitHub login of each person who asks.
+
+An automation sees: `repositoryFullName`, `people`
+
+Payload: `ShareRequest`
+
+```ts
+type ShareRequest = Readonly<{ repositoryFullName: string; people: readonly string[] }>;
+```
+
+## `initiatives:share-accepted`
+
+Fires when the owner you asked shares a repository's plan and Malini joins its private plan repository, with the repository and the owner's GitHub login.
+
+An automation sees: `repositoryFullName`, `owner`
+
+Payload: `ShareAcceptedEvent`
+
+```ts
+type ShareAcceptedEvent = Readonly<{ repositoryFullName: string; owner: string }>;
+```

@@ -16,6 +16,8 @@ const PLAN_REPOSITORY_SUFFIX = '-malini-plan';
 
 const GITHUB_REPOSITORY = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/u;
 
+const GITHUB_LOGIN = /^[A-Za-z0-9-]{1,39}$/u;
+
 const NOREPLY_LOGIN = /^(?:\d+\+)?([A-Za-z0-9-]{1,39})@users\.noreply\.github\.com$/iu;
 
 export function isGithubRepository(fullName: string): boolean {
@@ -24,6 +26,32 @@ export function isGithubRepository(fullName: string): boolean {
 
 export function planRepositoryOf(repositoryFullName: string): string {
 	return `${repositoryFullName}${PLAN_REPOSITORY_SUFFIX}`;
+}
+
+export function isGithubLogin(value: string): boolean {
+	return GITHUB_LOGIN.test(value);
+}
+
+export function ownerOf(repositoryFullName: string): string {
+	return repositoryFullName.split('/')[0] ?? '';
+}
+
+export function invitationTo(raw: readonly unknown[], repository: string): number | null {
+	for (const item of raw) {
+		if (!isRecord(item) || item['expired'] === true) continue;
+		const target = item['repository'];
+		const name = isRecord(target) ? target['full_name'] : undefined;
+		const id = item['id'];
+		if (
+			typeof id === 'number' &&
+			Number.isInteger(id) &&
+			typeof name === 'string' &&
+			name.toLowerCase() === repository.toLowerCase()
+		) {
+			return id;
+		}
+	}
+	return null;
 }
 
 export function loginOfEmail(email: string): string | null {

@@ -51,7 +51,13 @@ export type PlanSync = Readonly<{
 	syncedAt: string | null;
 	error: string | null;
 	people: readonly string[];
+	waitingFor: string | null;
+	requestedBy: readonly string[];
 }>;
+
+export type ShareRequest = Readonly<{ repositoryFullName: string; people: readonly string[] }>;
+
+export type ShareAcceptedEvent = Readonly<{ repositoryFullName: string; owner: string }>;
 
 export type PlanSyncArgs = Readonly<{ repositoryFullName: string }>;
 

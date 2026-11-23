@@ -23,10 +23,15 @@ import {
 	type DependencyChange,
 	type InitiativeChange,
 } from './initiatives.repository';
-import { planSync, setPlanSyncEnabled } from './plan-sync.repository';
+import { dismissShareRequests, pendingShareRequests, planSync } from './plan-sync.repository';
 import { PlanSyncService, type PlanSyncDeps } from './plan-sync.service';
 
-export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): void {
+export type InitiativesPlatform = Readonly<{
+	start(): Promise<void>;
+	dispose(): void;
+}>;
+
+export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): InitiativesPlatform {
 	const { db, commands, events } = context;
 	const github = new PlanSyncService(context, deps);
 	const after = (repository: string, change: () => void): Initiative[] => {
@@ -116,8 +121,17 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 			);
 		}
 		if (enabled) await github.turnOn(repository);
-		else setPlanSyncEnabled(db, repository, false);
+		else await github.turnOff(repository);
 		return syncState(repository);
+	});
+
+	commands.define('initiatives.share-requests', async () => {
+		await github.findRequests();
+		return pendingShareRequests(db);
+	});
+
+	commands.define('initiatives.dismiss-share-request', (args: unknown) => {
+		dismissShareRequests(db, repositoryFullName(field(args, 'repositoryFullName')));
 	});
 
 	commands.define('initiatives.sync', async (args: unknown) => {
@@ -131,6 +145,8 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 	events.subscribe('pull-requests:pull-request-changed', ({ workstreamId, state }) => {
 		if (state === 'merged') github.mergedWorkstream(workstreamId);
 	});
+
+	return { start: () => github.start(), dispose: () => github.dispose() };
 }
 
 function field(args: unknown, key: string): unknown {
