@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { createServer as createViteServer } from 'vite';
+import { worktreePageUrl } from '../../src/contract/browser';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -301,7 +302,7 @@ test('a browser tab opens files of its worktree, shows their latest edit on relo
 		await openTab(page, '', './docs/report.html');
 		await expect(inspector.getByRole('tab', { name: 'Report', exact: true })).toBeVisible();
 		await expect(page.getByRole('textbox', { name: 'Page address' }).last()).toHaveValue(
-			'./docs/report.html',
+			worktreePageUrl(seeded.workstreamId, 'docs/report.html'),
 		);
 
 		writeFileSync(join(seeded.worktree, 'docs', 'title.js'), 'document.title = "Report edited";');
@@ -418,7 +419,7 @@ test('a new browser tab takes the cursor and explains itself, keeps its page und
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await inspector.getByRole('tab', { name: 'Admin' }).click();
 		await expect(page.getByRole('textbox', { name: 'Page address' })).toHaveValue(
-			`${origin.replace('http://', '')}/admin`,
+			`${origin}/admin`,
 		);
 		await expect(inspector.getByText('Open a page')).toHaveCount(0);
 		expectCleanConsole(app);
@@ -1339,7 +1340,6 @@ test('a tab going back shows the address it goes back to while that page loads',
 	});
 	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
 	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
-	const host = new URL(origin).host;
 	const app = await launchMalini();
 	try {
 		const { page } = app;
@@ -1364,7 +1364,7 @@ test('a tab going back shows the address it goes back to while that page loads',
 		hold = true;
 		await page.getByRole('button', { name: 'Back', exact: true }).click();
 		await expect.poll(() => held.length).toBe(1);
-		await expect(address).toHaveValue(`${host}/first`);
+		await expect(address).toHaveValue(`${origin}/first`);
 		expectCleanConsole(app);
 	} finally {
 		for (const response of held) response.destroy();
@@ -1430,7 +1430,7 @@ test('a restored tab shows its address while its page loads', async () => {
 		await expect(
 			inspector.getByRole('tab', { name: `${host}/slow`, selected: true }),
 		).toBeVisible();
-		await expect(page.getByRole('textbox', { name: 'Page address' })).toHaveValue(`${host}/slow`);
+		await expect(page.getByRole('textbox', { name: 'Page address' })).toHaveValue(`${origin}/slow`);
 		await expect(inspector.getByText('Open a page')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {

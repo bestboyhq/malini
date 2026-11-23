@@ -140,7 +140,6 @@
 		const field = event.currentTarget;
 		if (!(field instanceof HTMLInputElement)) return;
 		draft ??= url;
-		field.value = draft;
 		field.select();
 	}
 
@@ -219,7 +218,7 @@
 		<TextInput
 			type="url"
 			size="xs"
-			value={draft ?? shownUrl}
+			value={draft ?? url}
 			ariaLabel="Page address"
 			placeholder="Type a URL"
 			autocomplete="off"
