@@ -1,9 +1,10 @@
 <script module lang="ts">
-	import type { WidgetDefinition, WidgetReading, WidgetSize } from '$contract/widgets';
+	import type { WidgetDefinition, WidgetReading, WidgetSize, WidgetSpan } from '$contract/widgets';
 
 	export type WidgetMenuTarget = Readonly<{
 		widget: WidgetDefinition;
-		size: WidgetSize;
+		span: WidgetSpan;
+		columns: number;
 		reading: WidgetReading | null;
 		approved: boolean;
 		anchor: HTMLElement;
@@ -13,11 +14,11 @@
 </script>
 
 <script lang="ts">
-	import { WIDGET_SIZES } from '$contract/widgets';
+	import { WIDGET_SIZES, WIDGET_SIZE_SPANS } from '$contract/widgets';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { Icon } from '$hyper-ui/icons';
-	import { WIDGET_SPANS } from '$lib/widgets/domain/widget-grid';
+	import { WIDGET_MIN_COLUMNS, presetOf, shownSpan } from '$lib/widgets/domain/widget-grid';
 	import { WIDGET_SIZE_NAMES, sourceLine, updatedLabel } from '$lib/widgets/domain/widget-text';
 
 	interface Props {
@@ -72,12 +73,13 @@
 	testId="widget-menu"
 >
 	{#if target}
-		{@const { widget, size } = target}
+		{@const { widget } = target}
+		{@const size = presetOf(target.span, target.columns)}
 		{@const plan = widget.source.kind === 'plan'}
 		{@const path = widget.path}
 		<div class="flex gap-[3px] p-1" role="group" aria-label="Size">
 			{#each WIDGET_SIZES as each (each)}
-				{@const span = WIDGET_SPANS[each]}
+				{@const span = shownSpan(WIDGET_SIZE_SPANS[each], WIDGET_MIN_COLUMNS)}
 				<DropdownItem
 					role="menuitemradio"
 					aria-checked={each === size}

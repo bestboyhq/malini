@@ -14,6 +14,9 @@ import { addGithubDeletion } from './plan-sync.repository';
 const INITIATIVE_ERROR_VERDICTS = {
 	...SHARED_ERROR_VERDICTS,
 	'not-found': 'bug',
+	'public-repository': 'expected',
+	'not-on-github': 'expected',
+	'no-plan-repository': 'expected',
 } as const satisfies ErrorVerdicts;
 
 type InitiativeErrorKind = keyof typeof INITIATIVE_ERROR_VERDICTS;

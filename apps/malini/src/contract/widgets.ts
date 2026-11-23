@@ -2,6 +2,16 @@ export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
 
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
 
+export const WIDGET_SPAN_MAX = 12;
+
+export type WidgetSpan = Readonly<{ columns: number; rows: number }>;
+
+export const WIDGET_SIZE_SPANS: Readonly<Record<WidgetSize, WidgetSpan>> = {
+	small: { columns: 1, rows: 1 },
+	medium: { columns: 2, rows: 1 },
+	large: { columns: WIDGET_SPAN_MAX, rows: 2 },
+};
+
 export const WIDGET_SCOPES = ['shared', 'own'] as const;
 
 export type WidgetScope = (typeof WIDGET_SCOPES)[number];
@@ -77,7 +87,7 @@ export type WidgetReading = Readonly<{
 
 export type WidgetPlacement = Readonly<{
 	widgetId: string;
-	size: WidgetSize;
+	span: WidgetSpan;
 	approved: boolean;
 }>;
 
@@ -97,13 +107,13 @@ export type PlaceWidgetArgs = Readonly<{
 	workstreamId: string;
 	widgetId: string;
 	index: number | null;
-	size: WidgetSize | null;
+	span: WidgetSpan | null;
 }>;
 
 export type ResizeWidgetArgs = Readonly<{
 	workstreamId: string;
 	widgetId: string;
-	size: WidgetSize;
+	span: WidgetSpan;
 }>;
 
 export type WidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
@@ -114,6 +124,14 @@ export type WidgetBoardChangedEvent = Readonly<{ board: string }>;
 
 export function isWidgetSize(value: unknown): value is WidgetSize {
 	return WIDGET_SIZES.some((size) => size === value);
+}
+
+export function isWidgetSpan(value: unknown): value is WidgetSpan {
+	return isObject(value) && isSpanLength(value['columns']) && isSpanLength(value['rows']);
+}
+
+function isSpanLength(value: unknown): boolean {
+	return Number.isSafeInteger(value) && Number(value) >= 1 && Number(value) <= WIDGET_SPAN_MAX;
 }
 
 export function isWidgetState(value: unknown): value is WidgetState {

@@ -1,4 +1,4 @@
-import { isWidgetSize, type WidgetSize } from '$contract/widgets';
+import { WIDGET_SPAN_MAX, isWidgetSpan, type WidgetSpan } from '$contract/widgets';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import { WidgetBoards, type SavedWidget, type WidgetsDeps } from './widget-boards.service';
@@ -20,12 +20,14 @@ export function registerWidgets(context: MainContext, deps: WidgetsDeps): Widget
 	commands.define('widgets.board', (args: unknown) => boards.board(workstreamId(args)));
 
 	commands.define('widgets.place', (args: unknown) =>
-		boards.place(workstreamId(args), widgetId(args), index(args), size(args, true)),
+		boards.place(workstreamId(args), widgetId(args), index(args), span(args, true)),
 	);
 
-	commands.define('widgets.resize', (args: unknown) =>
-		boards.resize(workstreamId(args), widgetId(args), size(args, false) ?? 'small'),
-	);
+	commands.define('widgets.resize', (args: unknown) => {
+		const resized = span(args, false);
+		if (resized === null) throw invalid('`span` must be columns and rows');
+		return boards.resize(workstreamId(args), widgetId(args), resized);
+	});
 
 	commands.define('widgets.remove', (args: unknown) =>
 		boards.remove(workstreamId(args), widgetId(args)),
@@ -78,11 +80,13 @@ function index(args: unknown): number | null {
 	return value;
 }
 
-function size(args: unknown, nullable: boolean): WidgetSize | null {
-	const value = field(args, 'size');
+function span(args: unknown, nullable: boolean): WidgetSpan | null {
+	const value = field(args, 'span');
 	if (nullable && value === null) return null;
-	if (!isWidgetSize(value)) throw invalid('`size` must be `small`, `medium` or `large`');
-	return value;
+	if (!isWidgetSpan(value)) {
+		throw invalid(`\`span\` must be whole \`columns\` and \`rows\` from 1 to ${WIDGET_SPAN_MAX}`);
+	}
+	return { columns: value.columns, rows: value.rows };
 }
 
 function invalid(message: string): WidgetError {

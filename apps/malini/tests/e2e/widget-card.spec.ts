@@ -65,7 +65,11 @@ test('a widget the agent saves shows in the chat in its three sizes, and Pin put
 		});
 		const placements = async () =>
 			(await invoke<WidgetBoard>(page, 'widgets.board', { workstreamId })).placements;
-		expect(await placements()).toContainEqual({ widgetId: 'rooms', size: 'large', approved: true });
+		expect(await placements()).toContainEqual({
+			widgetId: 'rooms',
+			span: { columns: 12, rows: 2 },
+			approved: true,
+		});
 		await captureFlow(app, 'widget-card-pinned');
 
 		await card.getByRole('button', { name: 'Remove' }).click();

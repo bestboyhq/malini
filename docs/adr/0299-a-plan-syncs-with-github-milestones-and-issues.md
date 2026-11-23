@@ -1,6 +1,6 @@
 # 0299 - A plan syncs with GitHub milestones and issues
 
-Status: accepted
+Status: superseded by 0300
 
 ## Context
 

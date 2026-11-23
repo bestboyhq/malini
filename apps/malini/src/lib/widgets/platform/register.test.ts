@@ -124,7 +124,7 @@ function place(widgetId: string, index: number | null = null): Promise<WidgetBoa
 		workstreamId: WORKSTREAM,
 		widgetId,
 		index,
-		size: null,
+		span: null,
 	});
 }
 
@@ -191,7 +191,7 @@ describe('widget files', () => {
 
 	it('starts a board once with the plan placed large, and keeps it off once removed', async () => {
 		expect((await board()).placements).toEqual([
-			{ widgetId: 'plan', size: 'large', approved: true },
+			{ widgetId: 'plan', span: { columns: 12, rows: 2 }, approved: true },
 		]);
 		await context.commands.call('widgets.remove', { workstreamId: WORKSTREAM, widgetId: 'plan' });
 		expect((await board()).placements).toEqual([]);
@@ -203,17 +203,22 @@ describe('widget files', () => {
 		await place('deploy');
 		await place('rooms', 0);
 		const moved = await place('deploy', 0);
-		expect(moved.placements.map(({ widgetId, size }) => [widgetId, size])).toEqual([
-			['deploy', 'small'],
-			['rooms', 'medium'],
-			['plan', 'large'],
+		expect(moved.placements.map(({ widgetId, span }) => [widgetId, span])).toEqual([
+			['deploy', { columns: 1, rows: 1 }],
+			['rooms', { columns: 2, rows: 1 }],
+			['plan', { columns: 12, rows: 2 }],
 		]);
 		const resized = await context.commands.call('widgets.resize', {
 			workstreamId: WORKSTREAM,
 			widgetId: 'rooms',
-			size: 'large',
+			span: { columns: 3, rows: 4 },
 		});
-		expect(resized.placements[1]).toEqual({ widgetId: 'rooms', size: 'large', approved: true });
+		expect(resized.placements[1]).toEqual({
+			widgetId: 'rooms',
+			span: { columns: 3, rows: 4 },
+			approved: true,
+		});
+		expect((await place('rooms', 0)).placements[0]?.span).toEqual({ columns: 3, rows: 4 });
 		const hidden = await context.commands.call('widgets.hide', {
 			workstreamId: WORKSTREAM,
 			widgetId: 'deploy',
@@ -225,16 +230,26 @@ describe('widget files', () => {
 		const refused = (field: string) => ({ ok: false, error: expect.stringContaining(field) });
 		const workstreamId = WORKSTREAM;
 		await expect(
-			call('widgets.place', { workstreamId, widgetId: 'Nope', index: null, size: null }),
+			call('widgets.place', { workstreamId, widgetId: 'Nope', index: null, span: null }),
 		).resolves.toMatchObject(refused('widgetId'));
 		await expect(
-			call('widgets.place', { workstreamId, widgetId: 'deploy', index: -1, size: null }),
+			call('widgets.place', { workstreamId, widgetId: 'deploy', index: -1, span: null }),
 		).resolves.toMatchObject(refused('index'));
 		await expect(
-			call('widgets.place', { workstreamId, widgetId: 'deploy', index: null, size: 'xl' }),
-		).resolves.toMatchObject(refused('size'));
+			call('widgets.place', { workstreamId, widgetId: 'deploy', index: null, span: 'large' }),
+		).resolves.toMatchObject(refused('span'));
+		for (const span of [
+			{ columns: 13, rows: 1 },
+			{ columns: 0, rows: 1 },
+			{ columns: 1.5, rows: 1 },
+			{ columns: 1 },
+		]) {
+			await expect(
+				call('widgets.resize', { workstreamId, widgetId: 'rooms', span }),
+			).resolves.toMatchObject(refused('span'));
+		}
 		await expect(
-			call('widgets.place', { workstreamId, widgetId: 'gone', index: null, size: null }),
+			call('widgets.place', { workstreamId, widgetId: 'gone', index: null, span: null }),
 		).resolves.toMatchObject(refused('No widget `gone`'));
 		await expect(call('widgets.watch', { workstreamId, watching: 'yes' })).resolves.toMatchObject(
 			refused('watching'),
@@ -256,7 +271,7 @@ describe('trust', () => {
 
 		expect((await place('rooms')).placements[1]).toEqual({
 			widgetId: 'rooms',
-			size: 'small',
+			span: { columns: 1, rows: 1 },
 			approved: true,
 		});
 		expect((await refresh('rooms')).data).toMatchObject({ value: 3, caption: 'sekret' });
