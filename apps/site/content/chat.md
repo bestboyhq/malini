@@ -308,9 +308,9 @@ The pull request description lists which variant won over which, never your reas
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
-### Plain replies
+### Plain English
 
-**Settings → Models → Plain replies** has every agent write its chat replies in ASD-STE100 Simplified Technical English, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
+**Settings → Models → Plain English** has every agent write its chat replies in ASD-STE100 Simplified Technical English, the controlled English of aircraft manuals: common words, active voice, simple tenses, and one statement per sentence of 20 words or fewer.
 It is on until you turn it off, and the next prompt of every chat follows the switch.
 It sets how an agent writes, never how much: the report resolution sets how long a report is.
 It covers chat replies only.

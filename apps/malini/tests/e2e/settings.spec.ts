@@ -377,7 +377,7 @@ test('Settings → Models picks the model new chats start with for each mode, an
 	}
 });
 
-test('Settings → Models turns off plain replies, on by default, for the next prompt of every chat', async () => {
+test('Settings → Models turns off Plain English, on by default, for the next prompt of every chat', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -395,7 +395,7 @@ test('Settings → Models turns off plain replies, on by default, for the next p
 
 		await openSettingsFromMenu(page);
 		await settingsSection(page, 'Models').click();
-		const ste = page.getByRole('switch', { name: 'Plain replies' });
+		const ste = page.getByRole('switch', { name: 'Plain English' });
 		await expect(ste).toBeChecked();
 		await captureFlow(app, 'settings-ste-replies');
 		await ste.click();
