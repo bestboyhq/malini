@@ -634,6 +634,7 @@ describe('a plan shared as one file in a private plan repository', () => {
 				)?.done,
 			).toBe(true),
 		);
+		await call.sync();
 	});
 
 	it('keeps the plan when GitHub is unreachable and pushes what waited once it is back', async () => {
