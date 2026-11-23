@@ -7,6 +7,7 @@ if [ "$(id -u)" = 0 ]; then
 fi
 cd "$ROOT"
 tar -xf -
+corepack install --global "$(node -p "require('./package.json').packageManager")"
 pnpm install --frozen-lockfile --store-dir "$HOME/.local/share/pnpm/store"
 pnpm --filter 'malini...' build
 mode=$1
