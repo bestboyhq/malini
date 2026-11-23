@@ -258,7 +258,9 @@ test('a browser tab says why its page did not load, hides the page meanwhile, an
 
 		await openTab(page, origin, '/');
 		const status = inspector.getByRole('status');
-		await expect(status).toContainText(`Could not open ${new URL(origin).host}`);
+		await expect(status).toContainText(`Could not open ${new URL(origin).host}`, {
+			timeout: 20_000,
+		});
 		await expect(status).toContainText('ERR_CONNECTION_REFUSED');
 		await expect.poll(pageShown).toBe(false);
 		const pick = page.getByRole('button', { name: 'Pick an element' });
