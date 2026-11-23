@@ -18,6 +18,8 @@ A tracer against Claude Code 2.1.330 and the real Product Hunt server showed tha
 - `#signIn` shares one sign-in per server name while it runs, so calls that fail together open one page.
 - The callback answers with `additionalContext`: that the tool failed because the server needs a sign-in, then, as `mcp_servers_add` does, that it is connected with its tool count, that the user did not finish within 5 minutes and that calling the tool again opens the page again, or why the sign-in did not start.
   Either way the session then reports the run's MCP status, so the chat's MCP panel shows the server as it is.
+- The callback also gives the failed row its text through `Transcript.noteFailure`, which the `tool.failed` for that `tool_use_id` carries as its `error` in place of Claude Code's "(run /mcp to re-authenticate)".
+  Claude Code waits for the callback before it sends the tool result, so the note is in place when the transcript maps it.
 - No bridge command or event changes, so the protocol stays the same.
 
 ## Consequences
@@ -25,4 +27,5 @@ A tracer against Claude Code 2.1.330 and the real Product Hunt server showed tha
 - A server that asks for a sign-in only on some tools now signs in from the chat, with the provider's consent page as the only step, and the agent retries in the same turn.
 - A refused call holds its turn for up to 5 minutes while the page is open, as an add does under 0267; a run with nobody there goes on after that.
 - Settings, MCP servers still shows such a server as connected, with no **Sign in**, since its probe connects without one.
-- Enforced by `session.test.ts` (a `PostToolUseFailure` on a `needs-auth` server's tool opens the link once, connects, tells the agent to call it again and reports the server connected); the tracer is not checked in.
+- The failed row says what Malini did, never a terminal command the user of a desktop app has no reason to run.
+- Enforced by `session.test.ts` (a `PostToolUseFailure` on a `needs-auth` server's tool opens the link once, connects, tells the agent to call it again, gives the failed row Malini's note and reports the server connected); the tracer is not checked in.

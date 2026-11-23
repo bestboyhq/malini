@@ -1307,7 +1307,7 @@ export class ClaudeSession implements ProviderHandle {
 		const live =
 			status.status === 'connected'
 				? connectedNow(status.tools?.length ?? 0)
-				: await this.#signIn(active, name, 'mcp_servers_add');
+				: signInNote(await this.#signIn(active, name), 'mcp_servers_add');
 		await this.refreshSessionStatus().catch(() => undefined);
 		return `${name} is saved in Claude Code's user config, and every other chat loads it on its next prompt. ${live}`;
 	}
@@ -1315,27 +1315,29 @@ export class ClaudeSession implements ProviderHandle {
 	#signInWhenAsked(): HookCallback {
 		return async (input) => {
 			const active = this.#active;
-			const tool = input.hook_event_name === 'PostToolUseFailure' ? input.tool_name : '';
-			if (!active || !tool.startsWith('mcp__')) return {};
+			if (input.hook_event_name !== 'PostToolUseFailure' || !active) return {};
+			const tool = input.tool_name;
+			if (!tool.startsWith('mcp__')) return {};
 			const servers = await active.query.mcpServerStatus().catch(() => []);
 			const server = servers.find(
 				({ name, status }) =>
 					status === 'needs-auth' && tool.startsWith(`${mcpToolPrefix(name)}__`),
 			);
 			if (!server) return {};
-			const signedIn = await this.#signIn(active, server.name, tool);
-			const additionalContext = `${tool} failed because ${server.name} needs a sign-in. ${signedIn}`;
+			const signedIn = await this.#signIn(active, server.name);
+			active.transcript.noteFailure(input.tool_use_id, signInRowNote(signedIn));
+			const additionalContext = `${tool} failed because ${server.name} needs a sign-in. ${signInNote(signedIn, tool)}`;
 			await this.refreshSessionStatus().catch(() => undefined);
 			return { hookSpecificOutput: { hookEventName: 'PostToolUseFailure', additionalContext } };
 		};
 	}
 
-	async #signIn(active: ActiveRun, name: string, again: string): Promise<string> {
+	async #signIn(active: ActiveRun, name: string): Promise<SignInOutcome> {
 		try {
 			const tools = await this.#signInOnce(active, name);
-			return tools === null ? notSignedIn(again) : connectedNow(tools);
+			return tools === null ? { kind: 'unfinished' } : { kind: 'connected', tools };
 		} catch (error) {
-			return `It needs a sign-in, which did not start: ${describe(error)}`;
+			return { kind: 'not-started', reason: describe(error) };
 		}
 	}
 
@@ -1608,8 +1610,31 @@ function resultError(result: SDKResultMessage): string {
 	return text || 'Claude Code reported an error.';
 }
 
-function notSignedIn(again: string): string {
-	return `It needs a sign-in, and the user did not finish the one Malini opened in their browser within 5 minutes. Call ${again} again to open the sign-in page again.`;
+type SignInOutcome =
+	| Readonly<{ kind: 'connected'; tools: number }>
+	| Readonly<{ kind: 'unfinished' }>
+	| Readonly<{ kind: 'not-started'; reason: string }>;
+
+function signInNote(outcome: SignInOutcome, again: string): string {
+	switch (outcome.kind) {
+		case 'connected':
+			return connectedNow(outcome.tools);
+		case 'unfinished':
+			return `It needs a sign-in, and the user did not finish the one Malini opened in their browser within 5 minutes. Call ${again} again to open the sign-in page again.`;
+		case 'not-started':
+			return `It needs a sign-in, which did not start: ${outcome.reason}`;
+	}
+}
+
+function signInRowNote(outcome: SignInOutcome): string {
+	switch (outcome.kind) {
+		case 'connected':
+			return 'Needed a sign-in. You signed in';
+		case 'unfinished':
+			return 'Needed a sign-in. Not finished in 5 minutes';
+		case 'not-started':
+			return `Needed a sign-in. Could not start: ${outcome.reason}`;
+	}
 }
 
 function connectedNow(tools: number): string {
