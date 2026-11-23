@@ -102,8 +102,10 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 		}, beta);
 		const beforeFolder = page.url();
 		await choose(app, 'open-folder');
-		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
-		expect(page.url()).not.toBe(beforeFolder);
+		await expect(page).toHaveURL(
+			(url) => url.href !== beforeFolder && url.hash.startsWith('#/workstreams/'),
+			{ timeout: 30_000 },
+		);
 		await expect
 			.poll(async () => (await listProjects(page)).map((project) => project.id).sort())
 			.toEqual(['local__alpha', 'local__beta']);
