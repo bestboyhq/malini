@@ -1,6 +1,6 @@
 # 0290 - A plan syncs only with a private repository
 
-Status: superseded by 0292
+Status: superseded by 0293
 
 ## Context
 

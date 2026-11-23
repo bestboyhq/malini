@@ -44,6 +44,7 @@ import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
 import { claudeReplyChecker, mayAskUser, sentBack, type ReplyChecker } from './reply-check.js';
 import {
+	AUTHORIZATION_WINDOW_MS,
 	mcpServerReport,
 	openInBrowser,
 	probeMcpServer,
@@ -115,6 +116,7 @@ const SANDBOX_REPORT_SETTLE_MS = 200;
 const MAX_BLOCKED = 50;
 const MAX_COMMANDS = 200;
 const BLOCKED_CALL_DECISION_TIMEOUT_S = 24 * 60 * 60;
+const SIGN_IN_HOOK_TIMEOUT_S = AUTHORIZATION_WINDOW_MS / 1000 + 60;
 const RETRY_BLOCKED_CALL = {
 	hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true },
 } as const;
@@ -264,6 +266,7 @@ export class ClaudeSession implements ProviderHandle {
 	#initialized = false;
 	#knownMcpServers: readonly string[] = [];
 	#mcpStatus = new Map<string, McpServerStatus>();
+	readonly #signingIn = new Map<string, Promise<number | null>>();
 	#mcpReport: McpReport | null = null;
 
 	constructor(options: ClaudeSessionOptions) {
@@ -934,9 +937,10 @@ export class ClaudeSession implements ProviderHandle {
 					{ hooks: [this.#maskSecrets()] },
 					...(this.#sandbox ? [{ matcher: 'Bash', hooks: [this.#reportBlocked()] }] : []),
 				],
-				...(this.#sandbox
-					? { PostToolUseFailure: [{ matcher: 'Bash', hooks: [this.#reportBlocked()] }] }
-					: {}),
+				PostToolUseFailure: [
+					{ hooks: [this.#signInWhenAsked()], timeout: SIGN_IN_HOOK_TIMEOUT_S },
+					...(this.#sandbox ? [{ matcher: 'Bash', hooks: [this.#reportBlocked()] }] : []),
+				],
 				PermissionDenied: [
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
@@ -1303,22 +1307,54 @@ export class ClaudeSession implements ProviderHandle {
 		const live =
 			status.status === 'connected'
 				? connectedNow(status.tools?.length ?? 0)
-				: await this.#signIn(active, name);
+				: signInNote(await this.#signIn(active, name), 'mcp_servers_add');
 		await this.refreshSessionStatus().catch(() => undefined);
 		return `${name} is saved in Claude Code's user config, and every other chat loads it on its next prompt. ${live}`;
 	}
 
-	async #signIn(active: ActiveRun, name: string): Promise<string> {
-		await this.refreshSessionStatus().catch(() => undefined);
+	#signInWhenAsked(): HookCallback {
+		return async (input) => {
+			const active = this.#active;
+			if (input.hook_event_name !== 'PostToolUseFailure' || !active) return {};
+			const tool = input.tool_name;
+			if (!tool.startsWith('mcp__')) return {};
+			const servers = await active.query.mcpServerStatus().catch(() => []);
+			const server = servers.find(
+				({ name, status }) =>
+					status === 'needs-auth' && tool.startsWith(`${mcpToolPrefix(name)}__`),
+			);
+			if (!server) return {};
+			const signedIn = await this.#signIn(active, server.name);
+			active.transcript.noteFailure(input.tool_use_id, signInRowNote(signedIn));
+			const additionalContext = `${tool} failed because ${server.name} needs a sign-in. ${signInNote(signedIn, tool)}`;
+			await this.refreshSessionStatus().catch(() => undefined);
+			return { hookSpecificOutput: { hookEventName: 'PostToolUseFailure', additionalContext } };
+		};
+	}
+
+	async #signIn(active: ActiveRun, name: string): Promise<SignInOutcome> {
 		try {
-			const { authUrl, settled } = await signInMcpServer(active.query, name, active.abort.signal);
-			if (authUrl) await this.#openUrl(authUrl);
-			const server = await settled;
-			if (server?.status === 'connected') return connectedNow(server.toolCount ?? 0);
-			return 'It needs a sign-in, and the user did not finish the one Malini opened in their browser within 5 minutes. Call mcp_servers_add again to open the sign-in page again.';
+			const tools = await this.#signInOnce(active, name);
+			return tools === null ? { kind: 'unfinished' } : { kind: 'connected', tools };
 		} catch (error) {
-			return `It needs a sign-in, which did not start: ${describe(error)}`;
+			return { kind: 'not-started', reason: describe(error) };
 		}
+	}
+
+	#signInOnce(active: ActiveRun, name: string): Promise<number | null> {
+		const signingIn =
+			this.#signingIn.get(name) ??
+			this.#openSignIn(active, name).finally(() => this.#signingIn.delete(name));
+		this.#signingIn.set(name, signingIn);
+		return signingIn;
+	}
+
+	async #openSignIn(active: ActiveRun, name: string): Promise<number | null> {
+		await this.refreshSessionStatus().catch(() => undefined);
+		const { authUrl, settled } = await signInMcpServer(active.query, name, active.abort.signal);
+		if (authUrl) await this.#openUrl(authUrl);
+		const server = await settled;
+		return server?.status === 'connected' ? (server.toolCount ?? 0) : null;
 	}
 
 	#promptWithSeed(prompt: string): string {
@@ -1572,6 +1608,33 @@ function resultError(result: SDKResultMessage): string {
 		return `Claude Code is not signed in. Run \`${CLAUDE_LOGIN_COMMAND}\` in a terminal, then try again.`;
 	}
 	return text || 'Claude Code reported an error.';
+}
+
+type SignInOutcome =
+	| Readonly<{ kind: 'connected'; tools: number }>
+	| Readonly<{ kind: 'unfinished' }>
+	| Readonly<{ kind: 'not-started'; reason: string }>;
+
+function signInNote(outcome: SignInOutcome, again: string): string {
+	switch (outcome.kind) {
+		case 'connected':
+			return connectedNow(outcome.tools);
+		case 'unfinished':
+			return `It needs a sign-in, and the user did not finish the one Malini opened in their browser within 5 minutes. Call ${again} again to open the sign-in page again.`;
+		case 'not-started':
+			return `It needs a sign-in, which did not start: ${outcome.reason}`;
+	}
+}
+
+function signInRowNote(outcome: SignInOutcome): string {
+	switch (outcome.kind) {
+		case 'connected':
+			return 'Sign-in needed. Done';
+		case 'unfinished':
+			return 'Sign-in needed. Not done in 5 minutes';
+		case 'not-started':
+			return `Sign-in needed. Could not start: ${outcome.reason}`;
+	}
 }
 
 function connectedNow(tools: number): string {

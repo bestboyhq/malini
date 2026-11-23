@@ -1,4 +1,4 @@
-# 0292 - A shared plan is one file in its own private git repository
+# 0293 - A shared plan is one file in its own private git repository
 
 Status: accepted
 
