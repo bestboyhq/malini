@@ -109,5 +109,5 @@ export function syncedLabel(syncedAt: string | null, now: number): string {
 }
 
 export function remoteChangeLine(change: PlanRemoteChange): string {
-	return `${change.actor ?? 'Someone'} ${CHANGE_VERBS[change.kind]} ${change.title} on GitHub`;
+	return `${change.actor ?? 'Someone'} ${CHANGE_VERBS[change.kind]} ${change.title}`;
 }

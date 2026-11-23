@@ -168,7 +168,6 @@ const PLAN: readonly Initiative[] = [
 		title: 'Widgets in the right panel',
 		dueOn: daysFromNow(3),
 		note: null,
-		githubMilestone: null,
 		dependencies: [
 			dependency('demo-board', 'Bento board', true),
 			dependency('demo-tool', 'widgets_save tool', true),
@@ -181,7 +180,6 @@ const PLAN: readonly Initiative[] = [
 		title: 'Launch on the site',
 		dueOn: daysFromNow(11),
 		note: null,
-		githubMilestone: null,
 		dependencies: [
 			dependency('demo-docs', 'Widgets docs page', false),
 			dependency('demo-demo', 'Demo board', false),
@@ -196,7 +194,6 @@ function dependency(id: string, title: string, done: boolean): Initiative['depen
 		done,
 		note: null,
 		workstreams: [],
-		githubIssue: null,
 		assignee: OWNER,
 	};
 }

@@ -19,15 +19,10 @@
 
 	const sync = $derived(planSyncQuery.data(repositoryFullName));
 	const home = $derived(sync?.home ?? null);
-	const own = $derived(home === repositoryFullName);
-	const who = $derived(
-		own ? 'Only people with access see it' : `Only collaborators of ${repositoryFullName} see it`,
-	);
-	const where = $derived(own ? 'This private repo' : `Private repo ${home}`);
-	const how = $derived(own ? 'This private repo' : 'Private GitHub repo');
-	const whatOnDoes = $derived(`${where}, as milestones and issues. ${who}`);
+	const who = $derived(`Only collaborators of ${repositoryFullName} see it`);
+	const whatOnDoes = $derived(`Private repo ${home}, as one plain file. ${who}`);
 	const whatOffDoes = $derived(
-		`${where}. ${who}. Turning it off stops sharing. GitHub keeps what it has`,
+		`Private repo ${home}. ${who}. Turning it off stops sharing. The repo keeps its history`,
 	);
 
 	let now: number = $state(Date.now());
@@ -40,9 +35,7 @@
 				? syncedLabel(sync.syncedAt, now)
 				: `Not shared · ${sync.error}`,
 	);
-	const compactTip = $derived(
-		sync?.enabled ? `${status}. ${who}` : `${how}, as milestones and issues. ${who}`,
-	);
+	const compactLead = $derived(sync?.enabled ? status : 'Private GitHub repo, as one plain file');
 
 	$effect(() => {
 		if (!compact || sync?.enabled !== true) return;
@@ -54,6 +47,11 @@
 		setPlanSyncCommand(repositoryFullName, checked);
 	}
 </script>
+
+{#snippet compactTip()}
+	<span class="block">{compactLead}</span>
+	<span class="block">{who}</span>
+{/snippet}
 
 {#if sync && home !== null && compact}
 	<Tooltip content={compactTip} placement="top" class="flex min-w-0 items-center gap-1.5">

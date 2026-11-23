@@ -9,7 +9,6 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, intToBool, nowIso8601, run } from '$main/db/rows';
 import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import { latestWorkstreamTurn } from '$lib/chat/chat.platform';
-import { addGithubDeletion } from './plan-sync.repository';
 
 const INITIATIVE_ERROR_VERDICTS = {
 	...SHARED_ERROR_VERDICTS,
@@ -17,6 +16,7 @@ const INITIATIVE_ERROR_VERDICTS = {
 	'public-repository': 'expected',
 	'not-on-github': 'expected',
 	'no-plan-repository': 'expected',
+	'plan-race': 'expected',
 } as const satisfies ErrorVerdicts;
 
 type InitiativeErrorKind = keyof typeof INITIATIVE_ERROR_VERDICTS;
@@ -33,7 +33,6 @@ type InitiativeRow = {
 	title: string;
 	due_on: string | null;
 	note: string | null;
-	github_milestone: number | null;
 };
 type DependencyRow = {
 	id: string;
@@ -41,12 +40,11 @@ type DependencyRow = {
 	title: string;
 	done: number;
 	note: string | null;
-	github_issue: number | null;
 	assignee: string | null;
 };
 type LinkRow = { dependency_id: string; workstream_id: string };
 
-const INITIATIVE_COLUMNS = 'id, repository_full_name, title, due_on, note, github_milestone';
+const INITIATIVE_COLUMNS = 'id, repository_full_name, title, due_on, note';
 
 export type InitiativeChange = Readonly<{
 	title?: string;
@@ -74,7 +72,7 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 	const dependencies = groupBy(
 		all<DependencyRow>(
 			db,
-			`SELECT id, initiative_id, title, done, note, github_issue, assignee
+			`SELECT id, initiative_id, title, done, note, assignee
 			 FROM initiative_dependencies ORDER BY position, rowid`,
 		),
 		'initiative_id',
@@ -84,7 +82,6 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 			done: intToBool(row.done),
 			note: row.note,
 			workstreams: workstreams.get(row.id) ?? [],
-			githubIssue: row.github_issue,
 			assignee: row.assignee,
 		}),
 	);
@@ -99,7 +96,6 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 		dueOn: row.due_on,
 		note: row.note,
 		dependencies: dependencies.get(row.id) ?? [],
-		githubMilestone: row.github_milestone,
 	}));
 }
 
@@ -132,21 +128,8 @@ export function updateInitiative(db: MaliniDatabase, id: string, change: Initiat
 }
 
 export function deleteInitiative(db: MaliniDatabase, id: string): void {
-	const current = initiativeRow(db, id);
-	db.transaction(() => {
-		const repository = current.repository_full_name;
-		if (current.github_milestone !== null) {
-			addGithubDeletion(db, repository, 'milestone', current.github_milestone);
-		}
-		const issues = all<{ github_issue: number }>(
-			db,
-			`SELECT github_issue FROM initiative_dependencies
-			 WHERE initiative_id = ? AND github_issue IS NOT NULL`,
-			id,
-		);
-		for (const { github_issue } of issues) addGithubDeletion(db, repository, 'issue', github_issue);
-		run(db, 'DELETE FROM initiatives WHERE id = ?', id);
-	});
+	initiativeRow(db, id);
+	run(db, 'DELETE FROM initiatives WHERE id = ?', id);
 }
 
 export function addDependency(db: MaliniDatabase, initiativeId: string, title: string): void {
@@ -181,10 +164,6 @@ export function updateDependency(db: MaliniDatabase, id: string, change: Depende
 export function deleteDependency(db: MaliniDatabase, id: string): void {
 	const current = dependencyRow(db, id);
 	db.transaction(() => {
-		if (current.github_issue !== null) {
-			const { repository_full_name } = initiativeRow(db, current.initiative_id);
-			addGithubDeletion(db, repository_full_name, 'issue', current.github_issue);
-		}
 		run(db, 'DELETE FROM initiative_dependencies WHERE id = ?', id);
 		touch(db, current.initiative_id);
 	});
@@ -228,7 +207,7 @@ function initiativeRow(db: MaliniDatabase, id: string): InitiativeRow {
 function dependencyRow(db: MaliniDatabase, id: string): DependencyRow {
 	const row = get<DependencyRow>(
 		db,
-		`SELECT id, initiative_id, title, done, note, github_issue, assignee
+		`SELECT id, initiative_id, title, done, note, assignee
 		 FROM initiative_dependencies WHERE id = ?`,
 		id,
 	);

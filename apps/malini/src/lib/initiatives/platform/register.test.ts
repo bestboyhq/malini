@@ -70,7 +70,6 @@ describe('initiatives', () => {
 			done: true,
 			note: null,
 			workstreams: [{ workstreamId: 'ws-checkout', needs: null }],
-			githubIssue: null,
 			assignee: null,
 		});
 

@@ -829,7 +829,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'initiatives:synced',
 			description:
-				"Fires when a repository's plan syncs with its GitHub milestones and issues and someone else changed it there, with the repository and each change: who made it, what kind and the title it touched.",
+				"Fires when a repository's shared plan syncs with its private plan repository and someone else changed it there, with the repository and each change: who made it, what kind and the title it touched.",
 			facts: ['repositoryFullName', 'changes'],
 			payloadType: 'PlanSyncedEvent',
 			payload:
