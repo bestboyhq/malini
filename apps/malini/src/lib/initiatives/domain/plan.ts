@@ -99,13 +99,13 @@ export function servesWorkstream(
 
 export function syncedLabel(syncedAt: string | null, now: number): string {
 	const at = syncedAt === null ? Number.NaN : Date.parse(syncedAt);
-	if (Number.isNaN(at)) return 'Not synced yet';
+	if (Number.isNaN(at)) return 'Not shared yet';
 	const seconds = Math.max(0, Math.floor((now - at) / 1000));
-	if (seconds < 3) return 'Synced just now';
-	if (seconds < 60) return `Synced ${seconds} s ago`;
-	if (seconds < 3600) return `Synced ${Math.floor(seconds / 60)} min ago`;
-	if (seconds < 86_400) return `Synced ${Math.floor(seconds / 3600)} h ago`;
-	return `Synced ${Math.floor(seconds / 86_400)} d ago`;
+	if (seconds < 3) return 'Shared just now';
+	if (seconds < 60) return `Shared ${seconds} s ago`;
+	if (seconds < 3600) return `Shared ${Math.floor(seconds / 60)} min ago`;
+	if (seconds < 86_400) return `Shared ${Math.floor(seconds / 3600)} h ago`;
+	return `Shared ${Math.floor(seconds / 86_400)} d ago`;
 }
 
 export function remoteChangeLine(change: PlanRemoteChange): string {

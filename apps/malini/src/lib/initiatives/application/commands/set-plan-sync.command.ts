@@ -17,7 +17,7 @@ function setPlanSyncCommand(repositoryFullName: string, enabled: boolean): void 
 			if (before) planSyncAggregate.set(before);
 			const detail = sanitizeFailureDetail(error instanceof Error ? error.message : null);
 			toast.error(
-				`Sync with GitHub not turned ${enabled ? 'on' : 'off'}${detail ? ` · ${detail}` : ''}.`,
+				`Sharing not turned ${enabled ? 'on' : 'off'}${detail ? ` · ${detail}` : ''}.`,
 			);
 		}
 	})();

@@ -13,25 +13,21 @@
 
 	let { repositoryFullName, compact }: Props = $props();
 
-	const LABEL = 'Sync with GitHub';
+	const LABEL = 'Share internally';
 
 	const switchId = $props.id();
 
 	const sync = $derived(planSyncQuery.data(repositoryFullName));
 	const home = $derived(sync?.home ?? null);
-	const where = $derived(
-		home === repositoryFullName ? 'this private repository' : `the private ${home}`,
+	const own = $derived(home === repositoryFullName);
+	const who = $derived(
+		own ? 'Only people with access see it' : `Only collaborators of ${repositoryFullName} see it`,
 	);
-	const whoSees = $derived(
-		home === repositoryFullName
-			? 'Only people with access to it see them.'
-			: `Malini invites the collaborators of ${repositoryFullName}, and nobody else sees them.`,
-	);
-	const whatOnDoes = $derived(
-		`Outcomes become milestones and dependencies become issues in ${where}. ${whoSees}`,
-	);
+	const where = $derived(own ? 'This private repo' : `Private repo ${home}`);
+	const how = $derived(own ? 'This private repo' : 'Private GitHub repo');
+	const whatOnDoes = $derived(`${where}, as milestones and issues. ${who}`);
 	const whatOffDoes = $derived(
-		`Syncs with ${where}. Turning it off stops syncing, and GitHub keeps what it has.`,
+		`${where}. ${who}. Turning it off stops sharing. GitHub keeps what it has`,
 	);
 
 	let now: number = $state(Date.now());
@@ -42,9 +38,11 @@
 			? ''
 			: sync.error === null
 				? syncedLabel(sync.syncedAt, now)
-				: `Not synced · ${sync.error}`,
+				: `Not shared · ${sync.error}`,
 	);
-	const compactTip = $derived(sync?.enabled ? `${status}. ${whatOffDoes}` : whatOnDoes);
+	const compactTip = $derived(
+		sync?.enabled ? `${status}. ${who}` : `${how}, as milestones and issues. ${who}`,
+	);
 
 	$effect(() => {
 		if (!compact || sync?.enabled !== true) return;

@@ -181,7 +181,7 @@ test('a GitHub plan syncs once its switch is on and says what a teammate changed
 		const checkout = initiatives.getByRole('checkbox', { name: CHECKOUT });
 		await expect(checkout).not.toBeChecked();
 
-		const sync = main.getByRole('switch', { name: 'Sync with GitHub' });
+		const sync = main.getByRole('switch', { name: 'Share internally' });
 		await expect(sync).not.toBeChecked();
 		await sync.click();
 		await expect(sync).toBeChecked();
@@ -189,7 +189,7 @@ test('a GitHub plan syncs once its switch is on and says what a teammate changed
 			.poll(() => github.plan().issues.map(({ title }) => title), { timeout: 20_000 })
 			.toEqual([CHECKOUT]);
 		expect(github.plan().milestones.map(({ title }) => title)).toEqual([OUTCOME]);
-		await expect(main.getByText(/^Synced /u)).toBeVisible();
+		await expect(main.getByText(/^Shared /u)).toBeVisible();
 
 		const plan = github.plan();
 		github.setPlan({
@@ -232,10 +232,10 @@ test('a plan in a public repository syncs only to a private plan repository its 
 		await expect(
 			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
 		).toBeFocused();
-		await expect(main.getByText(`in the private ${PLAN_REPOSITORY}`)).toBeVisible();
-		await expect(main.getByText('Malini invites the collaborators of e2e/hutch')).toBeVisible();
+		await expect(main.getByText(`Private repo ${PLAN_REPOSITORY}`)).toBeVisible();
+		await expect(main.getByText('Only collaborators of e2e/hutch see it')).toBeVisible();
 
-		const sync = main.getByRole('switch', { name: 'Sync with GitHub' });
+		const sync = main.getByRole('switch', { name: 'Share internally' });
 		await sync.click();
 		await expect(sync).toBeChecked();
 		await expect
@@ -248,7 +248,9 @@ test('a plan in a public repository syncs only to a private plan repository its 
 			invited: { aleksander: 'push' },
 		});
 		expect(github.plan()).toEqual({ milestones: [], issues: [] });
-		await expect(main.getByText(`Syncs with the private ${PLAN_REPOSITORY}.`)).toBeVisible();
+		await expect(
+			main.getByText(`Private repo ${PLAN_REPOSITORY}. Only collaborators`),
+		).toBeVisible();
 		await captureFlow(app, 'initiatives-public-plan-repository');
 		expectCleanConsole(app);
 	} finally {
@@ -292,7 +294,7 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 		await expect(undated.getByRole('group', { name: COPY, exact: true })).toBeVisible();
 		await expect(due.getByRole('group', { name: COPY, exact: true })).toHaveCount(0);
 
-		const sync = plan.getByRole('switch', { name: 'Sync with GitHub' });
+		const sync = plan.getByRole('switch', { name: 'Share internally' });
 		await expect(sync).not.toBeChecked();
 		await sync.click();
 		await expect(sync).toBeChecked();

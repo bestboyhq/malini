@@ -515,7 +515,7 @@ export class PlanSyncService {
 		if (plan?.private === false) {
 			throw new InitiativeError(
 				'public-repository',
-				`\`${home}\` is public, and a plan syncs only with a private repository`,
+				`\`${home}\` is public, and a plan goes only to a private repository`,
 			);
 		}
 		if (plan === null) await this.#createPlanRepository(source, home, repository);
@@ -536,7 +536,7 @@ export class PlanSyncService {
 		if (path === null) {
 			throw new InitiativeError(
 				'no-plan-repository',
-				`Only ${owner} can make the private \`${home}\`. Once they make it and add you, turn sync on again.`,
+				`Only ${owner} can make the private \`${home}\`. Once they make it and add you, turn on Share internally again.`,
 			);
 		}
 		await this.#write(path, 'POST', {

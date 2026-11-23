@@ -156,15 +156,15 @@ describe('syncedLabel', () => {
 	const after = (seconds: number): number => Date.parse(at) + seconds * 1000;
 
 	it('counts up from the last sync', () => {
-		expect(syncedLabel(at, after(1))).toBe('Synced just now');
-		expect(syncedLabel(at, after(3))).toBe('Synced 3 s ago');
-		expect(syncedLabel(at, after(125))).toBe('Synced 2 min ago');
-		expect(syncedLabel(at, after(7200))).toBe('Synced 2 h ago');
-		expect(syncedLabel(at, after(3 * 86_400))).toBe('Synced 3 d ago');
+		expect(syncedLabel(at, after(1))).toBe('Shared just now');
+		expect(syncedLabel(at, after(3))).toBe('Shared 3 s ago');
+		expect(syncedLabel(at, after(125))).toBe('Shared 2 min ago');
+		expect(syncedLabel(at, after(7200))).toBe('Shared 2 h ago');
+		expect(syncedLabel(at, after(3 * 86_400))).toBe('Shared 3 d ago');
 	});
 
 	it('says when it never synced', () => {
-		expect(syncedLabel(null, after(0))).toBe('Not synced yet');
+		expect(syncedLabel(null, after(0))).toBe('Not shared yet');
 	});
 });
 
