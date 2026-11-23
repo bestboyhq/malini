@@ -4,7 +4,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon, PaintedGlyph } from '$hyper-ui/icons';
 	import { checkForUpdatesCommand } from '$lib/app/application/commands/check-for-updates.command';
 	import { restartToUpdateCommand } from '$lib/app/application/commands/restart-to-update.command';
 	import { restartingToUpdateQuery } from '$lib/app/application/queries/restarting-to-update.query.svelte';
@@ -52,11 +52,10 @@
 						ariaHasPopup="dialog"
 						onclick={restartToUpdateCommand}
 					>
-						{#snippet leading()}
-							<Icon name="gift" size={14} />
-						{/snippet}
-						<span class="text-painting">
-							Restart to update <span class="ml-1 font-normal tabular-nums">{status.version}</span>
+						<span class="text-painting relative pl-5">
+							<PaintedGlyph name="gift" size={14} />
+							Restart to update
+							<span class="ml-1 font-normal tabular-nums">{status.version}</span>
 						</span>
 					</Button>
 				{/snippet}
