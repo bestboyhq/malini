@@ -12,6 +12,9 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
+import { osFor } from '../../src/lib/shared/os/domain/os';
+
+const { machine } = osFor(process.platform);
 
 const LOCAL_TOKEN = /^(?!sk-|oc_sk_)\S{32,}$/u;
 
@@ -415,7 +418,7 @@ test('an OpenCode run uses the models models.dev lists and the OpenCode key', as
 		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible({ timeout: 20_000 });
 		const card = page.getByTestId('provider-opencode');
 		await expect(card).toHaveAttribute('data-key-saved', 'true');
-		await expect(card).toContainText('API key saved on this Mac.');
+		await expect(card).toContainText(`API key saved on this ${machine}.`);
 		await expect(card.getByRole('button', { name: 'Check again' })).toBeVisible();
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
 			/GLM-6\s*Kimi K4/u,
@@ -630,7 +633,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 
 		probe.answer(403);
 		await card.getByRole('button', { name: 'Check again' }).click();
-		await expect(card).toContainText('API key saved on this Mac.');
+		await expect(card).toContainText(`API key saved on this ${machine}.`);
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
 			/GLM-6\s*Kimi K4/u,
 		);

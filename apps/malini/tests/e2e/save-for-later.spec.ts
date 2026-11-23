@@ -28,6 +28,7 @@ test('a workstream saved for later waits on its repository page, comes back from
 		await sendPrompt(page, 'EDIT:notes.txt');
 		await expectAssistantReply(page);
 		appendFileSync(join(seeded.worktree, 'seed.txt'), 'unsaved edit\n');
+		const seed = readFileSync(join(seeded.worktree, 'seed.txt'), 'utf8');
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
 		const row = sidebar.locator(
@@ -66,7 +67,7 @@ test('a workstream saved for later waits on its repository page, comes back from
 
 		await expect(row).toHaveAttribute('aria-current', 'page', { timeout: 30_000 });
 		await expectAssistantReply(page);
-		expect(readFileSync(join(seeded.worktree, 'seed.txt'), 'utf8')).toBe('seed\nunsaved edit\n');
+		expect(readFileSync(join(seeded.worktree, 'seed.txt'), 'utf8')).toBe(seed);
 		await expect(repository).toHaveAccessibleDescription('');
 
 		await clickRevealedOnHover(row, saveForLater);

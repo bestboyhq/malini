@@ -77,6 +77,7 @@ import {
 	UNKNOWN_WORKSTREAM,
 	WorkstreamError,
 } from './checkout-resolver';
+import { registerGitForWindows } from './git-for-windows';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { checkoutsFolder, chooseCheckoutsFolder, keepCheckoutsFolder } from './checkouts-home';
 import { commitRunConsumed, commitRunSha, recordCommitRun } from './commit-runs.repository';
@@ -147,6 +148,7 @@ export interface RepositoriesDeps {
 	readonly shell?: CheckoutShell;
 	readonly ghRunner?: GhRunner;
 	readonly downloadGh?: Fetch;
+	readonly downloadGit?: Fetch;
 	readonly isOnline?: () => boolean;
 	readonly githubSignIn?: GitHubSignIn;
 	readonly folderPicker?: FolderPicker;
@@ -274,7 +276,7 @@ export function registerRepositories(
 		repair: (workstreamId) => repairCheckout(checkoutCase(workstreamId)),
 		fix: (workstreamId, finding) => fixCheckout(finding, checkoutCase(workstreamId)),
 		live: (workstreamId) =>
-			getWorkstream(db, workstreamId)?.status === 'active' && !teardowns.watch(workstreamId)(),
+			getWorkstream(db, workstreamId)?.status === 'active' && !teardowns.tearingDown(workstreamId),
 		changed: (payload) => events.emit(REPOSITORIES_WORKSTREAM_CHECKOUT_HEALTH_CHANNEL, payload),
 		listen: (probeBroken, forget) => {
 			app.on('browser-window-focus', probeBroken);
@@ -630,6 +632,7 @@ export function registerRepositories(
 		});
 		return ghInstall;
 	});
+	registerGitForWindows(context, deps.downloadGit);
 	commands.define('repositories.github-reach', () => githubReach.reach);
 
 	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());
@@ -721,19 +724,20 @@ export function registerRepositories(
 		workstreamId: string,
 		read: (worktree: string) => Promise<T>,
 	): Promise<T> {
-		const torndown = teardowns.watch(workstreamId);
 		try {
 			return await checkoutHealth.read(workstreamId, async () =>
 				read(await checkouts.resolveCheckout(workstreamId)),
 			);
 		} catch (error) {
-			if (!torndown() && !isArchived(workstreamId)) throw error;
+			if (!isRetired(workstreamId)) throw error;
 			throw new WorkstreamRetiredError(workstreamId, error);
 		}
 	}
 
-	function isArchived(workstreamId: string): boolean {
-		return getWorkstream(db, workstreamId)?.status === 'archived';
+	function isRetired(workstreamId: string): boolean {
+		if (teardowns.tearingDown(workstreamId)) return true;
+		const workstream = getWorkstream(db, workstreamId);
+		return workstream === null ? teardowns.retired(workstreamId) : workstream.status === 'archived';
 	}
 
 	function checkedWorkstreamId(args: unknown): string {

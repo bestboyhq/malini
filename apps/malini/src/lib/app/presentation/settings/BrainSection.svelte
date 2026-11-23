@@ -7,6 +7,7 @@
 	import { Well } from '$hyper-ui/components/well';
 	import { AUTOMATIONS_HREF, BRAIN_HREF, automationHref } from '$shared/router/routes-hrefs';
 	import { revealWorkstreamInFinderCommand } from '$shared/repositories/repositories.api';
+	import { osQuery } from '$shared/os/os.api';
 	import { applyAutomationDefaultsCommand } from '$lib/app/application/commands/apply-automation-defaults.command';
 	import { automationDefaultsQuery } from '$lib/app/application/queries/automation-defaults.query.svelte';
 	import { scheduleLine } from '$lib/app/domain/automation-defaults';
@@ -23,6 +24,7 @@
 	import { brainQuery } from '$lib/brain/application/queries/brain.query.svelte';
 	import SettingsSection from './SettingsSection.svelte';
 
+	const { machine, reveal } = $derived(osQuery.data);
 	const brain = $derived(brainQuery.data);
 	const status = $derived(brain.status);
 	const defaults = $derived(automationDefaultsQuery.data);
@@ -109,9 +111,9 @@
 						<h3 id="{ids}-sync" class="text-fg-default text-sm font-medium">Sync with GitHub</h3>
 						<p class="text-fg-tertiary text-xs">
 							{#if status.repository}
-								Pushes to main in {status.repository}, no pull request. Off keeps it on this Mac.
+								Pushes to main in {status.repository}, no pull request. Off keeps it on this {machine}.
 							{:else}
-								This brain lives on this Mac only.
+								This brain lives on this {machine} only.
 							{/if}
 						</p>
 					</div>
@@ -137,7 +139,7 @@
 							if (status.workstreamId) revealWorkstreamInFinderCommand(status.workstreamId);
 						}}
 					>
-						Reveal in Finder
+						{reveal}
 					</Button>
 				</div>
 			{/if}
@@ -180,13 +182,13 @@
 			</p>
 		</Well>
 
-		<Well title="What leaves this Mac">
+		<Well title="What leaves this {machine}">
 			<p class="text-fg-secondary px-3 pb-1.5 text-xs">
 				{#if status.sync && status.repository}
 					Your private repository on GitHub gets the log and the notes. Malini sends no chat
 					anywhere else.
 				{:else}
-					Nothing. The brain stays on this Mac.
+					Nothing. The brain stays on this {machine}.
 				{/if}
 			</p>
 		</Well>

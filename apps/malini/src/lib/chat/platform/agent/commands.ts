@@ -1,4 +1,4 @@
-import { isAbsolute, normalize } from 'node:path';
+import { isAbsolute, posix } from 'node:path';
 import {
 	CONTINUE_AFTER_PAUSE_PROMPT,
 	CONTINUE_AFTER_STOP_PROMPT,
@@ -228,9 +228,9 @@ function invalidContext(detail: string): LifecycleError {
 
 function isSafeRelativePath(path: string): boolean {
 	if (path.length === 0 || Buffer.byteLength(path) > MAX_PROMPT_CONTEXT_PATH_BYTES) return false;
-	if (/[\n\r\0]/.test(path) || isAbsolute(path)) return false;
+	if (/[\n\r\0]/.test(path) || isAbsolute(path) || /^[A-Za-z]:/u.test(path)) return false;
 	const segments = path.split(/[\\/]+/);
-	if (normalize(path) !== path.replace(/\/+/g, '/')) return false;
+	if (posix.normalize(path) !== path.replace(/\/+/g, '/')) return false;
 	return segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
 }
 
@@ -702,9 +702,10 @@ export async function sendAgentPrompt(
 	log: (line: string) => void = defaultLog,
 ): Promise<string> {
 	ensureBridgeReady(supervisor);
+	const accepted = runIdForPromptRequest(input.clientRequestId);
+	if (accepted !== null && getRun(db, accepted)?.sessionId === input.sessionId) return accepted;
 	if (!queuedByTheRenderer(input)) await leases.runChangeCaptureSettled(input.workstreamId);
 	await leases.checkoutSettled(input.workstreamId);
-	const accepted = runIdForPromptRequest(input.clientRequestId);
 	if (accepted !== null && getRun(db, accepted)?.sessionId === input.sessionId) return accepted;
 	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId, input.steer === true);
 	try {
@@ -819,6 +820,11 @@ async function sendAgentPromptLeased(
 		},
 		userMessageSeq,
 	);
+	if (hooks.closing()) {
+		handleSendPromptHandoffFailure(db, sessionId, runId, PAUSED_FOR_EXIT_ERROR, emit);
+		await hooks.captureRunFinish(runId);
+		return runId;
+	}
 
 	let turn: PreparedTurn;
 	try {

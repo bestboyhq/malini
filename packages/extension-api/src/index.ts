@@ -8,6 +8,7 @@ export {
 	fileIconIdFor,
 	fileIconUrl,
 	folderIconIdFor,
+	isAbsolutePath,
 	pathIconIdFor,
 	type FileIconId,
 } from './file-icons/file-icon.js';

@@ -1,3 +1,6 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { githubFailure } from '$contract/github-failure';
 import {
@@ -5,6 +8,7 @@ import {
 	GhError,
 	GitError,
 	gitFailureVerdict,
+	gitMissingMessage,
 	isNotFoundError,
 	MaliniError,
 	remoteRefusal,
@@ -170,6 +174,35 @@ describe('gitFailureVerdict', () => {
 		).toBe('Merge conflict. Resolve the conflicts and try again.');
 	});
 
+	it('says how to get git on each OS when it is missing', () => {
+		const bin = mkdtempSync(join(tmpdir(), 'malini-package-manager-'));
+		const tool = join(bin, process.platform === 'win32' ? 'dnf.exe' : 'dnf');
+		writeFileSync(tool, '');
+		chmodSync(tool, 0o755);
+		try {
+			expect(gitMissingMessage('win32')).toBe(
+				'Git for Windows is not on this PC. Press Try again on the Repositories page.',
+			);
+			expect(gitMissingMessage('linux', bin)).toBe(
+				'Git is not installed. Run sudo dnf install git in a terminal, then try again.',
+			);
+			expect(gitMissingMessage('linux', '')).toBe(
+				'Git is not installed. Install it with your package manager, then try again.',
+			);
+			expect(
+				gitFailureVerdict(
+					'xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun\n',
+				),
+			).toEqual({
+				kind: 'git-unavailable',
+				message:
+					'Git needs the Command Line Tools. Run xcode-select --install in Terminal, then try again.',
+			});
+		} finally {
+			rmSync(bin, { recursive: true, force: true });
+		}
+	});
+
 	it('says git is busy when another process holds index.lock', () => {
 		expect(gitFailureVerdict(INDEX_LOCKED)).toEqual({
 			kind: 'worktree-busy',
@@ -200,6 +233,23 @@ describe('gitFailureVerdict', () => {
 
 	it.each([
 		[
+			"fatal: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\e2e\\upstream' does not appear to be a git repository",
+			"'upstream' does not appear to be a git repository",
+		],
+		[
+			"fatal: '\\\\server\\share\\upstream' does not appear to be a git repository",
+			"'upstream' does not appear to be a git repository",
+		],
+		[
+			'fatal: could not write the commit graph at C:/Users/me/AppData/Local/Temp/objects/info',
+			'could not write the commit graph at info',
+		],
+	])('drops the folders of a Windows path in %s', (stderr, message) => {
+		expect(gitFailureVerdict(`${stderr}\n`).message).toBe(message);
+	});
+
+	it.each([
+		[
 			'OAuth App',
 			"GitHub refused the push: this change edits `.github/workflows/map-tiles.yml`, and your gh sign-in can't change workflows. Run `gh auth refresh -s workflow` once, then retry.",
 		],
@@ -223,13 +273,16 @@ describe('gitFailureVerdict', () => {
 		);
 	});
 
-	it('names a folder on this Mac, not GitHub, when the folder refused the push', () => {
-		expect(
-			gitFailureVerdict(
-				"To /Users/me/malini/brain\n ! [remote rejected] HEAD -> main (Working directory has unstaged changes)\nerror: failed to push some refs to '/Users/me/malini/brain'\n",
-			).message,
-		).toBe('The folder brain refused the push: Working directory has unstaged changes.');
-	});
+	it.each(['/Users/me/malini/brain', 'C:\\Users\\me\\malini\\brain\\', '\\\\server\\share\\brain'])(
+		'names the folder %s, not GitHub, when the folder refused the push',
+		(folder) => {
+			expect(
+				gitFailureVerdict(
+					`To ${folder}\n ! [remote rejected] HEAD -> main (Working directory has unstaged changes)\nerror: failed to push some refs to '${folder}'\n`,
+				).message,
+			).toBe('The folder brain refused the push: Working directory has unstaged changes.');
+		},
+	);
 
 	it('falls back to the last line when git printed no verdict, and admits silence', () => {
 		expect(

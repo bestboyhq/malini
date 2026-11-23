@@ -2,7 +2,12 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { errorCode } from '$main/errors';
 import { commitPaths } from '$main/git/remote';
-import { DISABLED_GIT_HOOKS_CONFIG, runGit, runGitAllowingExit } from '$main/git/run';
+import {
+	DISABLED_GIT_HOOKS_CONFIG,
+	EXACT_CONTENT_CONFIG,
+	runGit,
+	runGitAllowingExit,
+} from '$main/git/run';
 
 const ORIGIN_MAIN = 'refs/remotes/origin/main';
 
@@ -30,6 +35,8 @@ export async function restoreLog(checkout: string): Promise<void> {
 		await runGit([
 			'-C',
 			checkout,
+			'-c',
+			EXACT_CONTENT_CONFIG,
 			'restore',
 			'--source=HEAD',
 			'--staged',
@@ -78,6 +85,7 @@ export async function startFolderBrain(folder: string): Promise<void> {
 	}
 	await runGit(['-C', folder, 'config', 'receive.denyCurrentBranch', 'updateInstead']);
 	await runGit(['-C', folder, 'config', 'core.hooksPath', '/dev/null']);
+	await runGit(['-C', folder, 'config', 'core.autocrlf', 'false']);
 }
 
 export async function isMissing(path: string): Promise<boolean> {

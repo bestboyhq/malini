@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { promises as originalFs } from 'original-fs';
-import { claudeChatRecords, sandboxedCommand, sandboxProfile } from '@malini/agent-bridge/sandbox';
+import { claudeChatRecords, sandboxedCommand } from '@malini/agent-bridge/sandbox';
 import { describeError } from '$main/errors';
 import { cloneInto } from '$main/fs/copy-on-write';
 import { isDirectory, isFile } from '$main/fs/stat';
@@ -509,7 +509,7 @@ async function runInstallChild(
 ): Promise<ChildEnd> {
 	const [command, commandArgs] = deps.sandbox
 		? sandboxedCommand(
-				sandboxProfile({ checkout: worktree, hidden: deps.sandbox.hidden, internet: true }),
+				{ checkout: worktree, hidden: deps.sandbox.hidden, internet: true },
 				file,
 				args,
 			)

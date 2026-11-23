@@ -8,18 +8,22 @@ import { openChatTestDatabase, seedChatSession, seedChatWorkstream } from '../te
 import { ShellRuns } from './service';
 
 const WAIT_MS = 10_000;
+const WINDOWS = process.platform === 'win32';
+const INHERITED = Object.fromEntries(
+	Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+);
 
 function startShellRuns(db = seededDatabase()): {
 	shellRuns: ShellRuns;
 	db: MaliniDatabase;
 	latest: (id: string) => ShellRun | undefined;
 } {
-	const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'malini-shell-runs-')));
+	const checkout = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-shell-runs-')));
 	const seen = new Map<string, ShellRun>();
 	const shellRuns = new ShellRuns({
 		db,
 		checkout: () => checkout,
-		environment: () => ({ PATH: process.env['PATH'] ?? '', HOME: checkout, SHELL: '/bin/zsh' }),
+		environment: () => ({ ...INHERITED, HOME: checkout, SHELL: '/bin/zsh' }),
 		changed: (run) => seen.set(run.id, run),
 	});
 	cleanups.push(async () => {
@@ -66,6 +70,7 @@ describe('ShellRuns', () => {
 		const { shellRuns, latest } = startShellRuns();
 		const started = await shellRuns.start({
 			...workstream,
+			language: 'sh',
 			...block(),
 			command: 'pwd; echo done; exit 3',
 		});
@@ -84,6 +89,7 @@ describe('ShellRuns', () => {
 		const { shellRuns, latest } = startShellRuns();
 		const started = await shellRuns.start({
 			...workstream,
+			language: 'sh',
 			...block(),
 			command: 'test -t 0 && printf "name? "; read name; echo "hi $name"',
 		});
@@ -102,10 +108,66 @@ describe('ShellRuns', () => {
 		expect(finished.output).toContain('hi simon');
 	});
 
+	it('shows the output as a terminal draws it', async () => {
+		const { shellRuns, latest } = startShellRuns();
+		const started = await shellRuns.start({
+			...workstream,
+			language: 'sh',
+			...block(),
+			command:
+				"printf '10%%\\r100%%\\n\\033[31mred\\033[0m \\033]0;title\\007plain\\npasx\\b \\bs\\n'",
+		});
+
+		const finished = await until(
+			() => latest(started.id),
+			(run) => run.state !== 'running',
+		);
+		expect(finished).toMatchObject({ state: 'exited', exitCode: 0 });
+		expect(finished.output).toBe('100%\nred plain\npass\n');
+	});
+
+	it.runIf(WINDOWS)(
+		'runs a PowerShell block in PowerShell, failing as PowerShell does',
+		async () => {
+			const { shellRuns, latest } = startShellRuns();
+			const started = await shellRuns.start({
+				...workstream,
+				language: 'powershell',
+				...block(),
+				command: "Write-Output ('power' + 'shell')\ncmd /c exit 3",
+			});
+
+			const finished = await until(
+				() => latest(started.id),
+				(run) => run.state !== 'running',
+			);
+			expect(finished).toMatchObject({ state: 'exited', exitCode: 1 });
+			expect(finished.output).toContain('powershell\n');
+		},
+	);
+
+	it.runIf(WINDOWS)('runs a cmd block in Command Prompt, one line at a time', async () => {
+		const { shellRuns, latest } = startShellRuns();
+		const started = await shellRuns.start({
+			...workstream,
+			language: 'cmd',
+			...block(),
+			command: 'set GREETING=héllo\necho %GREETING% from cmd\nexit /b 5',
+		});
+
+		const finished = await until(
+			() => latest(started.id),
+			(run) => run.state !== 'running',
+		);
+		expect(finished).toMatchObject({ state: 'exited', exitCode: 5 });
+		expect(finished.output).toContain('héllo from cmd\n');
+	});
+
 	it('interrupts a command the user stops', async () => {
 		const { shellRuns, latest } = startShellRuns();
 		const started = await shellRuns.start({
 			...workstream,
+			language: 'sh',
 			...block(),
 			command: 'echo started; sleep 30',
 		});
@@ -127,12 +189,22 @@ describe('ShellRuns', () => {
 
 	it('tells the agent about a finished command once and a running one each time', async () => {
 		const { shellRuns, latest } = startShellRuns();
-		const finished = await shellRuns.start({ ...workstream, ...block(), command: 'echo ok' });
+		const finished = await shellRuns.start({
+			...workstream,
+			language: 'sh',
+			...block(),
+			command: 'echo ok',
+		});
 		await until(
 			() => latest(finished.id),
 			(run) => run.state === 'exited',
 		);
-		const running = await shellRuns.start({ ...workstream, ...block(), command: 'sleep 30' });
+		const running = await shellRuns.start({
+			...workstream,
+			language: 'sh',
+			...block(),
+			command: 'sleep 30',
+		});
 
 		expect(shellRuns.report(workstream.sessionId)).toEqual([
 			{ command: 'echo ok', state: 'exited', exitCode: 0, output: 'ok\n' },
@@ -149,17 +221,32 @@ describe('ShellRuns', () => {
 	it('keeps one run per code block: Run again replaces a finished run, never a running one', async () => {
 		const { shellRuns, latest } = startShellRuns();
 		const anchor = { message: 'message-2', block: 0 };
-		const first = await shellRuns.start({ ...workstream, anchor, command: 'echo first' });
+		const first = await shellRuns.start({
+			...workstream,
+			language: 'sh',
+			anchor,
+			command: 'echo first',
+		});
 		await until(
 			() => latest(first.id),
 			(run) => run.state === 'exited',
 		);
 
-		const second = await shellRuns.start({ ...workstream, anchor, command: 'sleep 30' });
+		const second = await shellRuns.start({
+			...workstream,
+			language: 'sh',
+			anchor,
+			command: 'sleep 30',
+		});
 		expect(second.id).not.toBe(first.id);
 		expect(shellRuns.list().map((run) => run.id)).toEqual([second.id]);
 
-		const again = await shellRuns.start({ ...workstream, anchor, command: 'sleep 30' });
+		const again = await shellRuns.start({
+			...workstream,
+			language: 'sh',
+			anchor,
+			command: 'sleep 30',
+		});
 		expect(again.id).toBe(second.id);
 		expect(shellRuns.list()).toHaveLength(1);
 	});
@@ -167,7 +254,7 @@ describe('ShellRuns', () => {
 	it('keeps finished runs, and whether the agent read them, across a restart', async () => {
 		const { shellRuns, db, latest } = startShellRuns();
 		const finish = async (command: string, anchor = block().anchor): Promise<ShellRun> => {
-			const started = await shellRuns.start({ ...workstream, anchor, command });
+			const started = await shellRuns.start({ ...workstream, language: 'sh', anchor, command });
 			return until(
 				() => latest(started.id),
 				(run) => run.state !== 'running',
@@ -192,8 +279,8 @@ describe('ShellRuns', () => {
 
 	it('refuses an empty command', async () => {
 		const { shellRuns } = startShellRuns();
-		await expect(shellRuns.start({ ...workstream, ...block(), command: '  ' })).rejects.toThrow(
-			'invalid args',
-		);
+		await expect(
+			shellRuns.start({ ...workstream, language: 'sh', ...block(), command: '  ' }),
+		).rejects.toThrow('invalid args');
 	});
 });

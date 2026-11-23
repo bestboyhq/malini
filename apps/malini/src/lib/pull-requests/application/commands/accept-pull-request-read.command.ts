@@ -4,7 +4,11 @@ import { refreshActivePullRequestCommand } from '$shared/repositories/repositori
 
 export { acceptPullRequestReadCommand };
 
-function acceptPullRequestReadCommand(workstreamId: string, state: PullRequestState): void {
-	pullRequestStateAggregate.observe(workstreamId, state);
+function acceptPullRequestReadCommand(
+	workstreamId: string,
+	state: PullRequestState,
+	headSha: string | null,
+): void {
+	pullRequestStateAggregate.observe(workstreamId, state, headSha);
 	refreshActivePullRequestCommand(workstreamId);
 }

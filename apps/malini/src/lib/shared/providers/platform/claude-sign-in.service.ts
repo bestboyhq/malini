@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { ClaudeSignInOutcome } from '$contract/agent';
+import { spawnable } from '$main/process/command';
+import { stopProcess } from '$main/process/process-group';
 import { ProviderError } from './provider-error';
 
 const PASTE_PROMPT = 'Paste code here if prompted >';
@@ -33,9 +35,15 @@ export class ClaudeSignIn {
 				),
 			);
 		}
-		const child = spawn(executable, ['auth', 'login', ...(email ? [`--email=${email}`] : [])], {
+		const command = spawnable(executable, [
+			'auth',
+			'login',
+			...(email ? [`--email=${email}`] : []),
+		]);
+		const child = spawn(command.file, command.args, {
 			env: { ...environment },
 			stdio: ['ignore', 'pipe', 'pipe'],
+			...command.options,
 		});
 		this.#child = child;
 		let output = '';
@@ -62,7 +70,7 @@ export class ClaudeSignIn {
 	cancel(): void {
 		const child = this.#child;
 		this.#child = null;
-		child?.kill('SIGTERM');
+		if (child) stopProcess(child);
 	}
 
 	#release(child: ChildProcess): void {

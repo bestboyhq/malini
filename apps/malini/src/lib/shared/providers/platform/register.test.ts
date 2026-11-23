@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -6,6 +6,7 @@ import type { MainContext } from '$main/context';
 import { openDatabase } from '$main/db/driver';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
+import { fakeTool } from '$main/process/test-support';
 import { registerProviders, type ProvidersDeps } from './register';
 
 const roots: string[] = [];
@@ -13,7 +14,8 @@ const stops: Array<() => void> = [];
 
 afterEach(() => {
 	for (const stop of stops.splice(0)) stop();
-	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+	for (const root of roots.splice(0))
+		rmSync(root, { recursive: true, force: true, maxRetries: 10 });
 });
 
 function boot(deps: ProvidersDeps = {}) {
@@ -40,7 +42,9 @@ function boot(deps: ProvidersDeps = {}) {
 }
 
 function shellEnvironment(): Record<string, string> {
-	return { PATH: '/usr/bin:/bin' };
+	return process.platform === 'win32'
+		? { PATH: process.env['PATH'] ?? '', SystemRoot: process.env['SystemRoot'] ?? 'C:\\Windows' }
+		: { PATH: '/usr/bin:/bin' };
 }
 
 function fakeClaude(body: string): { executable: string; argsFile: string } {
@@ -48,39 +52,32 @@ function fakeClaude(body: string): { executable: string; argsFile: string } {
 	roots.push(directory);
 	const executable = join(directory, 'claude');
 	const argsFile = join(directory, 'args');
-	writeFileSync(
+	fakeTool(
 		executable,
 		`#!/bin/sh\n[ "$2" = status ] && exit 0\nprintf '%s\\n' "$@" > '${argsFile}'\n${body}\n`,
 	);
-	chmodSync(executable, 0o755);
 	return { executable, argsFile };
 }
 
 describe('providers.install-claude-code', () => {
-	it('downloads Claude Code in the app, says why when it cannot, and only on macOS', async () => {
-		const asked: string[] = [];
-		const mac = boot({
-			platform: 'darwin',
-			fetch: (url) => {
-				asked.push(url);
-				return Promise.reject(new Error('offline'));
-			},
-		});
+	it.each(['darwin', 'linux', 'win32'] as const)(
+		'downloads Claude Code in the app on %s and says why when it cannot',
+		async (platform) => {
+			const asked: string[] = [];
+			const { commands } = boot({
+				platform,
+				fetch: (url) => {
+					asked.push(url);
+					return Promise.reject(new Error('offline'));
+				},
+			});
 
-		expect(
-			await mac.commands.invoke({ command: 'providers.install-claude-code', args: undefined }),
-		).toEqual({ ok: false, error: 'Could not download Claude Code: offline' });
-		expect(asked).toContain('https://downloads.claude.ai/claude-code-releases/latest');
-
-		const linux = boot({ platform: 'linux' });
-		expect(
-			await linux.commands.invoke({ command: 'providers.install-claude-code', args: undefined }),
-		).toEqual({
-			ok: false,
-			error:
-				'Run `curl -fsSL https://claude.ai/install.sh | bash` in a terminal, then check again.',
-		});
-	});
+			expect(
+				await commands.invoke({ command: 'providers.install-claude-code', args: undefined }),
+			).toEqual({ ok: false, error: 'Could not download Claude Code: offline' });
+			expect(asked).toContain('https://downloads.claude.ai/claude-code-releases/latest');
+		},
+	);
 });
 
 describe('providers.update-claude-code', () => {

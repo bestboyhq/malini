@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { baseOverlap, branchStart, changesWithEveryCommit, commitOf } from './base-overlap';
 import { initRealRepo, realGit, removeDir, tempDir } from './fixtures.test-support';
+import { installGitRunnerForTests } from './run';
 
 const TEN_LINES = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n';
 
@@ -133,6 +134,27 @@ describe('baseOverlap', () => {
 			conflictedPaths: [],
 			overlappingPaths: [],
 		});
+	});
+
+	it('reports a failed read only once every other git read in the checkout has ended', async () => {
+		const repo = await repoWith({ 'shared.txt': 'base\n' });
+		await onBranch(repo, 'topic', { 'topic.txt': 'topic\n' });
+		await onBranch(repo, 'main', { 'main.txt': 'main\n' });
+		let running = 0;
+		const restore = installGitRunnerForTests(async (args, env, previous) => {
+			if (args.includes('rev-list')) throw new Error('rev-list failed');
+			running += 1;
+			try {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				return await previous(args, env);
+			} finally {
+				running -= 1;
+			}
+		});
+		cleanups.push(async () => restore());
+
+		await expect(overlapOfTopic(repo)).rejects.toThrow('rev-list failed');
+		expect(running).toBe(0);
 	});
 });
 

@@ -1,4 +1,4 @@
-import { relative, resolve, sep } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BROWSER_WORKTREE_SCHEME } from '$contract/browser';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
@@ -33,7 +33,8 @@ export function isLocalUrl(url: string): boolean {
 }
 
 export function isFileAddress(input: string): boolean {
-	return FILE_ADDRESS.test(input.trim());
+	const text = input.trim();
+	return isAbsolute(text) || FILE_ADDRESS.test(text.replaceAll(sep, '/'));
 }
 
 export function normalizeBrowserUrl(input: string): string {

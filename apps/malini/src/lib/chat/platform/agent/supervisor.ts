@@ -19,6 +19,10 @@ import {
 	type BridgeEvent,
 	type ProviderCapability,
 } from './protocol';
+import { readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { SECRETS_FOLDER_PREFIX } from '@malini/agent-bridge/sandbox';
 import type { OneShotAutomation } from '$lib/automations/automations.platform';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import { killProcessGroup, processGroupIsAlive } from '$main/process/process-group';
@@ -289,7 +293,23 @@ export class BridgeSupervisor {
 			});
 		}
 		child.stdin.on('error', () => {});
-		child.onExit(() => this.noteChildGone());
+		child.onExit(() => {
+			this.noteChildGone();
+			this.removeSecretsLeftBy(child.pid);
+		});
+	}
+
+	private removeSecretsLeftBy(pid: number): void {
+		const prefix = `${SECRETS_FOLDER_PREFIX}${pid}-`;
+		try {
+			for (const name of readdirSync(tmpdir())) {
+				if (name.startsWith(prefix)) {
+					rmSync(join(tmpdir(), name), { recursive: true, force: true, maxRetries: 5 });
+				}
+			}
+		} catch (error) {
+			this.log(`agent-bridge secrets of ${pid} stayed: ${describe(error)}`);
+		}
 	}
 
 	private appendStderr(line: string): void {

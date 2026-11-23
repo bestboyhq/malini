@@ -8,6 +8,7 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	moveFoldersMaliniHolds,
 	openWorkstream,
 	seedWorkstream,
 } from './harness';
@@ -73,15 +74,20 @@ test('a checkout that lost its link to git links itself again and asks for nothi
 
 test('a checkout Malini cannot clone again names the one fix, in its step and the top bar', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({ allowedDiagnostics: [CHECKOUT_GONE] });
+	const options = { allowedDiagnostics: [CHECKOUT_GONE] };
+	let app = await launchMalini(options);
 	try {
-		const { page, root } = app;
+		const { root } = app;
+		let { page } = app;
 		const { source, origin } = await connectAppWithOrigin(root, page);
 		const { basePath } = await seedWorkstream(page, origin, 'e2e-checkout-clone-ws', 'Reclone');
 		await openWorkstream(page, 'e2e-checkout-clone-ws');
-		renameSync(origin, `${origin}-moved`);
-		renameSync(source, `${source}-moved`);
-		renameSync(basePath, `${basePath}-moved`);
+		app = await moveFoldersMaliniHolds(app, options, 'e2e-checkout-clone-ws', () => {
+			renameSync(origin, `${origin}-moved`);
+			renameSync(source, `${source}-moved`);
+			renameSync(basePath, `${basePath}-moved`);
+		});
+		({ page } = app);
 		await comeBackToTheWindow(page);
 
 		const broken = setupSteps(page).filter({ hasText: /Cannot clone .+ again/u });

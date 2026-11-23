@@ -75,7 +75,7 @@ async function invoke(command: string, args: unknown = {}): Promise<unknown> {
 }
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-repositories-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-repositories-')));
 	db = openMigratedDatabase(':memory:');
 	context = {
 		db,
@@ -90,8 +90,8 @@ beforeEach(() => {
 	platform = registerRepositories(context, { startupReclaim: false });
 });
 
-afterEach(() => {
-	platform.watchers.dispose();
+afterEach(async () => {
+	await platform.watchers.dispose();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });

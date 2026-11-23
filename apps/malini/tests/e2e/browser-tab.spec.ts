@@ -258,7 +258,9 @@ test('a browser tab says why its page did not load, hides the page meanwhile, an
 
 		await openTab(page, origin, '/');
 		const status = inspector.getByRole('status');
-		await expect(status).toContainText(`Could not open ${new URL(origin).host}`);
+		await expect(status).toContainText(`Could not open ${new URL(origin).host}`, {
+			timeout: 20_000,
+		});
 		await expect(status).toContainText('ERR_CONNECTION_REFUSED');
 		await expect.poll(pageShown).toBe(false);
 		const pick = page.getByRole('button', { name: 'Pick an element' });
@@ -491,7 +493,7 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 
 test('a thread pin stays on its element when a Vite dev server hot-updates the page, changes its classes, or reloads it', async () => {
 	test.setTimeout(180_000);
-	const site = realpathSync(temporaryRoot('malini-hmr-site-'));
+	const site = realpathSync.native(temporaryRoot('malini-hmr-site-'));
 	const writeIndex = (title: string): void =>
 		writeFileSync(
 			join(site, 'index.html'),

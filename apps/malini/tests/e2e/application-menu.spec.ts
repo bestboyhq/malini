@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { sidebarStatus } from './fake-github';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -16,7 +17,7 @@ async function menuLabels(app: LaunchedApp, menu: string): Promise<string[]> {
 		({ Menu }, label) =>
 			Menu.getApplicationMenu()
 				?.items.find((item) => item.label === label)
-				?.submenu?.items.filter((item) => item.type !== 'separator')
+				?.submenu?.items.filter((item) => item.type !== 'separator' && item.visible)
 				.map((item) => item.label) ?? [],
 		menu,
 	);
@@ -39,15 +40,25 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		expect(await menuLabels(app, 'File')).toEqual([
+		const starts = [
 			'New Workstream',
 			'New Chat',
 			'Reopen Closed Chat',
 			'Open Folder…',
 			'Find Repository…',
-			'Close Window',
-		]);
-		expect(await menuLabels(app, 'Malini')).toContain('Settings…');
+		];
+		if (process.platform === 'darwin') {
+			expect(await menuLabels(app, 'File')).toEqual([...starts, 'Close Window']);
+			expect(await menuLabels(app, 'Malini')).toContain('Settings…');
+		} else {
+			expect(await menuLabels(app, 'File')).toEqual([
+				...starts,
+				'Settings…',
+				'Close Window',
+				process.platform === 'win32' ? 'Exit' : 'Quit',
+			]);
+			expect(await menuLabels(app, 'Help')).toEqual(['About Malini']);
+		}
 
 		const alpha = await createSourceRepo(app.root, 'alpha');
 		const beta = await createSourceRepo(app.root, 'beta');
@@ -65,9 +76,13 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 			.poll(() => openedWorkstreamId(page), { timeout: 20_000 })
 			.not.toBe('e2e-menu-alpha');
 		const created = openedWorkstreamId(page);
+		if (!created) throw new Error('the new workstream did not open');
 		await expect(
 			page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${created}"]`),
 		).toHaveAttribute('aria-current', 'page', { timeout: 20_000 });
+		await expect(sidebarStatus(page, created)).toHaveAccessibleName(/^Workstream status: Idle/u, {
+			timeout: 30_000,
+		});
 		await captureFlow(app, 'application-menu-new-workstream');
 
 		await choose(app, 'settings');
@@ -87,8 +102,10 @@ test('the File menu starts workstreams and chats, adds repositories, and closes 
 		}, beta);
 		const beforeFolder = page.url();
 		await choose(app, 'open-folder');
-		await expect(page).toHaveURL(/#\/workstreams\//u, { timeout: 30_000 });
-		expect(page.url()).not.toBe(beforeFolder);
+		await expect(page).toHaveURL(
+			(url) => url.href !== beforeFolder && url.hash.startsWith('#/workstreams/'),
+			{ timeout: 30_000 },
+		);
 		await expect
 			.poll(async () => (await listProjects(page)).map((project) => project.id).sort())
 			.toEqual(['local__alpha', 'local__beta']);

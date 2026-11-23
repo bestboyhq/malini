@@ -37,7 +37,7 @@ let root: string;
 let appDataRoot: string;
 
 beforeEach(() => {
-	root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-shown-')));
+	root = realpathSync.native(mkdtempSync(join(tmpdir(), 'malini-shown-')));
 	appDataRoot = join(root, 'app');
 });
 

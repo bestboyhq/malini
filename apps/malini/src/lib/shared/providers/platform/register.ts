@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { CLAUDE_INSTALL_COMMAND, type AgentPlanUsage } from '$contract/agent';
+import { delimiter, join } from 'node:path';
+import { sandboxProblem } from '@malini/agent-bridge/sandbox';
+import type { AgentPlanUsage } from '$contract/agent';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import {
@@ -30,6 +31,7 @@ import { detectOpenCodePlan, opencodeProbeOrigin } from './opencode-plan';
 import { loadOpencodeUsage } from './opencode-usage';
 import { ProviderError } from './provider-error';
 import { ProviderKeys } from './provider-keys.service';
+import { registerWindowsSandbox } from './windows-sandbox';
 
 const MAX_EMAIL_LENGTH = 320;
 const USAGE_CACHE_MS = 60_000;
@@ -78,12 +80,6 @@ export function registerProviders(
 	const fetch = deps.fetch ?? electronFetch;
 	let claudeInstall: Promise<void> | null = null;
 	context.commands.define('providers.install-claude-code', () => {
-		if (platform !== 'darwin') {
-			throw new ProviderError(
-				'unsupported',
-				`Run \`${CLAUDE_INSTALL_COMMAND}\` in a terminal, then check again.`,
-			);
-		}
 		claudeInstall ??= installClaudeCode({
 			fetch,
 			directory: join(context.appDataRoot, 'claude-setup'),
@@ -145,6 +141,9 @@ export function registerProviders(
 	});
 	void catalog.refresh();
 	void chatgpt.refreshModels().catch(() => undefined);
+
+	context.commands.define('providers.sandbox-problem', () => sandboxProblem());
+	registerWindowsSandbox(context, platform);
 
 	context.commands.define('providers.list', () => keys.list());
 
@@ -246,7 +245,7 @@ function claudeExecutable(): string | null {
 	const environment = currentEnvironment();
 	const home = homedir();
 	const path = [join(home, '.local', 'bin'), environment.path, join(home, '.claude', 'local')];
-	return resolveToolPath('claude', { ...environment, path: path.join(':') });
+	return resolveToolPath('claude', { ...environment, path: path.join(delimiter) });
 }
 
 async function openExternalWithElectron(url: string): Promise<void> {

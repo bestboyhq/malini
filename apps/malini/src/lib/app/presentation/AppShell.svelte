@@ -2,6 +2,7 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { afterNavigate } from '$shared/router/navigation';
 	import TopBar from './TopBar.svelte';
+	import WindowControls from './WindowControls.svelte';
 	import {
 		exposeRuntimeDiagnostics,
 		runtimeDiagnostics,
@@ -22,6 +23,7 @@
 	import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
 	import { watchShipStatesHook } from '$lib/pull-requests/application/hooks/watch-ship-states.hook';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
+	import { osQuery } from '$shared/os/os.api';
 
 	interface Props {
 		children: Snippet;
@@ -70,6 +72,9 @@
 
 <div class="flex h-screen font-sans">
 	<TopBar actions={globalTopBarActions.actions} />
+	{#if osQuery.data.platform !== 'darwin'}
+		<WindowControls />
+	{/if}
 
 	<div class="native-shell-safe-frame flex h-full w-full">
 		<div class="relative flex min-w-0 flex-1">

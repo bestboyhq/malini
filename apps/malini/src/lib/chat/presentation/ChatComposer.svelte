@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { page } from '$shared/router/state';
 	import { tick, untrack } from 'svelte';
 	import { workstreamImageUrl } from '$contract/workstream-images';
@@ -889,6 +890,18 @@
 		untrack(() => continueTodoSubmission(resolution));
 	});
 
+	$effect(() => {
+		void workstreamId;
+		return abandonTodoSubmission;
+	});
+
+	function abandonTodoSubmission(): void {
+		const pending = pendingTodoSubmission;
+		if (!pending) return;
+		pendingTodoSubmission = null;
+		clearWorkstreamTodosResolutionCommand(pending.requestId);
+	}
+
 	function continueTodoSubmission(resolution: WorkstreamTodosResolution | null): void {
 		const pending = pendingTodoSubmission;
 		if (!pending || resolution?.requestId !== pending.requestId) return;
@@ -1320,7 +1333,9 @@
 						class={['active:scale-95', stopsRun && 'bg-surface-50 hover:bg-error/10']}
 						ariaBusy={submitting}
 						ariaLabel={submitTitle}
-						{...queuesOnSend ? { ariaKeyshortcuts: 'Enter Meta+Enter' } : {}}
+						{...queuesOnSend
+							? { ariaKeyshortcuts: `Enter ${osQuery.data.ariaShortcut('Enter')}` }
+							: {}}
 						data-testid="chat-composer-submit"
 						onclick={stopsRun ? onCancelClick : () => undefined}
 					>
@@ -1370,9 +1385,13 @@
 	{#snippet queueOrSteerHelp()}
 		<span class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-left">
 			<span>Queue after this run</span>
-			<EnterShortcut class="text-fg-tertiary justify-self-end" />
+			<EnterShortcut label={osQuery.data.returnKey} class="text-fg-tertiary justify-self-end" />
 			<span>Steer now, interrupting it</span>
-			<EnterShortcut mod class="text-fg-tertiary justify-self-end" />
+			<EnterShortcut
+				mod={osQuery.data.shortcut('')}
+				label={osQuery.data.primaryReturn}
+				class="text-fg-tertiary justify-self-end"
+			/>
 		</span>
 	{/snippet}
 </form>

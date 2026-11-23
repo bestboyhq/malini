@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -222,7 +223,7 @@ test('a tool-state folder the sandbox opens by itself needs no card and is liste
 		const grant = page.getByRole('list', { name: 'Always allowed' }).getByRole('listitem');
 		await expect(grant).toHaveCount(1);
 		await expect(grant).toContainText('Sandbox: write');
-		await expect(grant).toContainText('Library/Logs/rtk');
+		await expect(grant).toContainText(join('Library', 'Logs', 'rtk'));
 		await expect(grant.getByText('Everywhere', { exact: true })).toBeVisible();
 		await captureFlow(app, 'tool-state-grant-in-settings');
 		await grant.getByRole('button', { name: 'Revoke' }).click();

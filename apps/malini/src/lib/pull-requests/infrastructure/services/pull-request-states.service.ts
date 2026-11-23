@@ -32,10 +32,11 @@ export async function loadPullRequestStates(
 }
 
 export function onPullRequestRead(
-	listener: (workstreamId: string, state: PullRequestState) => void,
+	listener: (workstreamId: string, state: PullRequestState, headSha: string | null) => void,
 ): () => void {
-	return onPlatformEvent(PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, ({ workstreamId, state }) =>
-		listener(workstreamId, state),
+	return onPlatformEvent(
+		PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+		({ workstreamId, state, headSha }) => listener(workstreamId, state, headSha),
 	);
 }
 

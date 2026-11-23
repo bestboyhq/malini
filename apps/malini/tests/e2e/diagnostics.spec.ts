@@ -1,21 +1,23 @@
-import { chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { readDiagnostics } from '../../src/main/diagnostics/diagnostics-files';
 import {
 	clickRevealedOnHover,
 	createSourceRepo,
+	DENIED,
 	diagnosticText,
 	invoke,
 	launchMalini,
+	lockFolder,
 	seedWorkstream,
 	unexpectedDiagnostics,
+	unlockFolder,
 	waitForQuietDiagnostics,
 } from './harness';
 
 test('an archive that cannot move the checkout names the real reason, and the log records it', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
+	const app = await launchMalini({ allowedDiagnostics: [new RegExp(DENIED.reason, 'u')] });
 	let lockedDirectory: string | null = null;
 	try {
 		const { page } = app;
@@ -26,14 +28,14 @@ test('an archive that cannot move the checkout names the real reason, and the lo
 		await expect(row).toBeVisible({ timeout: 20_000 });
 
 		lockedDirectory = dirname(seeded.worktree);
-		chmodSync(lockedDirectory, 0o555);
+		lockFolder(lockedDirectory);
 		const archive = page.getByRole('button', { name: 'Archive Locked workstream' });
 		await clickRevealedOnHover(row, archive);
 
 		const failure = page
 			.getByTestId('toast')
 			.filter({ hasText: 'Could not archive Locked workstream' });
-		await expect(failure).toContainText('permission denied', { timeout: 20_000 });
+		await expect(failure).toContainText(DENIED.reason, { timeout: 20_000 });
 		await expect(failure).not.toContainText('The checkout could not be removed');
 
 		await waitForQuietDiagnostics(app.userDataDir);
@@ -44,8 +46,10 @@ test('an archive that cannot move the checkout names the real reason, and the lo
 				source: 'ipc-command',
 				command: 'repositories.archive-workstream',
 				workstreamId: 'e2e-locked-ws',
-				message: expect.stringContaining('permission denied'),
-				detail: expect.stringMatching(/^caused by Error: EACCES: permission denied/u),
+				message: expect.stringContaining(DENIED.reason),
+				detail: expect.stringMatching(
+					new RegExp(`^caused by Error: ${DENIED.code}: ${DENIED.reason}`, 'u'),
+				),
 			}),
 		);
 		expect(
@@ -59,15 +63,13 @@ test('an archive that cannot move the checkout names the real reason, and the lo
 				source: 'toast',
 				level: 'error',
 				message: expect.stringMatching(
-					/^Could not archive Locked workstream · .*permission denied/u,
+					new RegExp(`^Could not archive Locked workstream · .*${DENIED.reason}`, 'u'),
 				),
 			}),
 		);
-		expect(recorded.map(diagnosticText).every((text) => /permission denied/u.test(text))).toBe(
-			true,
-		);
+		expect(recorded.map(diagnosticText).every((text) => text.includes(DENIED.reason))).toBe(true);
 	} finally {
-		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
+		if (lockedDirectory) unlockFolder(lockedDirectory);
 		await app.close();
 	}
 });

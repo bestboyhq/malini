@@ -21,6 +21,9 @@ import {
 	sendPrompt,
 } from './harness';
 import { brainOnGithub, FAKE_BRAIN } from './fake-brain';
+import { osFor } from '../../src/lib/shared/os/domain/os';
+
+const { machine } = osFor(process.platform);
 
 const SECRET = 'correct-horse-battery-staple';
 const TOKEN = `ghp_${'a1B2'.repeat(9)}`;
@@ -157,7 +160,7 @@ test('a public brain repository on GitHub is refused', async () => {
 	}
 });
 
-test('without GitHub the brain stays on this Mac and still captures an archived chat', async () => {
+test('without GitHub the brain stays on this computer and still captures an archived chat', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini({
 		env: { E2E_GITHUB_SIGNED_OUT: '1' },
@@ -168,7 +171,7 @@ test('without GitHub the brain stays on this Mac and still captures an archived 
 		const status = await invoke<BrainStatus>(page, 'brain.set-up', { sync: true });
 		expect(status).toMatchObject({ set: true, repository: null, sync: false, problem: null });
 		await expect(invoke(page, 'brain.set-sync', { sync: true })).rejects.toThrow(
-			'This brain lives on this Mac only. It has no GitHub repository to sync with.',
+			`This brain lives on this ${machine} only. It has no GitHub repository to sync with.`,
 		);
 
 		const source = await createSourceRepo(app.root, 'web');
@@ -194,7 +197,7 @@ test('without GitHub the brain stays on this Mac and still captures an archived 
 	}
 });
 
-test('a brain on this Mac that could not push says so, and Retry pushes it once the folder is clean', async () => {
+test('a brain on this computer that could not push says so, and Retry pushes it once the folder is clean', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
 	try {
@@ -226,7 +229,7 @@ test('a brain on this Mac that could not push says so, and Retry pushes it once 
 		await git(folder, ['checkout', '--', 'README.md']);
 		await retry.click();
 
-		await expect(nav.getByRole('status')).toHaveText('On this Mac');
+		await expect(nav.getByRole('status')).toHaveText(`On this ${machine}`);
 		await expect(retry).toHaveCount(0);
 		await expect(page.getByText(/Could not change sync/u)).toHaveCount(0);
 		expect(readFileSync(join(folder, 'notes', 'deploys.md'), 'utf8')).toBe('# Deploys\n');

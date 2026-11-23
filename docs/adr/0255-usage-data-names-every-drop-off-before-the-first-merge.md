@@ -22,7 +22,7 @@ The picker's views and a held prompt live only in the renderer, and no domain ma
   - `picked` with `choice`, which can also be `more`, for **More repositories**.
   - `github_view` with `view`: `list`, `empty`, `list_failed`, `code`, `sign_in`, `install_failed` or `unknown`, each time the GitHub view settles on a new one.
   - `github_back` with the `view` that **Back** left, or `loading`.
-  - `prompt_held` with `waits`: `setup`, `claude_code`, `claude_sign_in`, `chatgpt_sign_in`, `chatgpt_model` or `key`, from `ACCESS_WAITS` in `submit-prompt.command.ts`.
+  - `prompt_held` with `waits`: `setup`, `claude_code`, `git`, `claude_sign_in`, `chatgpt_sign_in`, `chatgpt_model` or `key`, from `ACCESS_WAITS` in `submit-prompt.command.ts`.
     An automated prompt sends nothing.
   - `setup_step` with `step`, `outcome` and `seconds`, for the eleven renderer commands in `SETUP_STEPS` in `src/lib/app/platform/usage-steps.ts`, from `repositories.pick-folder` to `chat.send-prompt`.
     A failure adds `error`, `stage` and `code`, as 0218's tool counts do, and a skipped dependency install adds `reason`.

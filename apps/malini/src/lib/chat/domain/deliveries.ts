@@ -1,6 +1,10 @@
 import type { WorkstreamReport, WorkstreamReportMedia } from '$contract/deliveries';
 import { backgroundCommandsPhrase } from './background-work';
-import { workstreamImagePath } from '$contract/workstream-images';
+import {
+	forwardSlashed,
+	isAbsoluteFilePath,
+	workstreamImagePath,
+} from '$contract/workstream-images';
 import { parseTurnReport, type TurnReport } from './turn-report';
 import { variantLabel } from './variant-pick';
 
@@ -140,7 +144,9 @@ export function reportForStarter(summary: string, checkout: string): string {
 		/(!\[[^\]\n]*\]\(\s*<?)([^)\s>]+)/gu,
 		(whole, opening: string, src: string) => {
 			const path = workstreamImagePath(src);
-			return path === null || path.startsWith('/') ? whole : `${opening}${checkout}/${src}`;
+			return path === null || isAbsoluteFilePath(path)
+				? whole
+				: `${opening}${forwardSlashed(checkout)}/${src}`;
 		},
 	);
 	if (absolute.length <= REPORT_BODY_CHARS) return absolute;

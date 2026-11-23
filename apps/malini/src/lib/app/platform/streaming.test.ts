@@ -15,18 +15,49 @@ const STREAMING = `${QUIET}\n/Applications/OBS.app/Contents/MacOS/OBS\n`;
 
 describe('streaming detection', () => {
 	it('recognizes a running streaming app by its bundle, not by a similar name', () => {
-		expect(streamingAppRunning(QUIET)).toBe(false);
-		expect(streamingAppRunning(STREAMING)).toBe(true);
+		expect(streamingAppRunning(QUIET, 'darwin')).toBe(false);
+		expect(streamingAppRunning(STREAMING, 'darwin')).toBe(true);
 		expect(
-			streamingAppRunning('/Applications/Streamlabs Desktop.app/Contents/MacOS/Streamlabs Desktop'),
+			streamingAppRunning(
+				'/Applications/Streamlabs Desktop.app/Contents/MacOS/Streamlabs Desktop',
+				'darwin',
+			),
 		).toBe(true);
 	});
 
-	it('looks only under a root when one is given', () => {
-		expect(streamingAppRunning(STREAMING, '/tmp/e2e-a')).toBe(false);
+	it('recognizes a running streaming app by its program on Linux and Windows', () => {
+		expect(streamingAppRunning('systemd\nobsidian\nnotes-obs\n', 'linux')).toBe(false);
+		expect(streamingAppRunning('systemd\nobs\n', 'linux')).toBe(true);
+		expect(streamingAppRunning(tasks('explorer.exe', 'Obsidian.exe'), 'win32')).toBe(false);
+		expect(streamingAppRunning(tasks('explorer.exe', 'obs64.exe'), 'win32')).toBe(true);
+		expect(streamingAppRunning(tasks('Streamlabs OBS.exe'), 'win32')).toBe(true);
+		expect(streamingAppRunning(tasks('vMix64.exe'), 'win32')).toBe(true);
+	});
+
+	it('looks only for the apps it is given', () => {
+		expect(streamingAppRunning(STREAMING, 'darwin', ['e2e4242'])).toBe(false);
 		expect(
-			streamingAppRunning(`${QUIET}\n/tmp/e2e-a/OBS.app/Contents/MacOS/OBS`, '/tmp/e2e-a'),
+			streamingAppRunning(`${QUIET}\n/tmp/e2e-a/e2e4242.app/Contents/MacOS/sleep`, 'darwin', [
+				'e2e4242',
+			]),
 		).toBe(true);
+	});
+
+	it('lists Windows programs with tasklist and probes no screen', async () => {
+		const context = createTestContext('/unused');
+		const runner = new ScriptedRunner().onCommand('tasklist.exe', ['/fo', 'csv', '/nh'], {
+			kind: 'exit',
+			code: 0,
+			stdout: tasks('explorer.exe', 'obs64.exe'),
+		});
+		const detector = new StreamingDetector(context, runner, 'win32');
+		await detector.check();
+		expect(runner.spawns.map(({ file }) => file)).toEqual([
+			expect.stringMatching(/\\System32\\tasklist\.exe$/u),
+		]);
+		const reply = await context.commands.invoke({ command: 'app.streaming', args: undefined });
+		expect(reply).toEqual({ ok: true, value: true });
+		context.db.close();
 	});
 
 	it('reports a change once when a streaming app starts and once when it quits', async () => {
@@ -65,8 +96,8 @@ describe('streaming detection', () => {
 		context.db.close();
 	});
 
-	it('ignores screen recording on this Mac while it looks only under a root', async () => {
-		process.env['MALINI_STREAMING_APP_ROOT'] = '/tmp/e2e-a';
+	it('ignores screen recording on this Mac while it looks only for the apps it is given', async () => {
+		process.env['MALINI_STREAMING_APPS'] = 'e2e4242';
 		try {
 			const { context, detector, probe, streaming } = startDetector();
 			probe.stdout = 'true\n';
@@ -74,10 +105,16 @@ describe('streaming detection', () => {
 			expect(await streaming()).toBe(false);
 			context.db.close();
 		} finally {
-			delete process.env['MALINI_STREAMING_APP_ROOT'];
+			delete process.env['MALINI_STREAMING_APPS'];
 		}
 	});
 });
+
+function tasks(...images: string[]): string {
+	return images
+		.map((image, index) => `"${image}","${index + 4}","Console","1","10,240 K"`)
+		.join('\r\n');
+}
 
 function startDetector() {
 	const context = createTestContext('/unused');
@@ -86,6 +123,7 @@ function startDetector() {
 	const detector = new StreamingDetector(
 		context,
 		new ScriptedRunner().onCommand('ps', [], listing).onCommand('osascript', [], probe),
+		'darwin',
 	);
 	const changes: boolean[] = [];
 	context.events.subscribe(APP_STREAMING_CHANGED_CHANNEL, ({ streaming }) => {

@@ -1,7 +1,12 @@
+import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
+import { enqueuePromptCommand } from '$lib/chat/application/commands/enqueue-prompt.command';
 import type { ChatRequestId } from '$lib/chat/domain/chat-request';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import { buildImplementationHandoffPrompt } from '$lib/chat/domain/plan-implementation-handoff';
+import { promptDispatchStage } from '$lib/chat/domain/prompt-dispatch-error';
+import { classifyPromptDispatchFailure } from '$lib/chat/domain/prompt-dispatch-failure';
+import type { PromptTurn } from '$lib/chat/domain/prompt-submission';
 import type { SessionId } from '$lib/chat/domain/session';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { rememberNewChatSetup } from '$lib/chat/infrastructure/services/model-preferences.storage';
@@ -77,9 +82,10 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 		setup,
 		activate: true,
 	});
-	await promptDelivery.dispatch({
+	const turn = {
 		workstreamId,
 		sessionId,
+		forceFreshSession: false,
 		prompt: handoffPrompt,
 		role: 'implementation',
 		provider: selection.provider,
@@ -90,7 +96,18 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 		transcriptReferences: [],
 		elementReferences: [],
 		automated: true,
-	});
+	} satisfies PromptTurn;
+	try {
+		await promptDelivery.dispatch({ ...turn, sessionId });
+	} catch (error) {
+		const failure = classifyPromptDispatchFailure({
+			stage: promptDispatchStage(error),
+			message: errorMessage(error, ''),
+		});
+		if (failure !== 'already-running' && failure !== 'cancel-race') throw error;
+		enqueuePromptCommand(turn);
+		drainPromptQueueCommand(workstreamId);
+	}
 }
 
 function findLastEnvelope(

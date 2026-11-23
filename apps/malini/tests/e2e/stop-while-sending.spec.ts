@@ -82,7 +82,7 @@ test('a prompt typed during a run queues on Enter and steers past the queue on â
 		await expect(submit).toHaveAccessibleName('Stop current run');
 
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 
 		await expect
 			.poll(userMessages, { timeout: 20_000 })

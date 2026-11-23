@@ -6,6 +6,7 @@ import type {
 	CloseGuardArgs,
 	NotifyArgs,
 	OpenExternalUrlArgs,
+	PressWindowControlArgs,
 	SecretKeyArgs,
 	SetClipboardImageArgs,
 	SetClipboardTextArgs,
@@ -24,6 +25,7 @@ import type { DockerOwnership } from '$main/docker/ownership';
 import { DockerCliReaper, type ContainerReaper } from '$main/docker/reclaim';
 import { currentEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
+import { osFor } from '$shared/os/os.platform';
 import type { AppPlatform } from '../app.platform';
 import {
 	ConfirmedShutdown,
@@ -40,13 +42,14 @@ import { RendererSecretStore } from './secrets';
 import { applicationMenu } from './menu';
 import { readProblemReport, reportProblem } from './problem-report';
 import { getSetting, listSettings, setSetting } from './settings.repository';
-import { createElectronShellHost, type ShellHost } from './shell-host';
+import { createElectronShellHost, type ShellHost, type TrayItem } from './shell-host';
 import { StreamingDetector } from './streaming';
 import { startUpdates } from './updates';
 import { startUsageData } from './usage-data';
 import { readUsageReport } from './usage-report';
 import { isUsageStep } from './usage-steps';
 import { createWindowCommands, type WindowCommands } from './window';
+import { defineWindowControlsCommands } from './window-controls';
 import { lidTools, startLidHold } from './lid-hold';
 
 export interface AppDeps {
@@ -60,6 +63,7 @@ export interface AppDeps {
 	readonly usageAccount?: () => Promise<string | null>;
 	readonly profilePublished?: () => boolean;
 	readonly freshInstall?: boolean;
+	readonly platform?: NodeJS.Platform;
 }
 
 export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
@@ -86,7 +90,9 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		context,
 		deps.runner ?? createNodeProcessRunner(),
 		lidTools(!context.isDev, process.env),
+		deps.platform ?? process.platform,
 	);
+	context.commands.define('app.lid-hold', () => lid.state());
 	context.commands.define('app.hold-lid', (args: unknown) => lid.hold(requireBoolean(args, 'on')));
 	const showMenu = (update: MenuItemConstructorOptions | null): void =>
 		host.showApplicationMenu(
@@ -202,28 +208,23 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		events,
 		appDataRoot: context.appDataRoot,
 	});
+	defineWindowControlsCommands(commands, () => deps.getMainWindow());
 	commands.define('app.focus-window', () => window.focusMainWindow());
 	commands.define('app.interface-scale', (args: SetInterfaceScaleArgs) =>
 		window.setInterfaceScale(args),
 	);
 	commands.define('app.logical-viewport', () => window.logicalViewport());
 	commands.define('app.full-screen', () => window.isFullScreen());
+	commands.define('app.window-controls', () => window.windowControls());
+	commands.define('app.press-window-control', (args: PressWindowControlArgs) =>
+		window.pressWindowControl(args),
+	);
 	commands.define('app.close-guard', (args: CloseGuardArgs) => window.setCloseGuard(args));
 	commands.define('app.destroy-window', () => window.destroy());
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));
 	commands.define('app.take-notification-target', () => window.takeNotificationTarget());
 	commands.define('app.take-menu-command', () => window.takeMenuCommand());
-	host.showTray(
-		join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'),
-		[
-			{ label: 'Open Folder…', click: () => window.chooseMenuCommand('open-folder') },
-			{ label: 'Find Repository…', click: () => window.chooseMenuCommand('find-repository') },
-			{ type: 'separator' },
-			{ label: 'Accounts…', click: () => window.chooseMenuCommand('accounts') },
-			{ label: 'Settings…', click: () => window.chooseMenuCommand('settings') },
-		],
-		() => window.focusMainWindow(),
-	);
+	showTray(context, host, window, deps.platform ?? process.platform);
 	commands.define('app.unread-chats', (args: UnreadChatsArgs) =>
 		host.showTrayCount(unreadCount(args?.count)),
 	);
@@ -235,6 +236,43 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		window.requestNotificationPermission(),
 	);
 	return window;
+}
+
+const TRAY_ICONS: Partial<Record<NodeJS.Platform, string>> = {
+	darwin: 'trayTemplate.png',
+	win32: 'tray.ico',
+};
+
+function showTray(
+	context: MainContext,
+	host: ShellHost,
+	window: WindowCommands,
+	platform: NodeJS.Platform,
+): void {
+	const icon = join(context.resourcesRoot, 'build', 'tray', TRAY_ICONS[platform] ?? 'tray.png');
+	const shortcuts: TrayItem[] = [
+		{ label: 'Open Folder…', click: () => window.chooseMenuCommand('open-folder') },
+		{ label: 'Find Repository…', click: () => window.chooseMenuCommand('find-repository') },
+		{ type: 'separator' },
+		{ label: 'Accounts…', click: () => window.chooseMenuCommand('accounts') },
+		{ label: 'Settings…', click: () => window.chooseMenuCommand('settings') },
+	];
+	const open = (): void => window.focusMainWindow();
+	if (platform === 'darwin') {
+		host.showTray(icon, shortcuts, open);
+		return;
+	}
+	host.showTray(
+		icon,
+		[
+			{ label: `Open ${host.productName}`, click: open },
+			{ type: 'separator' },
+			...shortcuts,
+			{ type: 'separator' },
+			{ label: `${osFor(platform).quit} ${host.productName}`, role: 'quit' },
+		],
+		open,
+	);
 }
 
 function defineSettingsCommands(context: MainContext): void {

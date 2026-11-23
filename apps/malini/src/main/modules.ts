@@ -220,6 +220,7 @@ export async function registerModules(
 			await chat.deliver({ ...wake, kind: 'report' });
 		},
 		brainWorkstream: () => brain.workstream(),
+		leases: agentRunLeases,
 	});
 	const brain = registerBrain(context, {
 		gh: repositories.gh,
@@ -250,7 +251,7 @@ export async function registerModules(
 			automations.dispose();
 			brain.dispose();
 			widgets.dispose();
-			repositories.watchers.dispose();
+			await repositories.watchers.dispose();
 			repositories.checkoutHealth.dispose();
 			const overlapsSettled = repositories.overlaps.dispose();
 			repositories.cancelGitHubSignIn();

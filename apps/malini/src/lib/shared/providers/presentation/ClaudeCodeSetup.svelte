@@ -2,13 +2,13 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { onMount } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
-	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { DownloadProgress } from '$hyper-ui/components/download-progress';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, ClaudeIcon, Icon } from '$hyper-ui/icons';
+	import { osQuery } from '$shared/os/os.api';
 	import { claudeSignInProgress } from '$shared/providers/domain/claude-accounts';
 	import { setupStepFor, type ClaudeCodeStatus } from '$shared/providers/domain/claude-code-status';
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
@@ -38,6 +38,7 @@
 	const checkingAgain = $derived(checkingClaudeCodeAgainQuery.data);
 	const setupStep = $derived(setupStepFor(status));
 	const install = $derived(claudeCodeInstallQuery.data);
+	const installCommand = $derived(osQuery.data.claudeInstallCommand);
 	const download = $derived(
 		setupStep === 'install' && install.kind === 'installing' ? install.progress : null,
 	);
@@ -56,7 +57,8 @@
 	function installedDetail(current: ClaudeCodeStatus): string {
 		const version = current.kind === 'ready' ? current.version : null;
 		if (failedUpdate) return failedUpdateDetail(version, failedUpdate.version);
-		return version ? `Installed on this Mac · v${version}` : 'Installed on this Mac';
+		const installed = `Installed on this ${osQuery.data.machine}`;
+		return version ? `${installed} · v${version}` : installed;
 	}
 
 	function failedUpdateDetail(from: string | null, to: string | null): string {
@@ -92,12 +94,12 @@
 			case 'failed':
 				return install.message;
 			case 'idle':
-				return 'Not installed on this Mac yet.';
+				return `Not installed on this ${osQuery.data.machine} yet.`;
 		}
 	}
 
 	function onCopy(): void {
-		copyClaudeInstallCommandCommand();
+		copyClaudeInstallCommandCommand(installCommand);
 		copied = true;
 		clearTimeout(copiedTimer);
 		copiedTimer = setTimeout(() => (copied = false), 1_500);
@@ -257,7 +259,7 @@
 			>
 				<code class="text-fg-secondary min-w-0 flex-1 truncate font-mono text-xs">
 					<span class="text-fg-tertiary select-none">$</span>
-					<CodeTokens code={CLAUDE_INSTALL_COMMAND} language="shell" />
+					<CodeTokens code={installCommand} language="shell" />
 				</code>
 				<Tooltip content={copied ? 'Copied' : 'Copy command'} placement="top">
 					<IconButton
@@ -276,7 +278,7 @@
 				</Tooltip>
 			</div>
 			<p class="text-fg-tertiary mt-2 text-xs leading-5">
-				Or run this in Terminal. Malini notices when it’s done.
+				Or run this in {osQuery.data.terminal}. Malini notices when it’s done.
 			</p>
 		{:else if setupStep === 'sign-in' && signIn === 'idle'}
 			<p class="text-fg-tertiary mt-2 text-xs leading-5">

@@ -232,6 +232,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'interface InstallProgressPayload {\n\treceived: number;\n\ttotal: number | null;\n}',
 		},
 		{
+			channel: 'repositories:git-install-progress',
+			description:
+				'Fires repeatedly while Malini downloads Git for Windows, at launch on a PC where git or Git Bash is missing or its own copy is out of date, or after you press Try again, with the bytes received and the size when known, and once more when the download ends. Malini does not keep it in its event log.',
+			facts: ['received', 'total'],
+			payloadType: 'InstallProgressPayload',
+			payload:
+				'interface InstallProgressPayload {\n\treceived: number;\n\ttotal: number | null;\n}',
+		},
+		{
 			channel: 'repositories:changed',
 			description:
 				'Fires when a repository is added, cloned, hidden or shown again, or origin renames its default branch, so every list of repositories and workstreams reloads.',
@@ -261,6 +270,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			channel: 'providers:claude-code-install-progress',
 			description:
 				'Fires repeatedly while Malini downloads Claude Code after you press Install, with the bytes received and the size, and once more when the download ends. Malini does not keep it in its event log.',
+			facts: ['received', 'total'],
+			payloadType: 'InstallProgressPayload',
+			payload:
+				'interface InstallProgressPayload {\n\treceived: number;\n\ttotal: number | null;\n}',
+		},
+		{
+			channel: 'providers:sandbox-setup-progress',
+			description:
+				'Fires repeatedly while Malini sets up its sandbox on Windows after you press Set up, with how many tool folders in your profile it has made readable and how many there are. Malini does not keep it in its event log.',
 			facts: ['received', 'total'],
 			payloadType: 'InstallProgressPayload',
 			payload:
@@ -542,7 +560,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'automations:time-reached',
 			description:
-				"Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation has a run that has not finished; a run its schedule started that waits for your yes gives way to the new one. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again or a draft's checks watch ran out, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
+				"Fires when the time an automation's schedule names comes, with the automation, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the {machine} slept or Malini was closed. The reconciler's Schedules rule starts the automation on it, unless the automation has a run that has not finished; a run its schedule started that waits for your yes gives way to the new one. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed or when a step Malini took brought no event back, `checks` once a fix had a minute for its failing checks to run again or a draft's checks watch ran out, `idle` once the workstream's agent has been idle long enough to act; `causeEventId` names the event whose decision set the wait. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
 			facts: ['definitionId', 'name', 'when', 'due'],
 			payloadType: 'TimeReachedEvent',
 			payload:
@@ -581,6 +599,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type FullScreenChangedPayload = Readonly<{ fullScreen: boolean }>;',
 		},
 		{
+			channel: 'app:window-controls-changed',
+			description:
+				'Fires when the Malini window gains or loses focus, or is maximized or restored, so the window controls Malini draws on Windows and Linux follow it. Malini does not keep it in its event log.',
+			facts: ['focused', 'maximized'],
+			payloadType: 'WindowControlsState',
+			payload: 'type WindowControlsState = Readonly<{ focused: boolean; maximized: boolean }>;',
+		},
+		{
 			channel: 'app:notification-opened',
 			description: 'Fires when you click a Malini notification, with the chat it points to.',
 			facts: ['workstreamId', 'sessionId'],
@@ -590,7 +616,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'app:menu-command-chosen',
 			description:
-				"Fires when you pick New Workstream, New Chat, Reopen Closed Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+				"Fires when you pick New Workstream, New Chat, Reopen Closed Chat, Open Folder…, Find Repository…, Accounts… or Settings… from Malini's {menu} or its {tray} icon, with which one you picked.",
 			facts: ['command'],
 			payloadType: 'MenuCommandChosen',
 			payload:

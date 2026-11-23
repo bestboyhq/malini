@@ -1,10 +1,15 @@
 class LidHoldStore {
 	on = $state<boolean | null>(null);
+	available = $state(true);
 	asking = $state(false);
 	refused = $state(false);
 
 	set(on: boolean | null): void {
 		this.on = on;
+	}
+
+	offer(available: boolean): void {
+		this.available = available;
 	}
 
 	ask(asking: boolean): void {

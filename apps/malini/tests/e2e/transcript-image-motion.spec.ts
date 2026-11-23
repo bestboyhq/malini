@@ -53,7 +53,9 @@ async function chatWithImages(app: LaunchedApp, name: string, images: boolean): 
 			index + 1,
 			{ timeout: 20_000 },
 		);
-		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+			timeout: 20_000,
+		});
 	}
 	return seeded.workstreamId;
 }

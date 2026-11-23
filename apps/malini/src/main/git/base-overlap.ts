@@ -77,12 +77,14 @@ export async function baseOverlap(
 			overlappingPaths: [],
 		};
 	}
-	const [mine, theirs, conflictedPaths, behind] = await Promise.all([
+	const reads = [
 		changedPaths(worktreePath, forkPoint, head),
 		changedPaths(worktreePath, forkPoint, baseHead),
 		mergeConflicts(worktreePath, head, baseHead),
 		countBehind(),
-	]);
+	] as const;
+	await Promise.allSettled(reads);
+	const [mine, theirs, conflictedPaths, behind] = await Promise.all(reads);
 	const changedOnBase = new Set(theirs);
 	const conflicted = new Set(conflictedPaths);
 	const changedOnBoth = mine.filter(

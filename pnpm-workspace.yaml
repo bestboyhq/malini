@@ -41,6 +41,7 @@ allowBuilds:
   electron: true
   esbuild: true
   electron-winstaller: false
+  node-pty: true
 
 # The bridge always hands the SDK the user's own `claude`, so its bundled binaries are unused.
 overrides:

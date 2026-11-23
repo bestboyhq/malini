@@ -254,6 +254,13 @@ importers:
         version: 0.8.1(prettier-plugin-svelte@4.1.1(prettier@3.9.6)(svelte@5.57.0(@typescript-eslint/types@8.70.0)))(prettier@3.9.6)
 
   apps/malini:
+    dependencies:
+      '@xterm/headless':
+        specifier: ^6.0.0
+        version: 6.0.0
+      node-pty:
+        specifier: ^1.2.0-beta.18
+        version: 1.2.0-beta.18
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^1.4.0
@@ -520,6 +527,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.290
         version: 0.3.290(@anthropic-ai/sdk@1.4.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.32.0(supports-color@7.2.0)(zod@4.6.5))(zod@4.6.5)
+      '@anthropic-ai/sandbox-runtime':
+        specifier: 0.0.83
+        version: 0.0.83
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -637,6 +647,16 @@ packages:
       '@anthropic-ai/sdk': '>=0.93.0'
       '@modelcontextprotocol/sdk': ^1.29.0
       zod: ^4.0.0
+
+  '@anthropic-ai/sandbox-runtime@0.0.83':
+    resolution: {integrity: sha512-yEusORnVJrNseF/9fvjVYyk6tr79/aFbIB3T/X8p2puLZdaaiGNeYN50v0CE+1DT70v7XuzKOAnTivh1f5cksA==}
+    engines: {node: '>=22.12.0'}
+    hasBin: true
+    peerDependencies:
+      '@microsoft/mxc-sdk': ^1.0.1
+    peerDependenciesMeta:
+      '@microsoft/mxc-sdk':
+        optional: true
 
   '@anthropic-ai/sdk@1.4.0':
     resolution: {integrity: sha512-tyuibnhQL57kLOx5oomY4Ld7jOVOPNC5v3IiyRtR3l+Friv66tI4VbuZYF2NMel/T0WMuQMBFOMKDBUbUh8gPA==}
@@ -1343,6 +1363,9 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
+  '@pondwader/socks5-server@1.0.10':
+    resolution: {integrity: sha512-bQY06wzzR8D2+vVCUoBsr5QS2U6UgPUQRmErNwtsuI6vLcyRKkafjkr3KxbtGFf9aBBIV2mcvlsKD1UYaIV+sg==}
+
   '@rollup/rollup-android-arm-eabi@4.63.3':
     resolution: {integrity: sha512-w3Jnvi1ocaVm/c7yVPpfB98XeSRBMyzp6njL5MVVbGyXjpmUkN+s6Hp4t0PqhGCCaI1ZHMKXt/w0lA1RCaLVcw==}
     cpu: [arm]
@@ -1891,6 +1914,9 @@ packages:
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
 
+  '@xterm/headless@6.0.0':
+    resolution: {integrity: sha512-5Yj1QINYCyzrZtf8OFIHi47iQtI+0qYFPHmouEfG8dHNxbZ9Tb9YGSuLcsEwj9Z+OL75GJqPyJbyoFer80a2Hw==}
+
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
     engines: {node: ^20.17.0 || >=22.9.0}
@@ -2130,6 +2156,10 @@ packages:
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
+
+  commander@12.1.0:
+    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
 
   commander@5.1.0:
     resolution: {integrity: sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==}
@@ -3118,8 +3148,15 @@ packages:
     resolution: {integrity: sha512-ymk4aIzxdPopw2giv8Fs1Ec6vybGkjmyxUwVqhkI4MCy2tVfXdkOGGWieWVjL0THgH+7a8lRdevyupoYj3Js/Q==}
     engines: {node: '>=22.12.0'}
 
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
+
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
+
+  node-forge@1.4.3:
+    resolution: {integrity: sha512-P6wzfh6t70avmV8FrVEAd/36sOPJQ+hkaJVX1Laap9J/77m7M0eyozDvc8SwnDf4P7MP94gwbAAo0rg3YVXT+g==}
+    engines: {node: '>= 6.13.0'}
 
   node-gyp@12.4.0:
     resolution: {integrity: sha512-OMcPNvqTCFUnNaBlmdgq+lfNqY7gTiSmNRDjY3uAXRyudeKZEZxu3CLtjMQrx4zZxCX2b/mpNqTtwuCJgXhHkw==}
@@ -3128,6 +3165,9 @@ packages:
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
+
+  node-pty@1.2.0-beta.18:
+    resolution: {integrity: sha512-3Rej3788OnasAwoSmTZhlCeUraJ9CQldtL5b571b9+3Nv47+PaxA5VPIGOOs+16OYQePTrC1Lrs8a9/df5WPRg==}
 
   node-releases@2.0.55:
     resolution: {integrity: sha512-mIrE/Cw9y+9Au6dS5vDKDhQza9YvG6w+ZrS6X+ZzA7yFW/soAeaups4Qzn1bL6g5FVy8WtP79+0j82oPIbqRjQ==}
@@ -4078,6 +4118,9 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
@@ -4091,6 +4134,13 @@ snapshots:
       '@anthropic-ai/sdk': 1.4.0(zod@4.6.5)
       '@modelcontextprotocol/sdk': 1.32.0(supports-color@7.2.0)(zod@4.6.5)
       zod: 4.6.5
+
+  '@anthropic-ai/sandbox-runtime@0.0.83':
+    dependencies:
+      '@pondwader/socks5-server': 1.0.10
+      commander: 12.1.0
+      node-forge: 1.4.3
+      zod: 3.25.76
 
   '@anthropic-ai/sdk@1.4.0(zod@4.6.5)':
     dependencies:
@@ -4733,6 +4783,8 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
+  '@pondwader/socks5-server@1.0.10': {}
+
   '@rollup/rollup-android-arm-eabi@4.63.3':
     optional: true
 
@@ -5229,6 +5281,8 @@ snapshots:
 
   '@xmldom/xmldom@0.8.15': {}
 
+  '@xterm/headless@6.0.0': {}
+
   abbrev@4.0.0: {}
 
   accepts@2.0.0:
@@ -5508,6 +5562,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   comma-separated-tokens@2.0.3: {}
+
+  commander@12.1.0: {}
 
   commander@5.1.0: {}
 
@@ -6594,9 +6650,13 @@ snapshots:
     dependencies:
       semver: 7.8.5
 
+  node-addon-api@7.1.1: {}
+
   node-api-version@0.2.1:
     dependencies:
       semver: 7.8.5
+
+  node-forge@1.4.3: {}
 
   node-gyp@12.4.0:
     dependencies:
@@ -6612,6 +6672,10 @@ snapshots:
       which: 6.0.1
 
   node-int64@0.4.0: {}
+
+  node-pty@1.2.0-beta.18:
+    dependencies:
+      node-addon-api: 7.1.1
 
   node-releases@2.0.55: {}
 
@@ -7517,6 +7581,8 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
       zod: 4.6.5
+
+  zod@3.25.76: {}
 
   zod@4.6.5: {}
 

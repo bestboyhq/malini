@@ -21,6 +21,7 @@ export class PullRequestStateAggregate {
 	stateByWorkstream = $state<Record<string, PullRequestState>>({});
 	loadingByWorkstream = $state<Record<string, boolean>>({});
 	lastErrorByWorkstream = $state<Record<string, string | null>>({});
+	readHeadByWorkstream = $state<Record<string, string | null>>({});
 
 	#targets = new Map<string, PullRequestTarget>();
 	#requestRevision = new Map<string, number>();
@@ -39,6 +40,10 @@ export class PullRequestStateAggregate {
 
 	stateFor(workstreamId: string): PullRequestState {
 		return this.stateByWorkstream[workstreamId] ?? 'unknown';
+	}
+
+	readHeadFor(workstreamId: string): string | null {
+		return this.readHeadByWorkstream[workstreamId] ?? null;
 	}
 
 	track(workstreams: readonly PullRequestTarget[]): Promise<void> {
@@ -93,7 +98,10 @@ export class PullRequestStateAggregate {
 		return this.#startBatch([workstreamId]);
 	}
 
-	observe(workstreamId: string, state: PullRequestState): void {
+	observe(workstreamId: string, state: PullRequestState, headSha: string | null = null): void {
+		if (this.readHeadByWorkstream[workstreamId] !== headSha) {
+			this.readHeadByWorkstream = { ...this.readHeadByWorkstream, [workstreamId]: headSha };
+		}
 		if (!this.#targets.has(workstreamId)) return;
 		this.#invalidate(workstreamId);
 		if (
@@ -135,6 +143,7 @@ export class PullRequestStateAggregate {
 		this.stateByWorkstream = {};
 		this.loadingByWorkstream = {};
 		this.lastErrorByWorkstream = {};
+		this.readHeadByWorkstream = {};
 	}
 
 	async #refreshMany(workstreamIds: readonly string[]): Promise<void> {

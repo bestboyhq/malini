@@ -130,9 +130,9 @@ export function agoLabel(at: string, now: number): string {
 	return RELATIVE_FORMAT.format(-Math.floor(elapsed / DAY_MS), 'day');
 }
 
-export function brainSyncLine(sync: BrainSync, now: number): string {
+export function brainSyncLine(sync: BrainSync, now: number, machine: string): string {
 	if (sync.kind === 'problem') return sync.problem;
-	if (sync.kind === 'local') return 'On this Mac';
+	if (sync.kind === 'local') return `On this ${machine}`;
 	if (sync.kind === 'waiting') {
 		return sync.unpushed === 1 ? '1 change waits to push' : `${sync.unpushed} changes wait to push`;
 	}

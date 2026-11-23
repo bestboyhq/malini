@@ -8,6 +8,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 } from './harness';
+import { osFor } from '../../src/lib/shared/os/domain/os';
 
 test('a workstream row opens its own actions on right click, and deleting one leaves only if it was open', async () => {
 	test.setTimeout(120_000);
@@ -28,7 +29,7 @@ test('a workstream row opens its own actions on right click, and deleting one le
 		await row(other.workstreamId).click({ button: 'right' });
 		await expect(menu.getByRole('menuitem')).toHaveText([
 			'Open in editor',
-			'Reveal in Finder',
+			osFor(process.platform).reveal,
 			'Delete workstream',
 		]);
 		await expect(row(open.workstreamId)).toHaveAttribute('aria-current', 'page');

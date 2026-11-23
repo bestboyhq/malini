@@ -131,6 +131,9 @@ test("a reply to Claude Code's own follow-up turn leaves the report as the resul
 		await expect
 			.poll(() => github.pushedSubjects(), { timeout: 30_000 })
 			.toEqual(['fix: keep the report', 'seed']);
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 60_000,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

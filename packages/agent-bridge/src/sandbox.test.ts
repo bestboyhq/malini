@@ -1,25 +1,27 @@
-import { execFile, execFileSync } from 'node:child_process';
-import { globSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { execFile, execFileSync, spawn } from 'node:child_process';
+import { globSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import {
 	canSandbox,
 	grantProblem,
 	isHarmlessDenial,
 	sandboxDenial,
+	sandboxDenialsIn,
 	sandboxedCommand,
 	sandboxGrant,
-	sandboxProfile,
 	toolStateGrant,
 	type SandboxDenial,
 	type SandboxPlaces,
 } from './sandbox.js';
 import { SandboxDenials } from './sandbox-denials.js';
 
+const DARWIN = process.platform === 'darwin';
+const LINUX = process.platform === 'linux';
 const ROOT = mkdtempSync(join(tmpdir(), 'malini-sandbox-test-'));
 const CHECKOUT = join(ROOT, 'checkout');
 const IN_HOME = join(homedir(), `.malini-sandbox-test-${process.pid}`);
@@ -36,7 +38,7 @@ const HEADLESS_CHROMIUM = globSync('chromium_headless_shell-*/*/chrome-headless-
 	.at(-1);
 
 mkdirSync(CHECKOUT);
-if (canSandbox()) {
+if (canSandbox() && DARWIN) {
 	mkdirSync(join(FAKE_HOME, 'Documents'), { recursive: true });
 	mkdirSync(join(FAKE_HOME, 'Library/LaunchAgents'), { recursive: true });
 	mkdirSync(join(FAKE_HOME, '.ssh'), { recursive: true });
@@ -63,9 +65,10 @@ function runInside(
 	places: Partial<SandboxPlaces> = {},
 ): Promise<number> {
 	const [file, args] = sandboxedCommand(
-		sandboxProfile({ checkout: CHECKOUT, hidden: [], internet: false, ...places }, home),
+		{ checkout: CHECKOUT, hidden: [], internet: false, ...places },
 		'/bin/bash',
 		['-c', command],
+		home,
 	);
 	return new Promise((resolve) => {
 		execFile(file, args, { cwd: CHECKOUT }, (error) =>
@@ -74,7 +77,7 @@ function runInside(
 	});
 }
 
-describe.runIf(canSandbox())('sandboxProfile', () => {
+describe.runIf(canSandbox() && DARWIN)('sandboxProfile', () => {
 	it('lets a command change the checkout and its git index', async () => {
 		expect(await inside('echo hi > notes.txt && git add notes.txt && mkdir -p .cache/x')).toBe(0);
 	});
@@ -94,6 +97,7 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		['the pnpm home', `touch '${IN_PNPM_HOME}'`],
 		['a git hook', 'touch .git/hooks/pre-commit'],
 		['the git config', 'git config core.hooksPath /tmp'],
+		['the git common dir', 'printf x > .git/commondir'],
 		["Claude Code's settings", 'mkdir -p .claude && touch .claude/settings.json'],
 		['the MCP servers', 'touch .mcp.json'],
 	])('keeps a command from writing %s', async (_place, command) => {
@@ -118,7 +122,7 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 	});
 
 	it('leaves a process that already runs in a sandbox to that sandbox', async () => {
-		const module = pathToFileURL(join(import.meta.dirname, 'sandbox.ts')).href;
+		const module = pathToFileURL(join(import.meta.dirname, '..', 'dist', 'sandbox.js')).href;
 		const probe = `node --input-type=module -e "import { canSandbox } from '${module}'; process.exit(canSandbox() ? 3 : 4)"`;
 
 		expect(await inside(probe)).toBe(4);
@@ -200,18 +204,10 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 		const tag = `malini-sandbox-test${process.pid}`;
 		const denials = new SandboxDenials();
 		const seen: SandboxDenial[] = [];
-		const blocked = new Promise<void>((resolve) => {
-			const unwatch = denials.watch(tag, (denial) => {
-				seen.push(denial);
-				unwatch();
-				resolve();
-			});
-		});
-		const release = await denials.hold();
-		onTestFinished(release);
+		onTestFinished(denials.watch(tag, (denial) => seen.push(denial)));
+		onTestFinished(await denials.hold());
 
-		await inside(`touch ${IN_HOME}`, { tag });
-		await blocked;
+		while (seen.length === 0) await inside(`touch ${IN_HOME}`, { tag });
 
 		expect(seen[0]).toMatchObject({ tag, operation: 'file-write-create', target: IN_HOME });
 	}, 10_000);
@@ -243,14 +239,134 @@ describe.runIf(canSandbox())('sandboxProfile', () => {
 				`/usr/bin/python3 -c "import socket; s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM); s.connect('/private/var/run/syslog'); s.send(b'<13>malini sandbox test')"`,
 			),
 		).toBe(0);
-	});
+	}, 30_000);
 
 	it('keeps a command off the internet when the internet is off', async () => {
 		expect(await inside('/usr/bin/nc -z -G 2 1.1.1.1 443')).not.toBe(0);
 	});
 });
 
-describe('sandbox grants', () => {
+describe.runIf(canSandbox() && LINUX)('bubblewrap', () => {
+	const LINUX_HOME = join(homedir(), `.malini-sandbox-test-linux-${process.pid}`);
+	const CLOSED = join(LINUX_HOME, '.ssh');
+	const DOCUMENT = join(LINUX_HOME, 'Documents/private.txt');
+	const run = (command: string, places: Partial<SandboxPlaces> = {}) =>
+		runInside(command, LINUX_HOME, places);
+
+	afterAll(() => rm(LINUX_HOME, { recursive: true, force: true }));
+
+	beforeAll(() => {
+		mkdirSync(join(LINUX_HOME, 'Documents'), { recursive: true });
+		mkdirSync(CLOSED, { recursive: true });
+		writeFileSync(DOCUMENT, 'private');
+		writeFileSync(join(CLOSED, 'id_ed25519'), 'key');
+		writeFileSync(join(CHECKOUT, '.git/commondir'), '.\n');
+	});
+
+	it('lets a command read the computer and change the checkout and its git index', async () => {
+		expect(
+			await run('cat /etc/hostname > notes.txt && git add notes.txt && mkdir -p .cache/x'),
+		).toBe(0);
+	});
+
+	it.each([
+		['the home folder', `touch ${join(LINUX_HOME, 'planted')}`],
+		['another folder', 'touch /usr/local/planted'],
+		['a git hook', 'touch .git/hooks/pre-commit'],
+		['the git config', 'git config core.hooksPath /tmp'],
+		['the git common dir', 'printf x > .git/commondir'],
+	])('keeps a command from writing %s', async (_place, command) => {
+		expect(await run(command)).not.toBe(0);
+	});
+
+	it('keeps user data and keys closed to reads and writes', async () => {
+		expect(await run(`cat '${DOCUMENT}'`)).not.toBe(0);
+		expect(await run(`cat '${join(CLOSED, 'id_ed25519')}'`)).not.toBe(0);
+		expect(await run(`touch '${join(CLOSED, 'planted')}'`)).not.toBe(0);
+	});
+
+	it("hides every bridge's secrets folder", async () => {
+		const bridgeSecrets = mkdtempSync(join(tmpdir(), `malini-secrets-${process.pid}-`));
+		onTestFinished(() => rm(bridgeSecrets, { recursive: true, force: true }));
+		writeFileSync(join(bridgeSecrets, 'secrets.sh'), 'TOKEN=1');
+
+		expect(await run(`cat ${join(bridgeSecrets, 'secrets.sh')}`)).not.toBe(0);
+	});
+
+	it('lets a command write to a folder the user allowed, but not its git hooks', async () => {
+		const granted = join(LINUX_HOME, '.granted-state');
+		const grants = [{ kind: 'path', path: granted }] as const;
+		mkdirSync(join(granted, '.git/hooks'), { recursive: true });
+
+		expect(await run(`touch ${granted}/state`)).not.toBe(0);
+		expect(await run(`touch ${granted}/state`, { grants })).toBe(0);
+		expect(await run(`touch ${granted}/.git/hooks/pre-commit`, { grants })).not.toBe(0);
+	});
+
+	it('hides a folder reached through a symlinked parent', async () => {
+		const target = join(LINUX_HOME, '.real/keys');
+		const link = join(LINUX_HOME, 'link');
+		mkdirSync(target, { recursive: true });
+		writeFileSync(join(target, 'id_ed25519'), 'key');
+		symlinkSync(join(LINUX_HOME, '.real'), link);
+		const hidden = [join(link, 'keys')];
+
+		expect(await run('true', { hidden })).toBe(0);
+		expect(await run(`cat '${join(link, 'keys/id_ed25519')}'`, { hidden })).not.toBe(0);
+	});
+
+	it('reaches only the processes of its own sandbox', async () => {
+		const outside = spawn('/bin/sleep', ['30']);
+		onTestFinished(() => void outside.kill('SIGKILL'));
+
+		expect(await run(`kill ${outside.pid}`)).not.toBe(0);
+		expect(outside.killed).toBe(false);
+	});
+
+	it('keeps no key agent, session bus, display server or docker socket', async () => {
+		expect(await run('test -S "${SSH_AUTH_SOCK:-/run/docker.sock}"')).not.toBe(0);
+		expect(await run('test -S "${DBUS_SESSION_BUS_ADDRESS#unix:path=}"')).not.toBe(0);
+		expect(await run('test -S /run/docker.sock -o -S /var/run/docker.sock')).not.toBe(0);
+		expect(await run('test -n "$(ls -A /tmp/.X11-unix)"')).not.toBe(0);
+	});
+
+	it('keeps localhost open with the internet on and closes everything with it off', async () => {
+		const server = createServer((socket) => socket.end('ok'));
+		onTestFinished(() => void server.close());
+		await new Promise<void>((listening) => server.listen(0, '127.0.0.1', listening));
+		const address = server.address();
+		const port = address !== null && typeof address === 'object' ? address.port : 0;
+		const reach = `/bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}'`;
+
+		expect(await run(reach, { internet: true })).toBe(0);
+		expect(await run(reach)).not.toBe(0);
+	});
+
+	it('reads a denied write out of what a command printed', () => {
+		expect(
+			sandboxDenialsIn(
+				[
+					"touch: cannot touch '/home/someone/planted': Read-only file system",
+					'mkdir: cannot create directory \u2018/home/someone/also\u2019: Read-only file system',
+					"Error: EROFS: read-only file system, open '/home/someone/third'",
+					'bash: line 1: /home/someone/planted: Read-only file system',
+					'touch: cannot touch /home/someone/fine: No space left on device',
+				].join('\n'),
+			),
+		).toEqual([
+			{
+				tag: '',
+				process: 'touch',
+				operation: 'file-write-create',
+				target: '/home/someone/planted',
+			},
+			{ tag: '', process: 'mkdir', operation: 'file-write-create', target: '/home/someone/also' },
+			{ tag: '', process: '', operation: 'file-write-create', target: '/home/someone/third' },
+		]);
+	});
+});
+
+describe.skipIf(process.platform === 'win32')('sandbox grants', () => {
 	const home = '/Users/someone';
 	const places = { checkout: `${home}/malini/workstreams/a`, hidden: [`${home}/.private`] };
 	const denial = (operation: string, target: string): SandboxDenial => ({
@@ -294,7 +410,7 @@ describe('sandbox grants', () => {
 			`${home}/Library/Application Support/Google/Chrome for Testing`,
 		],
 	])('offers the folder a tool keeps for %s', (target, path) => {
-		expect(sandboxGrant(denial('file-write-create', target), places, home)).toEqual({
+		expect(sandboxGrant(denial('file-write-create', target), places, home, 'darwin')).toEqual({
 			kind: 'path',
 			path,
 		});
@@ -303,7 +419,7 @@ describe('sandbox grants', () => {
 	it('offers the exact socket a command could not reach', () => {
 		const socket = `${home}/.docker/run/docker.sock`;
 
-		expect(sandboxGrant(denial('network-outbound', socket), places, home)).toEqual({
+		expect(sandboxGrant(denial('network-outbound', socket), places, home, 'darwin')).toEqual({
 			kind: 'socket',
 			path: socket,
 		});
@@ -336,7 +452,7 @@ describe('sandbox grants', () => {
 		['your own program folder', denial('file-write-create', `${home}/.local/bin/planted`)],
 		["Codex's config", denial('file-write-create', `${home}/.codex/config.toml`)],
 	])('offers nothing for %s', (_place, blocked) => {
-		expect(sandboxGrant(blocked, places, home)).toBeNull();
+		expect(sandboxGrant(blocked, places, home, 'darwin')).toBeNull();
 	});
 
 	it.each([
@@ -357,7 +473,7 @@ describe('sandbox grants', () => {
 		['/private/tmp/some-tool/state', 'node', '/private/tmp'],
 	])('opens tool state at %s without asking', (target, process, path) => {
 		expect(
-			toolStateGrant({ ...denial('file-write-create', target), process }, places, home),
+			toolStateGrant({ ...denial('file-write-create', target), process }, places, home, 'darwin'),
 		).toEqual({ kind: 'path', path });
 	});
 
@@ -375,7 +491,7 @@ describe('sandbox grants', () => {
 			{ ...denial('file-write-create', `${home}/Library/LaunchAgents/x.plist`), process: 'x' },
 		],
 	])('opens nothing automatic for %s', (_place, blocked) => {
-		expect(toolStateGrant(blocked, places, home)).toBeNull();
+		expect(toolStateGrant(blocked, places, home, 'darwin')).toBeNull();
 	});
 
 	it('keeps out of the report only what a browser engine looks up and a network call with no address', () => {
@@ -404,9 +520,12 @@ describe('sandbox grants', () => {
 				{ kind: 'path', path: `${home}/Library/Application Support/AddressBook` },
 				places,
 				home,
+				'darwin',
 			),
 		).toBe('holds your files');
-		expect(grantProblem({ kind: 'path', path: `${home}/Documents` }, places, home)).not.toBeNull();
+		expect(
+			grantProblem({ kind: 'path', path: `${home}/Documents` }, places, home, 'darwin'),
+		).not.toBeNull();
 	});
 
 	it('refuses a grant of a folder that holds credentials', () => {
@@ -415,6 +534,7 @@ describe('sandbox grants', () => {
 				{ kind: 'path', path: `${home}/Library/Application Support/Google` },
 				places,
 				home,
+				'darwin',
 			),
 		).toBe('holds credentials');
 	});
@@ -426,11 +546,66 @@ describe('sandbox grants', () => {
 			delete process.env['MALINI_APP_DATA_ROOT'];
 		});
 
-		expect(grantProblem({ kind: 'path', path: appData }, places, home)).toBe(
+		expect(grantProblem({ kind: 'path', path: appData }, places, home, 'darwin')).toBe(
 			"holds Malini's own data",
 		);
-		expect(grantProblem({ kind: 'path', path: `${home}/.cache/x/../y` }, places, home)).toBe(
-			'is not an absolute, normalized path',
-		);
+		expect(
+			grantProblem({ kind: 'path', path: `${home}/.cache/x/../y` }, places, home, 'darwin'),
+		).toBe('is not an absolute, normalized path');
+	});
+});
+
+describe.runIf(process.platform === 'win32')('sandbox grants on Windows', () => {
+	const home = 'C:\\Users\\someone';
+	const places = {
+		checkout: `${home}\\malini\\workstreams\\a`,
+		hidden: [`${home}\\.private`],
+	};
+	const denial = (target: string, process = 'node'): SandboxDenial => ({
+		tag: 'malini-sandbox-1',
+		process,
+		operation: 'file-write-create',
+		target,
+	});
+
+	it('offers the top folder under a drive root', () => {
+		expect(sandboxGrant(denial('D:\\work\\project\\out.txt'), places, home, 'win32')).toEqual({
+			kind: 'path',
+			path: 'D:\\work',
+		});
+	});
+
+	it('offers the folder a tool keeps under AppData', () => {
+		expect(
+			toolStateGrant(
+				denial(`${home}\\AppData\\Roaming\\wrangler\\logs\\today.log`, 'wrangler'),
+				places,
+				home,
+				'win32',
+			),
+		).toEqual({ kind: 'path', path: `${home}\\AppData\\Roaming\\wrangler` });
+	});
+
+	it.each([
+		['a drive root', 'C:\\'],
+		['a folder every app shares', 'C:\\Windows'],
+		['AppData itself', `${home}\\AppData\\Roaming`],
+		['your files', `${home}\\Downloads`],
+		['a folder that holds credentials', `${home}\\AppData\\Local\\Google`],
+		['a shell startup file', `${home}\\.bashrc`],
+		['the checkout', `${home}\\malini\\workstreams\\a\\src`],
+	])('offers nothing for %s', (_place, path) => {
+		expect(grantProblem({ kind: 'path', path }, places, home, 'win32')).not.toBeNull();
+	});
+
+	it("keeps Malini's secrets folder out of a grant", () => {
+		expect(
+			grantProblem(
+				{ kind: 'path', path: `${home}\\AppData\\Local\\Temp\\malini-secrets-1-abc` },
+				places,
+				home,
+				'win32',
+			),
+		).toBe("holds Malini's secrets");
 	});
 });

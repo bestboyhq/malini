@@ -5,9 +5,10 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
 	git,
-	installExecutable,
 	invoke,
+	REAL_GIT,
 	seedWorkstream,
+	writeExecutable,
 	type LaunchedApp,
 	type SeededWorkstream,
 } from './harness';
@@ -189,9 +190,9 @@ export async function commitByHand(worktree: string, file: string): Promise<void
 	await git(worktree, ['add', file]);
 	await git(worktree, [
 		'-c',
-		'user.email=e2e@example.com',
+		'user.email=teammate@example.com',
 		'-c',
-		'user.name=e2e',
+		'user.name=Teammate',
 		'commit',
 		'-qm',
 		`Commit ${file} by hand`,
@@ -250,11 +251,8 @@ async function fakeGithubFor(
 	const ghProgram = join(state, 'gh.cjs');
 	writeFileSync(ghProgram, ghStub(state, remote, revParse(seeded.basePath, 'main')));
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
-		installExecutable(
-			join(dir, 'gh'),
-			`#!/bin/sh\nexec "${process.execPath}" "${ghProgram}" "$@"\n`,
-		);
-		installExecutable(join(dir, 'git'), gitShim(remote, offline, join(state, 'github')));
+		writeExecutable(join(dir, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghProgram}" "$@"\n`);
+		writeExecutable(join(dir, 'git'), gitShim(remote, offline, join(state, 'github')));
 	}
 
 	const mergeOnGithub = (pullRequest: FakePullRequest, head: string): void => {
@@ -399,9 +397,8 @@ function writeAtomically(path: string, contents: string): void {
 }
 
 function gitShim(remote: string, offline: string, plans: string): string {
-	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	return `#!/bin/sh
-[ -f "${offline}" ] && exec "${realGit}" "$@"
+[ -f "${offline}" ] && exec '${REAL_GIT}' "$@"
 fetching=
 for arg do
   shift
@@ -411,7 +408,7 @@ for arg do
   [ -n "$fetching" ] && [ "$arg" = "origin" ] && arg="${remote}"
   set -- "$@" "$arg"
 done
-exec "${realGit}" -c protocol.file.allow=always "$@"
+exec '${REAL_GIT}' -c protocol.file.allow=always "$@"
 `;
 }
 

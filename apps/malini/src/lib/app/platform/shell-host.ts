@@ -15,6 +15,7 @@ import {
 } from 'electron';
 import type { AgentTheme } from '$contract/agent';
 import type { ThemeMode } from '$contract/commands';
+import { describeError } from '$main/errors';
 import { BACKGROUND_WINDOW, createMainWindow } from '$main/window';
 import { aboutPanel } from './menu';
 
@@ -24,7 +25,9 @@ const liveNotifications = new Set<Notification>();
 
 let tray: Tray | null = null;
 
-export type TrayItem = Readonly<{ label: string; click: () => void } | { type: 'separator' }>;
+export type TrayItem = Readonly<
+	{ label: string; click: () => void } | { label: string; role: 'quit' } | { type: 'separator' }
+>;
 
 function holdUntilSettled(notification: Notification): void {
 	const release = (): void => {
@@ -38,6 +41,10 @@ function holdUntilSettled(notification: Notification): void {
 		if (liveNotifications.size <= LIVE_NOTIFICATION_LIMIT) break;
 		liveNotifications.delete(oldest);
 	}
+}
+
+function keepsPlainText(): boolean {
+	return process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text';
 }
 
 export interface ShellHost {
@@ -74,7 +81,7 @@ export function createElectronShellHost(): ShellHost {
 				: clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })]),
 		clipboardWriteImage: (png) =>
 			clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]),
-		isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+		isEncryptionAvailable: () => safeStorage.isEncryptionAvailable() && !keepsPlainText(),
 		encryptString: (plainText) => safeStorage.encryptString(plainText),
 		decryptString: (encrypted) => safeStorage.decryptString(encrypted),
 		notificationsSupported: () => Notification.isSupported(),
@@ -94,13 +101,22 @@ export function createElectronShellHost(): ShellHost {
 		},
 		showTray: (icon, items, open) => {
 			if (BACKGROUND_WINDOW) return;
-			const shown = new Tray(icon);
-			const menu = Menu.buildFromTemplate([...items]);
-			const popUpMenu = (): void => shown.popUpContextMenu(menu);
-			shown.setToolTip(app.getName());
-			shown.on('click', (event) => (event.ctrlKey ? popUpMenu() : open()));
-			shown.on('right-click', popUpMenu);
-			tray = shown;
+			try {
+				const shown = new Tray(icon);
+				const menu = Menu.buildFromTemplate([...items]);
+				shown.setToolTip(app.getName());
+				if (process.platform === 'darwin') {
+					const popUpMenu = (): void => shown.popUpContextMenu(menu);
+					shown.on('click', (event) => (event.ctrlKey ? popUpMenu() : open()));
+					shown.on('right-click', popUpMenu);
+				} else {
+					shown.setContextMenu(menu);
+					shown.on('click', () => open());
+				}
+				tray = shown;
+			} catch (error) {
+				console.warn(`malini: no tray from \`${icon}\`: ${describeError(error)}`);
+			}
 		},
 		showTrayCount: (count) => {
 			tray?.setTitle(count > 0 ? String(count) : '', { fontType: 'monospacedDigit' });

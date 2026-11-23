@@ -1,4 +1,4 @@
-import { userInfo } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { promises as originalFs } from 'original-fs';
 import { isErrnoException, MaliniError, type ErrorVerdicts } from '$main/errors';
@@ -8,6 +8,8 @@ import { removeCheckoutDirResilient } from '$main/git/worktrees';
 const { lstat, mkdir, readdir } = originalFs;
 
 // ponytail: a live workstream's scratch grows until it is archived or the Mac restarts; age out old entries if one fills the disk first
+
+const WINDOWS = process.platform === 'win32';
 
 const FOREIGN_ROOT_VERDICTS: ErrorVerdicts<'foreign-root'> = { 'foreign-root': 'expected' };
 
@@ -23,7 +25,10 @@ export class ScratchRootError extends MaliniError<'foreign-root'> {
 }
 
 export function scratchRoot(env: NodeJS.ProcessEnv = process.env): string {
-	return env['MALINI_SCRATCH_ROOT'] ?? join('/tmp', `malini-${userInfo().uid}`);
+	return (
+		env['MALINI_SCRATCH_ROOT'] ??
+		(WINDOWS ? join(tmpdir(), 'malini') : join('/tmp', `malini-${userInfo().uid}`))
+	);
 }
 
 export function scratchFolder(workstreamId: string, root: string = scratchRoot()): string {
@@ -37,7 +42,7 @@ export async function makeScratchFolder(
 ): Promise<string> {
 	await mkdir(root, { recursive: true, mode: 0o700 });
 	const made = await lstat(root);
-	if (!made.isDirectory() || made.uid !== userInfo().uid) {
+	if (!made.isDirectory() || (!WINDOWS && made.uid !== userInfo().uid)) {
 		throw new ScratchRootError(root);
 	}
 	const folder = scratchFolder(workstreamId, root);

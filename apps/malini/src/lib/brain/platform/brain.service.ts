@@ -9,6 +9,7 @@ import { nowIso8601 } from '$main/db/rows';
 import { describeError, failureOutput } from '$main/errors';
 import { commitPaths, pushHeadToGithubMain } from '$main/git/remote';
 import { automationDefinition, automationDefinitions } from '$lib/automations/automations.platform';
+import { osFor } from '$shared/os/os.platform';
 import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
@@ -33,15 +34,14 @@ import { logDay } from './capture-log';
 
 export const SET_UP_FIRST = 'Set up the brain first in Settings, Brain.';
 
-export const MAC_ONLY_BRAIN =
-	'This brain lives on this Mac only. It has no GitHub repository to sync with.';
+export const LOCAL_ONLY_BRAIN = `This brain lives on this ${osFor(process.platform).machine} only. It has no GitHub repository to sync with.`;
 
 export function publicBrain(fullName: string): string {
 	return `${fullName} is public. Malini keeps a brain only in a private repository.`;
 }
 
 function missingBrain(fullName: string): string {
-	return `GitHub has no ${fullName}, or this account can't see it. The brain's commits stay on this Mac.`;
+	return `GitHub has no ${fullName}, or this account can't see it. The brain's commits stay on this ${osFor(process.platform).machine}.`;
 }
 
 function uncheckedBrain(fullName: string): string {
@@ -161,7 +161,7 @@ export class Brain {
 			const { db } = this.#context;
 			const fullName = await this.#githubName();
 			if (fullName === undefined) throw new BrainError('not-set-up', SET_UP_FIRST);
-			if (sync && fullName === null) throw new BrainError('mac-only', MAC_ONLY_BRAIN);
+			if (sync && fullName === null) throw new BrainError('mac-only', LOCAL_ONLY_BRAIN);
 			saveBrainSetting(db, 'sync', sync ? 'on' : 'off');
 			if (!sync) saveBrainSetting(db, 'problem', null);
 			await this.#push();

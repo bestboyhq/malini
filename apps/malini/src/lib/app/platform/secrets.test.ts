@@ -36,7 +36,7 @@ describe('RendererSecretStore', () => {
 		const raw = await readFile(path, 'utf8');
 		expect(raw).not.toContain('plain-secret-value');
 		expect(JSON.parse(raw)).toMatchObject({ version: 1 });
-		expect((await stat(path)).mode & 0o777).toBe(0o600);
+		if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600);
 	});
 
 	it('persists across store instances and scopes keys by service', async () => {

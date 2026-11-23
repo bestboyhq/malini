@@ -1,17 +1,19 @@
 import {
-	chmodSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
 	realpathSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, normalize } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { lockFolder, unlock } from '$main/fs/test-support';
 import { initRealRepo, realGit, tempDir, workstreamFixture } from '$main/git/fixtures.test-support';
 import { workstreamBranchName } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -32,12 +34,30 @@ let appData: string;
 let home: string;
 let claude: string;
 let db: MaliniDatabase;
-let locked: string[] = [];
+const locked: string[] = [];
 
 function lock(folder: string): void {
-	chmodSync(folder, 0o555);
+	lockFolder(folder);
 	locked.push(folder);
 }
+
+function unlockAll(): void {
+	for (const folder of locked.splice(0)) unlock(folder);
+}
+
+function diskOf(folder: string): number | null {
+	try {
+		return statSync(folder).dev;
+	} catch {
+		return null;
+	}
+}
+
+const otherDisk =
+	['/dev', ...[...'CDEFGHIJKLMNOPQRSTUVWXYZ'].map((drive) => `${drive}:\\`)].find((folder) => {
+		const disk = diskOf(folder);
+		return disk !== null && disk !== diskOf(tmpdir());
+	}) ?? '';
 
 function chatRecords(cwd: string): string {
 	return join(claude, 'projects', cwd.replace(/[^a-zA-Z0-9]/gu, '-'));
@@ -61,11 +81,11 @@ function seed(id: string, projectId: string, repoPath: string, path: string): vo
 
 async function worktreePaths(repo: string): Promise<string[]> {
 	const listed = await realGit(repo, ['worktree', 'list', '--porcelain']);
-	return [...listed.matchAll(/^worktree (.+)$/gmu)].map((match) => match[1] ?? '');
+	return [...listed.matchAll(/^worktree (.+)$/gmu)].map((match) => normalize(match[1] ?? ''));
 }
 
 beforeEach(async () => {
-	root = realpathSync(await tempDir('malini-checkouts-home-'));
+	root = realpathSync.native(await tempDir('malini-checkouts-home-'));
 	appData = join(root, 'Application Support', 'malini');
 	home = join(root, 'home');
 	claude = join(root, 'claude');
@@ -74,8 +94,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-	for (const folder of locked) chmodSync(folder, 0o755);
-	locked = [];
+	unlockAll();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
 });
@@ -115,7 +134,7 @@ describe('moveCheckoutsHome', () => {
 		expect(pendingReinstalls(db)).toEqual(['ws-1']);
 		for (const name of ['repositories', 'workstreams']) {
 			expect(lstatSync(join(appData, name)).isSymbolicLink()).toBe(true);
-			expect(realpathSync(join(appData, name))).toBe(join(checkoutsRoot, name));
+			expect(realpathSync.native(join(appData, name))).toBe(join(checkoutsRoot, name));
 			rmSync(join(appData, name));
 		}
 		await realGit(moved(base), ['worktree', 'prune']);
@@ -219,12 +238,12 @@ describe('moveCheckoutsHome', () => {
 		expect(await move()).toBe(chosen);
 		expect(checkoutsFolder(db, appData, chosen)).toMatchObject({ folder: chosen, next: null });
 		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(chosen));
-		expect(realpathSync(join(malini, 'workstreams'))).toBe(join(chosen, 'workstreams'));
+		expect(realpathSync.native(join(malini, 'workstreams'))).toBe(join(chosen, 'workstreams'));
 		expect((await chooseCheckoutsFolder(db, appData, chosen, malini)).problem).toBeNull();
 		expect(await move()).toBe(malini);
 
 		expect(lstatSync(join(malini, 'workstreams')).isDirectory()).toBe(true);
-		expect(realpathSync(join(chosen, 'workstreams'))).toBe(join(malini, 'workstreams'));
+		expect(realpathSync.native(join(chosen, 'workstreams'))).toBe(join(malini, 'workstreams'));
 		expect(getWorkstream(db, 'ws-1')?.path).toBe(at(malini));
 		expect(getProject(db, 'proj')?.repoPath).toBe(at(malini, base));
 		for (const folder of [appData, chosen]) {
@@ -263,7 +282,7 @@ describe('moveCheckoutsHome', () => {
 		expect(pendingReinstalls(db)).toEqual(['ws-1']);
 		expect(existsSync(join(at(chosen), INSTALL_COMPLETION_PATH))).toBe(false);
 		for (const name of ['repositories', 'workstreams']) {
-			expect(realpathSync(join(malini, name))).toBe(join(chosen, name));
+			expect(realpathSync.native(join(malini, name))).toBe(join(chosen, name));
 			rmSync(join(malini, name));
 			rmSync(join(appData, name));
 		}
@@ -291,7 +310,7 @@ describe('moveCheckoutsHome', () => {
 
 		expect(await move()).toBe(malini);
 
-		expect(realpathSync(at(malini, base))).toBe(at(chosen, base));
+		expect(realpathSync.native(at(malini, base))).toBe(at(chosen, base));
 		expect((await realGit(at(malini), ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe(
 			workstreamBranchName('ws-1'),
 		);
@@ -299,7 +318,7 @@ describe('moveCheckoutsHome', () => {
 			next: chosen,
 			problem: { folder: chosen, reason: 'move-failed' },
 		});
-		chmodSync(join(malini, 'workstreams'), 0o755);
+		unlockAll();
 
 		expect(await move()).toBe(chosen);
 
@@ -326,9 +345,18 @@ describe('moveCheckoutsHome', () => {
 		expect(await refusal(full)).toBe('not-empty');
 		expect(await refusal(join(current, 'workstreams'))).toBe('inside-checkouts');
 		expect(await refusal(locked)).toBe('not-writable');
-		expect(await refusal('/dev')).toBe('other-disk');
 		expect(checkoutsFolder(db, appData, current).next).toBe(empty);
 		expect((await chooseCheckoutsFolder(db, appData, current, current)).next).toBeNull();
+	});
+
+	it.runIf(otherDisk)('refuses a folder on another disk', async () => {
+		const current = join(home, 'malini');
+		mkdirSync(current, { recursive: true });
+
+		const chosen = await chooseCheckoutsFolder(db, appData, current, otherDisk);
+
+		expect(chosen.problem?.reason).toBe('other-disk');
+		expect(chosen.next).toBeNull();
 	});
 
 	it('puts back what it moved when a move fails, and keeps checkouts where they were', async () => {

@@ -190,14 +190,17 @@ describe('stageSelectedPaths', () => {
 		expect(existsSync(join(worktree, ATTACHMENT_ROOT))).toBe(false);
 	});
 
-	it('rolls back every directory of a selection when one file fails mid-way', () => {
-		const good = scratchFile(test, 'good.txt', 'fine');
-		const bad = scratchFile(test, 'bad\n.txt', 'fine');
-		expect(() => stageSelectedPaths(worktree, [good, bad])).toThrow(
-			'attachment filename is unsafe',
-		);
-		expect(readdirSync(join(worktree, ATTACHMENT_ROOT))).toEqual([]);
-	});
+	it.skipIf(process.platform === 'win32')(
+		'rolls back every directory of a selection when one file fails mid-way',
+		() => {
+			const good = scratchFile(test, 'good.txt', 'fine');
+			const bad = scratchFile(test, 'bad\n.txt', 'fine');
+			expect(() => stageSelectedPaths(worktree, [good, bad])).toThrow(
+				'attachment filename is unsafe',
+			);
+			expect(readdirSync(join(worktree, ATTACHMENT_ROOT))).toEqual([]);
+		},
+	);
 });
 
 describe('remove and gc', () => {

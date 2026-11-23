@@ -35,6 +35,7 @@ import { openMigratedDatabase } from '$main/db/open';
 import { all, get } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
+import { AgentRunLeases } from '$lib/chat/chat.platform';
 import { finalizeRunLifecycle, insertRun } from '$lib/chat/platform/runs.repository';
 import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { addressedReviewThreadIds } from '$lib/pull-requests/domain/pull-request-fix-prompt';
@@ -311,7 +312,20 @@ async function session(id: string): Promise<string> {
 }
 
 function settle(): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, 20));
+	return wait(20);
+}
+
+function wait(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withLeases(): AgentRunLeases {
+	automations.dispose();
+	const leases = new AgentRunLeases();
+	context = harness(db);
+	automations = registerAutomations(context, { log: () => {}, leases });
+	automations.start();
+	return leases;
 }
 
 async function failure(command: string, args: unknown): Promise<CommandFailure> {
@@ -920,6 +934,37 @@ describe('scheduling', () => {
 		agentEvent('user-session', 'user-run', { type: 'run.completed', summary: 'Done.' });
 
 		await until(queued.id, 'running');
+	});
+
+	it('holds an automation while the last turn saves its changes, then lets a prompt handed back to the composer claim the chat first', async () => {
+		const leases = withLeases();
+		const save = leases.acquireRunChangeCapture('ws-a');
+		const queued = await runFixChecks('ws-a');
+		await settle();
+		expect((await automationRun(queued.id)).status).toBe('queued');
+
+		save.release();
+		await wait(100);
+		openRuns.add('ws-a');
+		await wait(1_100);
+		expect((await automationRun(queued.id)).status).toBe('queued');
+
+		openRuns.delete('ws-a');
+		agentEvent('user-session', 'user-run', { type: 'run.completed', summary: '' });
+		await until(queued.id, 'running');
+	});
+
+	it('starts an automation held for a save soon after the save ends', async () => {
+		const leases = withLeases();
+		const save = leases.acquireRunChangeCapture('ws-a');
+		const queued = await runFixChecks('ws-a');
+		await settle();
+
+		save.release();
+
+		await vi.waitFor(async () => expect((await automationRun(queued.id)).status).toBe('running'), {
+			timeout: 3_000,
+		});
 	});
 
 	it('counts an automation waiting for you toward its workstream only', async () => {

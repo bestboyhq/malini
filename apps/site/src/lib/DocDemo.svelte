@@ -39,7 +39,7 @@
 			bind:clientWidth={width}
 			style:height="{Math.round(demo.height * scale)}px"
 		>
-			<div class="lights" aria-hidden="true">
+			<div class="lights" aria-hidden="true" data-for="darwin">
 				<i></i>
 				<i></i>
 				<i></i>

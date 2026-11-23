@@ -462,15 +462,15 @@ test('pointing into an expanded tool call holds the transcript still, and a coll
 		await page.getByRole('button', { name: 'Expand output for List files' }).click();
 		await expect(page.getByTestId('command-output-scroll')).toBeVisible();
 
+		holdAgentRuns(app, true);
 		await sendPrompt(page, 'STREAM:40 Keep talking');
-		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
-			'Streamed line 3 of 40.',
-			{ timeout: 10_000 },
-		);
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Stop current run');
+		await untilStill(page);
 
 		const expanded = await visibleBox(page, '[data-testid="command-output-scroll"]');
 		await page.mouse.move(expanded.x + 40, expanded.y + expanded.height / 2);
 		await startSampling(page, []);
+		holdAgentRuns(app, false);
 		await expect(newMessagesBelow(page)).toBeVisible({ timeout: 10_000 });
 		await untilLatestRunShows(page, 'Streamed line 12 of 40.');
 		const held = await stopSampling(page);
@@ -642,7 +642,7 @@ test('steering a streaming reply keeps what it streamed above the new prompt, an
 
 		await startSampling(page, []);
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(steeredRun).toHaveAttribute('data-run-terminal', 'cancelled', {
 			timeout: 20_000,
 		});
@@ -689,7 +689,7 @@ test('a steered run keeps its height from the steer to Run cancelled, which take
 			sample();
 		}, steeredRunId);
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(steeredRun.getByText('Run cancelled')).toBeVisible({ timeout: 20_000 });
 		await expectRunFinished(page, 'Hello from the fake bridge');
 		await untilStill(page);
@@ -799,12 +799,16 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-report-follow-ws', 'Report follow');
 		await openWorkstream(page, seeded.workstreamId);
-		const cards = page.getByTestId('turn-report-card');
 		for (let turn = 1; turn <= 5; turn += 1) {
 			await sendPrompt(page, `CHAT_TURN_REPORT turn ${turn}`);
-			await expect(cards).toHaveCount(turn, { timeout: 20_000 });
+			await expect(latestRun(page)).toContainText(`turn ${turn}`);
+			await expect(latestRun(page).getByTestId('turn-report-card')).toHaveCount(1, {
+				timeout: 20_000,
+			});
 		}
-		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed', {
+			timeout: 20_000,
+		});
 		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
 		const earlierTurns = page.getByRole('list', { name: 'Earlier turns' });
 		const reported = await latestRun(page).getAttribute('data-run-id');

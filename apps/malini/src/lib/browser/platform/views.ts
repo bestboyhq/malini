@@ -79,6 +79,7 @@ const PICK_WITHOUT_PAGE = 'Open a page before picking an element.';
 export interface BrowserViewsDeps<W extends HostWindow> {
 	getMainWindow(): W | null;
 	onScreen(window: W): boolean;
+	readonly detachedViewsPaint: boolean;
 	createView(events: PageEvents): PageView<W>;
 	imageFromPng(png: Buffer): PageImage;
 	watchRendererReset(window: W, reset: () => void): void;
@@ -557,13 +558,15 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const window = entry.window;
 		if (!window || window.isDestroyed() || (entry.shown && this.deps.onScreen(window)))
 			return capture();
-		entry.view.removeFrom(window);
+		if (this.deps.detachedViewsPaint) entry.view.removeFrom(window);
+		else entry.view.setBounds(cornerPixelInside(entry.bounds));
 		entry.view.setVisible(true);
 		try {
 			return await capture();
 		} finally {
 			if (entry.alive && entry.window && !entry.window.isDestroyed()) {
 				entry.view.placeIn(entry.window, entry.shown ? 'front' : 'back');
+				entry.view.setBounds(entry.bounds);
 			}
 		}
 	}
@@ -785,6 +788,10 @@ export function toDip(bounds: BrowserBounds, zoom: number): Rectangle {
 		width: Math.round((bounds.x + bounds.width) * zoom) - x,
 		height: Math.round((bounds.y + bounds.height) * zoom) - y,
 	};
+}
+
+function cornerPixelInside({ width, height }: Rectangle): Rectangle {
+	return { x: 1 - width, y: 1 - height, width, height };
 }
 
 function tabKey(tab: BrowserTabArgs): string {

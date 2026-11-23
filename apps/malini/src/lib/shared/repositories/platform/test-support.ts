@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { removeAll } from '$main/fs/test-support';
 import { run } from '$main/db/rows';
 import { createEventBus, type EventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -82,7 +83,7 @@ export function createTestContext(): TestContext {
 		appDataRoot,
 		cleanup() {
 			db.close();
-			rmSync(appDataRoot, { recursive: true, force: true });
+			removeAll([appDataRoot]);
 		},
 	};
 }

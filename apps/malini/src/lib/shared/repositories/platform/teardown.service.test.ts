@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +16,7 @@ import { get, run } from '$main/db/rows';
 import { currentLogPath, diagnosticsDirectory } from '$main/diagnostics/diagnostics-files';
 import { MainDiagnosticsLog } from '$main/diagnostics/main-diagnostics';
 import { createEventBus } from '$main/events';
+import { DENIED, lockFolder, lockTree, unlock } from '$main/fs/test-support';
 import { realGit, removeDir, tempDir, workstreamFixture } from '$main/git/fixtures.test-support';
 import { installGitRunnerForTests } from '$main/git/run';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -77,7 +78,7 @@ async function harness(): Promise<Harness> {
 			startupReclaim: false,
 		});
 		cleanups.push(async () => {
-			platform.watchers.dispose();
+			await platform.watchers.dispose();
 			await archivedLeftoversCleared();
 		});
 	};
@@ -168,34 +169,22 @@ async function trashEntries(repo: Harness): Promise<string[]> {
 	}
 }
 
-describe('a read that a teardown overlaps', () => {
-	it('counts a teardown running when the read starts, even once it ends before the read fails', () => {
-		const teardowns = new WorkstreamTeardowns();
-		expect(teardowns.watch('ws-read')()).toBe(false);
-		const finished = teardowns.start('ws-read');
-		const torndown = teardowns.watch('ws-read');
-		finished();
-		expect(torndown()).toBe(true);
-		expect(teardowns.watch('ws-read')()).toBe(false);
-	});
-});
-
 describe('archiving a workstream', () => {
 	it('leaves the checkout and the row intact when the checkout cannot be moved aside', async () => {
 		const repo = await harness();
 		const checkout = await createWorkstream(repo, 'ws-kept');
 		await mkdir(checkoutTrashRoot(repo.dir), { recursive: true });
-		await chmod(checkoutTrashRoot(repo.dir), 0o555);
-		cleanups.push(() => chmod(checkoutTrashRoot(repo.dir), 0o755));
+		lockFolder(checkoutTrashRoot(repo.dir));
+		cleanups.push(async () => unlock(checkoutTrashRoot(repo.dir)));
 		await expect(
 			repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-kept' }),
 		).rejects.toThrow(
-			/^Its checkout could not be moved aside \(permission denied\), so nothing was removed$/,
+			new Error(`Its checkout could not be moved aside (${DENIED.reason}), so nothing was removed`),
 		);
 
 		expect(
 			await repo.failureCode('repositories.archive-workstream', { workstreamId: 'ws-kept' }),
-		).toBe('EACCES');
+		).toBe(DENIED.code);
 		expect(getWorkstream(repo.db, 'ws-kept')).not.toBeNull();
 		expect(await isIntactCheckout(checkout, 'ws-kept')).toBe(true);
 		expect(await realGit(repo.base, ['worktree', 'list', '--porcelain'])).toContain('ws-kept');
@@ -258,7 +247,7 @@ describe('archiving a workstream', () => {
 
 		await repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-stuck' });
 		await prune.reached;
-		await chmod(checkoutTrashRoot(repo.dir), 0o555);
+		lockFolder(checkoutTrashRoot(repo.dir));
 		prune.release();
 
 		expect(getWorkstream(repo.db, 'ws-stuck')?.status).toBe('archived');
@@ -271,7 +260,7 @@ describe('archiving a workstream', () => {
 			expect.stringContaining('`ws-stuck` stays in the trash until the next start'),
 		);
 
-		await chmod(checkoutTrashRoot(repo.dir), 0o755);
+		unlock(checkoutTrashRoot(repo.dir));
 		await repo.restart();
 
 		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 20_000 });
@@ -446,7 +435,7 @@ describe('what archiving keeps of a workstream branch', () => {
 		const repo = await harness();
 		const checkout = await createWorkstream(repo, 'ws-unsaved');
 		const before = await realGit(checkout, ['status', '--porcelain']);
-		await execFileAsync('chmod', ['-R', 'a-w', join(repo.base, '.git', 'objects')]);
+		lockTree(join(repo.base, '.git', 'objects'));
 
 		await expect(
 			repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-unsaved' }),
@@ -464,7 +453,7 @@ describe('what archiving keeps of a workstream branch', () => {
 		expect(JSON.stringify(record?.['error'])).toMatch(
 			/caused by: Error: git .+ exited with code \d+\\n.*insufficient permission/u,
 		);
-		await execFileAsync('chmod', ['-R', 'u+w', join(repo.base, '.git', 'objects')]);
+		unlock(join(repo.base, '.git', 'objects'));
 		expect(getWorkstream(repo.db, 'ws-unsaved')).not.toBeNull();
 		expect(await isIntactCheckout(checkout, 'ws-unsaved')).toBe(true);
 		expect(await realGit(checkout, ['status', '--porcelain'])).toBe(before);
@@ -475,7 +464,7 @@ describe('what archiving keeps of a workstream branch', () => {
 	it('sweeps orphan workstream branches at start, keeping their work and every live branch', async () => {
 		const repo = await harness();
 		const live = await createWorkstream(repo, 'ws-live');
-		await execFileAsync('rm', ['-rf', live]);
+		await removeDir(live);
 		await realGit(repo.base, ['worktree', 'prune']);
 		await realGit(repo.base, ['branch', 'malini/ws-orphan', 'origin/main']);
 		await realGit(repo.base, ['branch', 'malini/ws-orphan-work', 'origin/main']);
@@ -839,6 +828,20 @@ describe('restoring an archived workstream', () => {
 		expect(await repo.invoke('repositories.list-archived-workstreams', undefined)).toEqual([]);
 	});
 
+	it('brings back the line endings of its uncommitted work when git converts them', async () => {
+		const repo = await harness();
+		await realGit(repo.base, ['config', 'core.autocrlf', 'true']);
+		const checkout = await createWorkstream(repo, 'ws-eol');
+		await writeFile(join(checkout, 'seed.txt'), 'seed\nedited\n');
+
+		await archiveReceipt(repo, 'ws-eol');
+		await archivedLeftoversCleared();
+		await repo.invoke('repositories.restore-workstream', { workstreamId: 'ws-eol' });
+
+		expect(await readFile(join(checkout, 'seed.txt'), 'utf8')).toBe('seed\nedited\n');
+		expect(await readFile(join(checkout, 'uncommitted.txt'), 'utf8')).toBe('work in progress\n');
+	});
+
 	it('starts a workstream that held nothing of its own from its base again', async () => {
 		const repo = await harness();
 		const checkout = await createWorkstream(repo, 'ws-empty');
@@ -875,6 +878,23 @@ describe('restoring an archived workstream', () => {
 	});
 });
 
+describe('what a teardown marks a workstream as', () => {
+	it('answers for the workstream while its teardown runs and after it ends', () => {
+		const teardowns = new WorkstreamTeardowns();
+
+		expect(teardowns.tearingDown('ws-1')).toBe(false);
+		expect(teardowns.retired('ws-1')).toBe(false);
+
+		const finished = teardowns.start('ws-1');
+		expect(teardowns.tearingDown('ws-1')).toBe(true);
+
+		finished();
+		expect(teardowns.tearingDown('ws-1')).toBe(false);
+		expect(teardowns.retired('ws-1')).toBe(true);
+		expect(teardowns.retired('ws-2')).toBe(false);
+	});
+});
+
 describe('what something writes into an archived checkout once it is gone', () => {
 	async function archivedWithIgnores(repo: Harness, workstreamId: string): Promise<string> {
 		const checkout = await createWorkstream(repo, workstreamId);
@@ -895,7 +915,7 @@ describe('what something writes into an archived checkout once it is gone', () =
 		const entries = await readdir(root, { recursive: true, withFileTypes: true });
 		return entries
 			.filter((entry) => !entry.isDirectory())
-			.map((entry) => relative(root, join(entry.parentPath, entry.name)))
+			.map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join('/'))
 			.sort();
 	}
 

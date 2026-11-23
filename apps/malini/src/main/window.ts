@@ -1,23 +1,32 @@
 import { join } from 'node:path';
-import { BrowserWindow, screen, shell, type Rectangle } from 'electron';
+import {
+	BrowserWindow,
+	nativeImage,
+	screen,
+	shell,
+	type BrowserWindowConstructorOptions,
+	type Rectangle,
+} from 'electron';
+import appIcon from '../../build/icon.png?asset';
 
 export const BACKGROUND_WINDOW = process.env['MALINI_BACKGROUND_WINDOW'] === '1';
 const DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
 const DEFAULT_MAX_WIDTH = 1600;
 const DEFAULT_MAX_HEIGHT = 1000;
+const LARGER_THAN_ANY_SCREEN = 16_384;
+const WINDOW_ICON_SIZE = 256;
 Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL');
 
 export function createMainWindow(): BrowserWindow {
+	const background = BACKGROUND_WINDOW ? behindEverythingAtTheScreenEdge() : null;
 	const window = new BrowserWindow({
-		...(BACKGROUND_WINDOW
-			? behindEverythingAtTheScreenEdge()
-			: defaultWindowBounds(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea)),
+		...(background ??
+			defaultWindowBounds(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea)),
 		minWidth: 900,
 		minHeight: 600,
 		show: false,
 		title: 'Malini',
-		titleBarStyle: 'hiddenInset',
-		trafficLightPosition: { x: 12, y: 13 },
+		...titleBar(process.platform),
 		webPreferences: {
 			preload: join(__dirname, '../preload/index.js'),
 			contextIsolation: true,
@@ -29,7 +38,7 @@ export function createMainWindow(): BrowserWindow {
 		},
 	});
 	guardVisibilityListeners(window);
-	if (BACKGROUND_WINDOW) stayInBackground(window);
+	if (background) stayInBackground(window, background);
 
 	window.once('ready-to-show', () => {
 		if (window.isDestroyed() || window.webContents.isDestroyed()) return;
@@ -37,7 +46,7 @@ export function createMainWindow(): BrowserWindow {
 	});
 
 	window.webContents.setWindowOpenHandler(({ url }) => {
-		void shell.openExternal(url);
+		if (isWebLink(url)) void shell.openExternal(url);
 		return { action: 'deny' };
 	});
 	window.webContents.on('will-navigate', (event, url) => {
@@ -53,6 +62,22 @@ export function createMainWindow(): BrowserWindow {
 	}
 
 	return window;
+}
+
+function titleBar(platform: NodeJS.Platform): BrowserWindowConstructorOptions {
+	if (platform === 'darwin') {
+		return { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 13 } };
+	}
+	return {
+		titleBarStyle: 'hidden',
+		...(platform === 'linux'
+			? {
+					icon: nativeImage
+						.createFromPath(appIcon)
+						.resize({ width: WINDOW_ICON_SIZE, quality: 'best' }),
+				}
+			: {}),
+	};
 }
 
 function defaultWindowBounds(workArea: Rectangle): Rectangle {
@@ -72,6 +97,8 @@ function isWebLink(url: string): boolean {
 
 function behindEverythingAtTheScreenEdge(): Rectangle & {
 	type: 'desktop';
+	maxWidth: number;
+	maxHeight: number;
 	enableLargerThanScreen: true;
 } {
 	const { bounds } = screen
@@ -87,14 +114,21 @@ function behindEverythingAtTheScreenEdge(): Rectangle & {
 		y: bounds.y,
 		width: 1280,
 		height: 800,
+		maxWidth: LARGER_THAN_ANY_SCREEN,
+		maxHeight: LARGER_THAN_ANY_SCREEN,
 		enableLargerThanScreen: true,
 	};
 }
 
-function stayInBackground(window: BrowserWindow): void {
+function stayInBackground(window: BrowserWindow, bounds: Rectangle): void {
+	growPastTheScreenWindowsFitItTo(window, bounds);
 	window.webContents.setAudioMuted(true);
 	window.show = () => window.showInactive();
 	window.focus = () => {};
+}
+
+function growPastTheScreenWindowsFitItTo(window: BrowserWindow, bounds: Rectangle): void {
+	window.setBounds(bounds);
 }
 
 const VISIBILITY_EVENTS = ['show', 'hide', 'minimize', 'maximize', 'restore'] as const;

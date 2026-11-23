@@ -333,13 +333,13 @@ describe('usage data', () => {
 	it('logs crashes and uncaught exceptions', async () => {
 		const { errors, throwUncaught, goneProcess } = harness();
 		throwUncaught(new TypeError('x is undefined in /Users/me'));
-		goneProcess('renderer', 'killed', 9);
+		goneProcess('renderer', 'launch-failed', 1003);
 		await settled();
 		expect(errors).toEqual([
 			expect.stringMatching(
 				/^uncaught exception: TypeError \{"app":\{"version":"1\.0\.0"\},"stack":\["lib\/app\/platform\/usage-data\.test\.ts:\d+"\]\}$/u,
 			),
-			'renderer process gone: killed, SIGKILL {"app":{"version":"1.0.0"}}',
+			'renderer process gone: launch-failed, code 1003 {"app":{"version":"1.0.0"}}',
 		]);
 	});
 
@@ -358,10 +358,10 @@ describe('usage data', () => {
 		context.commands.define('browser.show', () => undefined);
 		for (const command of ['browser.hide', 'browser.show', 'browser.hide'] as const)
 			await context.commands.handle({ command, args: { path: '/Users/me/secret' } });
-		goneProcess('GPU', 'abnormal-exit', 512);
+		goneProcess('Utility', 'launch-failed', 1003);
 		await settled();
 		expect(errors).toEqual([
-			'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0","running_for":"42m","memory_used":"1.3 GB","rendering":"gpu","agent_runs":2},"last_commands":["browser.hide","browser.show"]}',
+			'Utility process gone: launch-failed, code 1003 {"app":{"version":"1.0.0","running_for":"42m","memory_used":"1.3 GB","rendering":"gpu","agent_runs":2},"last_commands":["browser.hide","browser.show"]}',
 		]);
 	});
 
@@ -385,18 +385,35 @@ describe('usage data', () => {
 		expect([gigabytes(18 * 2 ** 30, 0), gigabytes(1.25 * 2 ** 30, 1)]).toEqual(['18 GB', '1.3 GB']);
 	});
 
-	it('names the signal or the exit code of a gone process, not its wait status', async () => {
-		const { errors, goneProcess } = harness();
-		goneProcess('GPU', 'crashed', 6);
-		goneProcess('GPU', 'abnormal-exit', 512);
-		goneProcess('Utility', 'launch-failed', 1003);
-		await settled();
-		expect(errors).toEqual([
-			'GPU process gone: crashed, SIGABRT {"app":{"version":"1.0.0"}}',
-			'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0"}}',
-			'Utility process gone: launch-failed, code 1003 {"app":{"version":"1.0.0"}}',
-		]);
-	});
+	it.skipIf(process.platform === 'win32')(
+		'names the signal or the exit code of a gone process, not its wait status',
+		async () => {
+			const { errors, goneProcess } = harness();
+			goneProcess('GPU', 'crashed', 6);
+			goneProcess('GPU', 'abnormal-exit', 512);
+			goneProcess('Utility', 'launch-failed', 1003);
+			await settled();
+			expect(errors).toEqual([
+				'GPU process gone: crashed, SIGABRT {"app":{"version":"1.0.0"}}',
+				'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0"}}',
+				'Utility process gone: launch-failed, code 1003 {"app":{"version":"1.0.0"}}',
+			]);
+		},
+	);
+
+	it.runIf(process.platform === 'win32')(
+		'names the exit code of a gone process on Windows',
+		async () => {
+			const { errors, goneProcess } = harness();
+			goneProcess('GPU', 'crashed', -1073741819);
+			goneProcess('GPU', 'abnormal-exit', 2);
+			await settled();
+			expect(errors).toEqual([
+				'GPU process gone: crashed, exit -1073741819 {"app":{"version":"1.0.0"}}',
+				'GPU process gone: abnormal-exit, exit 2 {"app":{"version":"1.0.0"}}',
+			]);
+		},
+	);
 
 	it("reports yesterday's loop once a day: workstreams started, prompts, merges, drops, and a typical merge", async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
@@ -992,7 +1009,7 @@ describe('the Logdash sink', () => {
 		const usageData = startUsageData(context, {
 			account: () => Promise.resolve('u1'),
 			hooks: noHooks,
-			processGone: (listener) => listener('GPU', 'crashed', 6),
+			processGone: (listener) => listener('Utility', 'launch-failed', 1003),
 			moment: () => null,
 			now: () => NOW,
 			system: { app: { version: '1.0.0' } },
@@ -1004,7 +1021,7 @@ describe('the Logdash sink', () => {
 			.map(([, init]) => (JSON.parse(String(init.body)) as { message: string }).message);
 		expect(logged).toEqual([
 			expect.stringMatching(
-				/^GPU process gone: crashed, SIGABRT \{"fingerprint":"[0-9a-f]{12}","app":\{"version":"1\.0\.0"\}\}$/u,
+				/^Utility process gone: launch-failed, code 1003 \{"fingerprint":"[0-9a-f]{12}","app":\{"version":"1\.0\.0"\}\}$/u,
 			),
 		]);
 		const fingerprint = /"fingerprint":"([0-9a-f]{12})"/u.exec(logged[0] ?? '')?.[1];

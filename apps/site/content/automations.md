@@ -74,7 +74,7 @@ A save that keeps its When as it was goes through, so you can still turn off or 
 
 ### On a schedule
 
-A schedule runs an automation at a time of day, by your Mac's clock:
+A schedule runs an automation at a time of day, by your computer's clock:
 
 ```text
 every <day | weekday | monday … sunday> at <HH:MM> in <owner>/<repository>
@@ -102,7 +102,7 @@ Archive that workstream, and the next run starts a new one.
 The automation runs while Malini runs, with its window open or closed.
 When the time comes, Malini's clock logs a **Time reached** event, and the [Reconciler](#reconciler)'s Schedules rule starts the automation on it.
 The same time starts the automation once, even across a restart.
-When your Mac sleeps or Malini is quit at the time, the automation runs once when they are back, however many times it missed.
+When your computer sleeps or Malini is quit at the time, the automation runs once when they are back, however many times it missed.
 A schedule you set runs from the next time on, never for a time that already passed.
 While the automation has a run that is queued, still runs or needs you, it skips its time, so two runs never overlap.
 A run that waits for your yes holds its time too, unless its schedule started it: then the new time takes its place and asks again.
@@ -189,7 +189,7 @@ Electron, Playwright with its Chromium, file watchers and terminals run inside i
 What you opened in the sandbox for its repository or everywhere is open for it too.
 A command that needs anything else from outside the sandbox asks you first, every time.
 
-An automation that sees your words, through a chat, an attachment, a whole event, or the report of an automation before it that sees them, and reaches outside your Mac, through the internet or a Then that publishes, **can leak**.
+An automation that sees your words, through a chat, an attachment, a whole event, or the report of an automation before it that sees them, and reaches outside your computer, through the internet or a Then that publishes, **can leak**.
 The Automations page marks it **Can leak**, and its page says how, with **Stop it seeing your words** and **Turn off the internet** one click away.
 **Update from main**, **Open draft**, **Merge** and **Capture to the log** run no agent; the first three write a pull request only from the agent's `Commit:` and `Pull request:` lines, the changed files and the checks that passed, never from what you typed.
 

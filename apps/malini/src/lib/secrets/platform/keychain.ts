@@ -1,6 +1,7 @@
 import type { SavedSecret } from '$contract/secrets';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
+import { osFor } from '$shared/os/os.platform';
 import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 import {
 	allSealedSecrets,
@@ -43,9 +44,10 @@ export class Keychain {
 
 	save(repository: string | null, values: Readonly<Record<string, string>>): void {
 		if (!this.#sealer.isEncryptionAvailable()) {
+			const os = osFor(process.platform);
 			throw new SecretError(
 				'keychain-locked',
-				'Malini cannot reach the macOS keychain to seal secrets. Unlock it, then save again.',
+				`Malini cannot reach ${os.secretStore} to seal secrets. ${os.unlockSecretStore}, then save again.`,
 			);
 		}
 		const savedAt = nowIso8601();

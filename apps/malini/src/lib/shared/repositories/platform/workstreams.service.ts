@@ -50,6 +50,7 @@ import type { Repository } from '$shared/repositories/domain/repository';
 import { isRetiredChat } from '$shared/repositories/domain/retired-chats';
 import { UNOBSERVED_WORKSTREAM_CHECKOUT } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
+import { osFor } from '$shared/os/os.platform';
 import type { WorkstreamBaseSync } from './base-sync.service';
 import { cleanupCreatedBaseClone, ensureBaseCloneWithOutcome } from './clone.service';
 import {
@@ -361,7 +362,10 @@ export async function restoreWorkstream(
 	const project = getProject(db, archived.projectId);
 	const repository = recordedBaseRepository(db, checkoutsRoot, workstreamId);
 	if (project === null || repository === null) {
-		throw new WorkstreamError('repository-gone', 'Its repository is no longer on this Mac');
+		throw new WorkstreamError(
+			'repository-gone',
+			`Its repository is no longer on this ${osFor(process.platform).machine}`,
+		);
 	}
 	const checkout = workstreamPath(checkoutsRoot, workstreamId);
 	const branch = archived.branch;

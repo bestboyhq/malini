@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	commandDetail,
@@ -61,8 +61,10 @@ describe('running names', () => {
 	it('shows the command without its leading cd, and resolves where it runs', () => {
 		expect(commandDetail(WRANGLER)).toBe('exec npx --yes wrangler@4 dev --port 8791 --local');
 		expect(commandDetail('pnpm dev')).toBe('pnpm dev');
-		expect(commandDirectory(WRANGLER, WORKSTREAM)).toBe(`${WORKSTREAM}/apps/site`);
-		expect(commandDirectory('cd apps/web && pnpm dev', WORKSTREAM)).toBe(`${WORKSTREAM}/apps/web`);
+		expect(commandDirectory(WRANGLER, WORKSTREAM)).toBe(resolve(WORKSTREAM, 'apps', 'site'));
+		expect(commandDirectory('cd apps/web && pnpm dev', WORKSTREAM)).toBe(
+			resolve(WORKSTREAM, 'apps', 'web'),
+		);
 		expect(commandDirectory('pnpm dev', WORKSTREAM)).toBe(WORKSTREAM);
 	});
 

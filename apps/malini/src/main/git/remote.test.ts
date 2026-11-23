@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -52,7 +53,7 @@ describe('commitWorktreeChanges', () => {
 		expect(existsSync(join(repo, AGENT_ATTACHMENTS_PATH))).toBe(true);
 	});
 
-	it('refuses to sweep a flood of new files into a commit', async () => {
+	it('refuses to sweep a flood of new files into a commit, and commits once they are ignored', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const repo = join(dir, 'repo');
@@ -69,6 +70,12 @@ describe('commitWorktreeChanges', () => {
 			`this commit would add ${MAX_ADDED_FILES_PER_COMMIT + 1} files`,
 		);
 		expect(await realGit(repo, ['rev-parse', 'HEAD'])).toBe(head);
+
+		await writeFile(join(repo, '.gitignore'), '.pnpm-store/\n');
+		await commitWorktreeChanges(repo, 'ignore the package store');
+		expect(await realGit(repo, ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'])).toBe(
+			'.gitignore\n',
+		);
 	}, 30_000);
 });
 
@@ -728,14 +735,16 @@ describe('a merge held in the checkout', () => {
 		cleanups.push(() => removeDir(dir));
 		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
 		const other = await baseClone(dir, remote);
-		await mkdir(join(other, 'vendor'));
-		await Promise.all(
-			Array.from({ length: MAX_ADDED_FILES_PER_COMMIT + 1 }, (_, index) =>
-				writeFile(join(other, 'vendor', `f${index}`), `${index}\n`),
-			),
-		);
 		await writeFile(join(other, 'seed.txt'), 'theirs\n');
-		await realGit(other, ['add', '.']);
+		await realGit(other, ['add', 'seed.txt']);
+		const blob = (await realGit(other, ['rev-parse', ':seed.txt'])).trim();
+		execFileSync('git', ['update-index', '--add', '--index-info'], {
+			cwd: other,
+			input: Array.from(
+				{ length: MAX_ADDED_FILES_PER_COMMIT + 1 },
+				(_, index) => `100644 ${blob}\tvendor/f${index}\n`,
+			).join(''),
+		});
 		await realGit(other, ['commit', '-q', '-m', 'vendor and theirs']);
 		await realGit(other, ['push', '-q', 'origin', 'main']);
 		await writeFile(join(checkout, 'seed.txt'), 'ours\n');

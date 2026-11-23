@@ -2,7 +2,7 @@ import { constants as fsConstants } from 'node:fs';
 import { open, realpath, type FileHandle } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, join, relative } from 'node:path';
 import { describeError, isErrnoException } from '$main/errors';
-import { isAtOrInsideDirectory } from '$main/fs/paths';
+import { isAtOrInsideDirectory, PATH_SEPARATORS } from '$main/fs/paths';
 import type { WorkstreamImageRead } from '$contract/repositories';
 import { WorkstreamError } from './checkout-resolver';
 
@@ -65,7 +65,7 @@ export function safeRelativePath(path: string): string {
 		throw new WorkstreamError('image-path', 'image path must be relative to the workstream');
 	}
 	const segments: string[] = [];
-	for (const segment of path.split('/')) {
+	for (const segment of path.split(PATH_SEPARATORS)) {
 		if (segment === '' || segment === '.') continue;
 		if (segment === '..')
 			throw new WorkstreamError('image-path', 'image path escapes the workstream');

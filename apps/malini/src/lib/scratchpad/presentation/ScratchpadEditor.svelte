@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { osQuery } from '$shared/os/os.api';
 	import { Editor } from '@tiptap/core';
 	import type { ResolvedPos } from '@tiptap/pm/model';
 	import type { EditorView } from '@tiptap/pm/view';
@@ -30,7 +31,7 @@
 
 	type GutterRow = ScratchpadNote & Readonly<{ top: number; height: number; lineHeight: number }>;
 
-	const PLACEHOLDER = 'Jot down an idea. Command Return turns it into a workstream.';
+	const PLACEHOLDER = `Jot down an idea. ${osQuery.data.primaryReturn} turns it into a workstream.`;
 	const START_LABEL = 'Move into a new workstream';
 	const HOVER_SLACK_PX = 12;
 
@@ -190,7 +191,11 @@
 			{#if placeholder}
 				{placeholder}
 			{:else}
-				Jot down an idea. <EnterShortcut mod size={14} /> turns it into a workstream.
+				Jot down an idea. <EnterShortcut
+					mod={osQuery.data.shortcut('')}
+					label={osQuery.data.primaryReturn}
+					size={14}
+				/> turns it into a workstream.
 			{/if}
 		</p>
 	{/if}
@@ -208,7 +213,7 @@
 							variant="ghost"
 							size="sm"
 							ariaLabel={START_LABEL}
-							ariaKeyshortcuts="Meta+Enter"
+							ariaKeyshortcuts={osQuery.data.ariaShortcut('Enter')}
 							data-testid="scratchpad-start-workstream"
 							onclick={() => start(row.pos)}
 						>
@@ -222,7 +227,10 @@
 </div>
 
 {#snippet startHint()}
-	{START_LABEL} · <EnterShortcut mod />
+	{START_LABEL} · <EnterShortcut
+		mod={osQuery.data.shortcut('')}
+		label={osQuery.data.primaryReturn}
+	/>
 {/snippet}
 
 <style>

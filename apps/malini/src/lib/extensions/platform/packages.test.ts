@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	ExtensionPackages,
@@ -42,7 +42,7 @@ function createExtension(
 describe('resolveExtensionPackagePaths', () => {
 	it('keeps the development folder under app data', () => {
 		const paths = resolveExtensionPackagePaths({ appDataRoot: '/data' }, {});
-		expect(paths).toEqual({ localRoot: '/data/extensions/local' });
+		expect(paths).toEqual({ localRoot: join('/data', 'extensions', 'local') });
 	});
 
 	it('lets MALINI_EXTENSION_HOME move the development folder', () => {
@@ -50,7 +50,7 @@ describe('resolveExtensionPackagePaths', () => {
 			{ appDataRoot: '/data' },
 			{ MALINI_EXTENSION_HOME: '/home/me/.malini/extensions' },
 		);
-		expect(paths.localRoot).toBe('/home/me/.malini/extensions');
+		expect(paths.localRoot).toBe(resolve('/home/me/.malini/extensions'));
 	});
 });
 

@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	STREAMING_STAND_IN,
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
@@ -39,7 +40,7 @@ test('streamer mode masks personal data on demand, and by itself while a streami
 		await expect(signedIn).toContainText('e2e@example.com');
 		await expect(reveal).toHaveCount(0);
 
-		streamingApp = launchStandInObs(app.root);
+		streamingApp = launchStandIn(app.root);
 		await openSettings(page, 'privacy');
 		await streamerMode.getByRole('button', { name: 'Auto' }).click();
 		await expect(page.getByTestId('streamer-mode-detected')).toBeVisible({
@@ -174,10 +175,20 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 	}
 });
 
-function launchStandInObs(root: string): ChildProcess {
-	const bundle = join(root, 'OBS.app', 'Contents', 'MacOS');
+function launchStandIn(root: string): ChildProcess {
+	if (process.platform === 'win32') {
+		const executable = join(root, `${STREAMING_STAND_IN}.exe`);
+		copyFileSync(process.execPath, executable);
+		return spawn(executable, ['-e', 'setTimeout(() => {}, 600_000)'], { stdio: 'ignore' });
+	}
+	if (process.platform !== 'darwin') {
+		const executable = join(root, STREAMING_STAND_IN);
+		copyFileSync('/bin/sleep', executable);
+		return spawn(executable, ['600'], { stdio: 'ignore' });
+	}
+	const bundle = join(root, `${STREAMING_STAND_IN}.app`, 'Contents', 'MacOS');
 	mkdirSync(bundle, { recursive: true });
-	const executable = join(bundle, 'OBS');
+	const executable = join(bundle, STREAMING_STAND_IN);
 	copyFileSync('/bin/sleep', executable);
 	execFileSync('codesign', ['--force', '--sign', '-', executable], { stdio: 'ignore' });
 	return spawn(executable, ['600'], { stdio: 'ignore' });

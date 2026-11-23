@@ -11,6 +11,8 @@ import {
 	APP_MENU_COMMAND_CHOSEN_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
+	APP_WINDOW_CONTROLS_CHANGED_CHANNEL,
+	type WindowControlsState,
 } from '$contract/events';
 import { createEventBus } from '$main/events';
 import { createFakeHost, createFakeWindow, asBrowserWindow, type FakeWindow } from './test-support';
@@ -124,6 +126,52 @@ describe('window commands', () => {
 		main.emit('leave-full-screen');
 		expect(announced).toEqual([true, false]);
 		expect(setup(null).commands.isFullScreen()).toBe(false);
+	});
+
+	it('announces the main window gaining focus or getting maximized, and reports both', () => {
+		const { commands, events, main, created } = setup();
+		if (!main) throw new Error('unreachable');
+		const other = createFakeWindow();
+		created(main);
+		created(other);
+		const announced: WindowControlsState[] = [];
+		events.subscribe(APP_WINDOW_CONTROLS_CHANGED_CHANNEL, (state) => announced.push(state));
+
+		expect(commands.windowControls()).toEqual({ focused: false, maximized: false });
+		main.emit('focus');
+		other.emit('blur');
+		main.maximized = true;
+		main.emit('maximize');
+		expect(commands.windowControls()).toEqual({ focused: false, maximized: true });
+		main.focused = true;
+		main.emit('blur');
+		main.maximized = false;
+		main.emit('unmaximize');
+		expect(announced).toEqual([
+			{ focused: true, maximized: false },
+			{ focused: false, maximized: true },
+			{ focused: false, maximized: true },
+			{ focused: true, maximized: false },
+		]);
+		expect(setup(null).commands.windowControls()).toEqual({ focused: false, maximized: false });
+	});
+
+	it('presses each window control on the main window, and refuses anything else', () => {
+		const { commands, main } = setup();
+		if (!main) throw new Error('unreachable');
+		for (const control of ['minimize', 'maximize', 'restore', 'close'] as const) {
+			commands.pressWindowControl({ control });
+		}
+		expect(main.calls).toEqual(['minimize', 'maximize', 'unmaximize', 'close']);
+		for (const control of ['toString', 'zoom', '', 1, null]) {
+			expect(() =>
+				commands.pressWindowControl(Object.assign({ control: 'close' as const }, { control })),
+			).toThrow('control must be close, minimize, maximize or restore');
+		}
+		expect(main.calls).toHaveLength(4);
+		expect(() => setup(null).commands.pressWindowControl({ control: 'close' })).toThrow(
+			NO_MAIN_WINDOW_ERROR,
+		);
 	});
 });
 

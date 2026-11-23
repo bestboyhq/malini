@@ -29,13 +29,17 @@ function secretsSeenByTheBridge(app: LaunchedApp): string {
 	}
 }
 
+const UNREADABLE = new Set(['ENOENT', 'EBUSY']);
+
 function filesHolding(folder: string, text: string): string[] {
 	return readdirSync(folder, { recursive: true, encoding: 'utf8' }).filter((entry) => {
 		const path = join(folder, entry);
 		try {
 			return lstatSync(path).isFile() && readFileSync(path).includes(text);
 		} catch (error) {
-			if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
+			if (error instanceof Error && 'code' in error && UNREADABLE.has(String(error.code))) {
+				return false;
+			}
 			throw error;
 		}
 	});
@@ -144,6 +148,9 @@ test('an agent asks for secrets on a card in the chat, the user saves one, and o
 		});
 		expect(await invoke(page, 'secrets.list', undefined)).toEqual([]);
 		expectCleanConsole(app);
+		await app.quit();
+		expect(filesHolding(app.userDataDir, STRIPE)).toEqual([]);
+		expect(filesHolding(app.userDataDir, REPLACED)).toEqual([]);
 	} finally {
 		await app.close();
 	}

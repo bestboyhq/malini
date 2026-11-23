@@ -181,7 +181,7 @@ export class AutomationExperiments {
 		if (!this.#running.has(experiment.id)) {
 			this.#running.add(experiment.id);
 			clearAutomationExperimentResults(this.#context.db, experiment.id);
-			this.#work.add(this.#replayAll(experiment));
+			this.#work.add(this.#replayAll(experiment), `replaying the experiment ${experiment.id}`);
 		}
 		return this.#record(experiment);
 	}

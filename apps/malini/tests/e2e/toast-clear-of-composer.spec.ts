@@ -1,18 +1,20 @@
-import { chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	clickRevealedOnHover,
 	createSourceRepo,
+	DENIED,
 	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
+	lockFolder,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
 	showInspector,
 	showToastsTogether,
+	unlockFolder,
 } from './harness';
 
 declare global {
@@ -176,7 +178,7 @@ async function setLayout(page: Page, layout: Layout): Promise<void> {
 for (const layout of LAYOUTS) {
 	test(`toasts never cover the composer or the changed files above it, alone or stacked (${layout.name})`, async () => {
 		test.setTimeout(120_000);
-		const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
+		const app = await launchMalini({ allowedDiagnostics: [new RegExp(DENIED.reason, 'u')] });
 		let lockedDirectory: string | null = null;
 		try {
 			const { page, electronApp } = app;
@@ -215,7 +217,7 @@ for (const layout of LAYOUTS) {
 			await setLayout(page, layout);
 			await watchFooterCoverage(page);
 			lockedDirectory = dirname(archived.worktree);
-			chmodSync(lockedDirectory, 0o555);
+			lockFolder(lockedDirectory);
 			const failures = page.getByTestId('toast').filter({ hasText: ARCHIVE_FAILED });
 
 			await archiveAll(page, [ARCHIVED_NAME]);
@@ -234,7 +236,7 @@ for (const layout of LAYOUTS) {
 			expect(await page.evaluate(() => globalThis.footerCoverage)).toEqual([]);
 			expectCleanConsole(app);
 		} finally {
-			if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
+			if (lockedDirectory) unlockFolder(lockedDirectory);
 			await app.close();
 		}
 	});

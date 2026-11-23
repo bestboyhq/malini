@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubHome } from '$main/process/test-support';
 
 vi.mock('electron', () => ({
 	ipcMain: { handle: vi.fn() },
@@ -23,12 +24,12 @@ import {
 } from './permissions.repository';
 import {
 	approvalDecisionResult,
+	canonicalizeAllowMissing,
 	isSensitivePathForHome,
 	maliniActionFingerprint,
 	normalizeRememberablePermission,
 	normalizeToolStateGrant,
 	rememberedRuleIdForResolvedApproval,
-	resolveHomeDirectory,
 	sandboxGrantsFor,
 	validateApprovalDecision,
 } from './permissions.service';
@@ -61,7 +62,7 @@ afterEach(() => {
 });
 
 describe('normalizeRememberablePermission', () => {
-	beforeEach(() => vi.stubEnv('HOME', tempDir()));
+	beforeEach(() => stubHome(tempDir()));
 
 	it('normalizes only canonical external reads', () => {
 		const root = tempDir();
@@ -74,7 +75,7 @@ describe('normalizeRememberablePermission', () => {
 		);
 		expect(normalized.fingerprint).toHaveLength(64);
 		expect(normalized.canonicalJson).toBe(
-			`{"capability":"read","resources":[{"kind":"path","canonicalValue":"${external}","boundary":"external"}]}`,
+			`{"capability":"read","resources":[{"kind":"path","canonicalValue":${JSON.stringify(external)},"boundary":"external"}]}`,
 		);
 		expect(normalized.fingerprint).toBe(
 			createHash('sha256').update(normalized.canonicalJson).digest('hex'),
@@ -197,7 +198,13 @@ describe('normalizeRememberablePermission', () => {
 			workstream,
 		);
 		expect(normalized.canonicalJson).toBe(
-			`{"capability":"sandbox","resources":[{"kind":"path","value":"${cache}","boundary":"external"},{"kind":"socket","value":"${socket}","boundary":"external"}]}`,
+			JSON.stringify({
+				capability: 'sandbox',
+				resources: [
+					{ kind: 'path', value: cache, boundary: 'external' },
+					{ kind: 'socket', value: socket, boundary: 'external' },
+				],
+			}),
 		);
 		expect(
 			normalizeRememberablePermission(grant(['path', cache], ['socket', socket]), workstream),
@@ -264,26 +271,22 @@ describe('isSensitivePathForHome', () => {
 			'.config/agent-cli/credentials.json',
 			'.ssh/id_ed25519',
 			'.config/gh/hosts.yml',
+			'AppData/Roaming/agent-cli/auth.json',
+			'appdata/roaming/agent-cli/auth.json',
+			'AppData/Roaming/gnupg/pubring.kbx',
+			'Library/Application Support/agent-cli/credentials.json',
+			'library/Application Support/agent-cli/credentials.json',
 		]) {
 			expect(isSensitivePathForHome(join(home, relative), home)).toBe(true);
 		}
 		expect(isSensitivePathForHome(join(home, '.agent-cli/config.toml'), home)).toBe(false);
+		expect(isSensitivePathForHome(join(home, 'AppData/Roaming/agent-cli/config.json'), home)).toBe(
+			false,
+		);
 		expect(isSensitivePathForHome(join(home, 'project/auth.json'), home)).toBe(false);
 		expect(isSensitivePathForHome(join(home, 'project/.env.example'), home)).toBe(false);
 		expect(isSensitivePathForHome(join(home, 'project/.env.production'), home)).toBe(true);
-		expect(isSensitivePathForHome(`${realpathSync.native('/etc')}/sudoers`, null)).toBe(true);
-	});
-});
-
-describe('resolveHomeDirectory', () => {
-	it('uses the fallback when HOME is unset and prefers a non-empty HOME', () => {
-		expect(resolveHomeDirectory(undefined, () => '/fallback/home')).toBe('/fallback/home');
-		expect(resolveHomeDirectory('', () => '/fallback/home')).toBe('/fallback/home');
-		expect(
-			resolveHomeDirectory('/configured/home', () => {
-				throw new Error('fallback must not be consulted when HOME is configured');
-			}),
-		).toBe('/configured/home');
+		expect(isSensitivePathForHome(canonicalizeAllowMissing('/etc/sudoers'), null)).toBe(true);
 	});
 });
 
@@ -526,7 +529,7 @@ describe('agent_permission_rules repository', () => {
 		const db = setup();
 		const root = tempDir();
 		const home = canonicalDir(root, 'home');
-		vi.stubEnv('HOME', home);
+		stubHome(home);
 		const workstream = canonicalDir(root, 'workstream');
 		const state = canonicalDir(home, 'Library/Application Support/rtk');
 		const normalized = normalizeToolStateGrant({ kind: 'path', path: state }, workstream);

@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { AutomationRunRecord } from '../../src/contract/automations';
@@ -14,9 +13,12 @@ import {
 	listEvents,
 	openAutomations,
 	openWorkstream,
+	REAL_GIT,
+	removeExecutable,
 	reportsHeardBy,
 	seedWorkstream,
 	sendPrompt,
+	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 
@@ -32,7 +34,6 @@ const TOLD = new RegExp(
 const WOKEN = /^Malini woke you: work you started moved on/u;
 const WOKEN_ABOUT_AUTOMATION = /^Malini woke you: work you asked for moved on/u;
 const RESENT = 'Rename the settings button';
-const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 
 type Decision = Readonly<{ id: string; status: string; decidedBy: string; channel: string }>;
 
@@ -51,20 +52,36 @@ function agentCalls(app: LaunchedApp, call: ToolCall) {
 }
 
 function holdCheckpointsUntilTheBridgeStops(app: LaunchedApp): void {
-	const shim = join(app.bin, 'git');
+	const waitForBridges = join(app.root, 'wait-for-bridges.cjs');
 	writeFileSync(
-		shim,
+		waitForBridges,
+		`const { readdirSync } = require('node:fs');
+const deadline = Date.now() + 15_000;
+const alive = (pid) => {
+	try {
+		process.kill(Number(pid), 0);
+		return true;
+	} catch {
+		return false;
+	}
+};
+const wait = () => {
+	if (Date.now() < deadline && readdirSync(process.argv[2]).some(alive)) setTimeout(wait, 50);
+};
+wait();
+`,
+	);
+	writeExecutable(
+		join(app.bin, 'git'),
 		`#!/bin/sh
 if [ -f "$HOME/hold-checkpoints" ]; then
   case "$*" in *refs/malini/checkpoints/*)
-    i=0
-    while [ $i -lt 300 ] && pgrep -f '${app.bridgeScript}' >/dev/null; do sleep 0.05; i=$((i + 1)); done ;;
+    '${process.execPath}' '${waitForBridges}' '${join(app.home, 'fake-bridges')}' ;;
   esac
 fi
-exec '${GIT}' "$@"
+exec '${REAL_GIT}' "$@"
 `,
 	);
-	chmodSync(shim, 0o755);
 }
 
 function reconcilerPicks(app: LaunchedApp, choice: string): void {
@@ -584,6 +601,7 @@ for (const cut of ['before Claude Code got it', 'before Claude replied'] as cons
 			throw error;
 		}
 		rmSync(hold);
+		removeExecutable(join(first.bin, 'git'));
 
 		const app = await launchMalini({ profile: first.root });
 		try {

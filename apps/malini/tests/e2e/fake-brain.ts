@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createSourceRepo, git, installExecutable, type LaunchedApp } from './harness';
+import { createSourceRepo, git, REAL_GIT, writeExecutable, type LaunchedApp } from './harness';
 
 export const FAKE_BRAIN = 'e2e-user/brain';
 
@@ -34,10 +34,9 @@ export async function brainOnGithub(
 			pushed_at: new Date().toISOString(),
 		}),
 	);
-	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
 		copyFileSync(join(dir, 'gh'), join(dir, 'gh-harness'));
-		installExecutable(
+		writeExecutable(
 			join(dir, 'gh'),
 			`#!/bin/sh
 case "$1 $2" in
@@ -50,10 +49,10 @@ esac
 exec "${join(dir, 'gh-harness')}" "$@"
 `,
 		);
-		installExecutable(
+		writeExecutable(
 			join(dir, 'git'),
 			`#!/bin/sh
-exec "${realGit}" -c protocol.file.allow=always -c "url.${remote}.insteadOf=${url}" "$@"
+exec '${REAL_GIT}' -c protocol.file.allow=always -c "url.${remote}.insteadOf=${url}" "$@"
 `,
 		);
 	}

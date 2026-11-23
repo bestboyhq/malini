@@ -22,14 +22,22 @@ const obsoleteRuntimePaths = [
 	resolve(packageRoot, 'dist/providers/agent'),
 ];
 /** @type {Map<string, string>} */
-const copiedVersions = new Map();
+const rootVersions = new Map();
+/** @type {Set<string>} */
+const copiedPackages = new Set();
 const stagingRoot = await mkdtemp(resolve(packageRoot, 'node_modules/.agent-bridge-runtime-'));
 const stagedNodeModules = resolve(stagingRoot, 'node_modules');
 
 try {
+	/** @type {[string, string][]} */
+	const roots = [];
 	for (const packageName of runtimePackageRoots) {
 		const installedPackage = await resolveInstalledPackage(packageRequire, packageName);
-		await copyDependencyClosure(packageName, installedPackage);
+		rootVersions.set(packageName, await versionOf(packageName, installedPackage));
+		roots.push([packageName, installedPackage]);
+	}
+	for (const [packageName, installedPackage] of roots) {
+		await copyDependencyClosure(packageName, installedPackage, stagedNodeModules);
 	}
 
 	await publishRuntimeTree(stagedNodeModules, distNodeModules);
@@ -43,29 +51,26 @@ try {
 /**
  * @param {string} packageName
  * @param {string} installedPackage
+ * @param {string} dependentNodeModules
  * @returns {Promise<void>}
  */
-async function copyDependencyClosure(packageName, installedPackage) {
+async function copyDependencyClosure(packageName, installedPackage, dependentNodeModules) {
 	const manifest = await readManifest(installedPackage);
-	if (typeof manifest.version !== 'string') {
-		throw new Error(`runtime package ${packageName} has no version in its manifest`);
-	}
-	const existingVersion = copiedVersions.get(packageName);
-	if (existingVersion) {
-		if (existingVersion !== manifest.version) {
-			throw new Error(
-				`runtime package version collision for ${packageName}: ${existingVersion} and ${manifest.version}`,
-			);
-		}
-		return;
-	}
-
-	copiedVersions.set(packageName, manifest.version);
-	await copyPackage(packageName, installedPackage);
+	const version = await versionOf(packageName, installedPackage);
+	const rootVersion = rootVersions.get(packageName) ?? version;
+	rootVersions.set(packageName, rootVersion);
+	const bundledPackage = resolve(
+		rootVersion === version ? stagedNodeModules : dependentNodeModules,
+		packageName,
+	);
+	if (copiedPackages.has(bundledPackage)) return;
+	copiedPackages.add(bundledPackage);
+	await copyPackage(installedPackage, bundledPackage);
 	const packageLocalRequire = createRequire(resolve(installedPackage, 'package.json'));
+	const nestedNodeModules = resolve(bundledPackage, 'node_modules');
 	for (const dependencyName of Object.keys(manifest.dependencies ?? {}).sort()) {
 		const dependencyPackage = await resolveInstalledPackage(packageLocalRequire, dependencyName);
-		await copyDependencyClosure(dependencyName, dependencyPackage);
+		await copyDependencyClosure(dependencyName, dependencyPackage, nestedNodeModules);
 	}
 	for (const optionalName of Object.keys(manifest.optionalDependencies ?? {}).sort()) {
 		let optionalPackage;
@@ -74,17 +79,29 @@ async function copyDependencyClosure(packageName, installedPackage) {
 		} catch {
 			continue;
 		}
-		await copyDependencyClosure(optionalName, optionalPackage);
+		await copyDependencyClosure(optionalName, optionalPackage, nestedNodeModules);
 	}
 }
 
 /**
  * @param {string} packageName
  * @param {string} installedPackage
+ * @returns {Promise<string>}
+ */
+async function versionOf(packageName, installedPackage) {
+	const { version } = await readManifest(installedPackage);
+	if (typeof version !== 'string') {
+		throw new Error(`runtime package ${packageName} has no version in its manifest`);
+	}
+	return version;
+}
+
+/**
+ * @param {string} installedPackage
+ * @param {string} bundledPackage
  * @returns {Promise<void>}
  */
-async function copyPackage(packageName, installedPackage) {
-	const bundledPackage = resolve(stagedNodeModules, packageName);
+async function copyPackage(installedPackage, bundledPackage) {
 	const nestedNodeModules = `${installedPackage}/node_modules/`;
 	await mkdir(dirname(bundledPackage), { recursive: true });
 	await cp(installedPackage, bundledPackage, {

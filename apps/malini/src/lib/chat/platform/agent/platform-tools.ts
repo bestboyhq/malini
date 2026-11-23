@@ -28,6 +28,7 @@ import {
 import { openFileForUser } from '$lib/extensions/extensions.platform';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import type { WidgetsPlatform } from '$lib/widgets/widgets.platform';
+import { osFor, osText } from '$shared/os/os.platform';
 import { DEFAULT_AGENT_MODEL, DEFAULT_PROVIDER_ID } from '$shared/providers/providers.platform';
 import {
 	clonePlannedRepository,
@@ -59,6 +60,10 @@ const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies AutomationRu
 const CLONE_WAIT_MS = 40_000;
 const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
+const EVENTS = CONTRACT_REFERENCE.events.map((event) => ({
+	...event,
+	description: osText(event.description, osFor(process.platform)),
+}));
 
 export type PlatformRequestDeps = Pick<
 	MainContext,
@@ -196,7 +201,7 @@ async function runPlatformTool(
 			};
 		}
 		case 'events_list':
-			return CONTRACT_REFERENCE.events;
+			return EVENTS;
 		case 'repositories_list':
 			return (await listRepositoryCatalog(db)).map(repositorySummary);
 		case 'repositories_clone':

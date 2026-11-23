@@ -10,13 +10,16 @@ const ackDelay = Number(env.FAKE_BRIDGE_ACK_DELAY_MS || 0);
 const reverse = Number(env.FAKE_BRIDGE_REVERSE_ACKS || 0);
 const approvalPath =
 	env.FAKE_BRIDGE_APPROVAL_PATH ||
-	nodePath.join(fs.realpathSync(require('node:os').tmpdir()), 'outside.txt');
+	nodePath.join(fs.realpathSync.native(require('node:os').tmpdir()), 'outside.txt');
 const dockerSocket = nodePath.join(
-	fs.realpathSync(require('node:os').tmpdir()),
+	fs.realpathSync.native(require('node:os').tmpdir()),
 	'malini-e2e-docker',
 	'docker.sock',
 );
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\n');
+const runningBridges = nodePath.join(env.HOME || '/tmp', 'fake-bridges');
+fs.mkdirSync(runningBridges, { recursive: true });
+fs.writeFileSync(nodePath.join(runningBridges, String(process.pid)), '');
 const signedInEmail = () => {
 	if (!env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE) return null;
 	try {
@@ -1175,8 +1178,9 @@ const respond = async (sessionId, runId, prompt) => {
 			const file = nodePath.join(worktree, path);
 			const kept = fs
 				.readFileSync(file, 'utf8')
-				.split('\n')
-				.filter((line) => !/^(?:<{7}|={7}|>{7})(?: |$)/.test(line));
+				.split(/\r?\n/)
+				.map((line) => line.replace(/\r+$/, ''))
+				.filter((line) => !/^(?:<{7,}|={7,}|>{7,}|\|{7,})(?: |$)/.test(line));
 			fs.writeFileSync(file, kept.join('\n'));
 			event({ type: 'file.changed', runId, path });
 		}
@@ -1348,7 +1352,10 @@ const respond = async (sessionId, runId, prompt) => {
 			process: 'rtk',
 			grant: {
 				kind: 'path',
-				path: nodePath.join(fs.realpathSync(require('node:os').homedir()), 'Library/Logs/rtk'),
+				path: nodePath.join(
+					fs.realpathSync.native(require('node:os').homedir()),
+					'Library/Logs/rtk',
+				),
 			},
 		});
 		return completeRun(sessionId, runId, 'tool state');
@@ -1807,13 +1814,16 @@ const respond = async (sessionId, runId, prompt) => {
 				: ''),
 		mention ? mention[1].split(',') : [],
 		[...prompt.matchAll(/SHOW_IMAGE:([^\s]+)/g)].map((match) => match[1]),
-		prompt.includes('RICH_MARKDOWN')
+		(prompt.includes('RICH_MARKDOWN')
 			? RICH_MARKDOWN
 			: prompt.includes('WIDE_CODE')
 				? '\n\n```sh\n' + 'echo wide '.repeat(60) + '\n```'
 				: prompt.includes('CODE')
 					? '\n\n```sh\npnpm --filter malini test\n```'
-					: '',
+					: '') +
+			[...prompt.matchAll(/LINK:([^\s]+)/g)]
+				.map((match) => '\n\n[' + match[1] + '](' + match[1] + ')')
+				.join(''),
 	);
 };
 let mcpServers = env.FAKE_BRIDGE_MCP_SERVERS

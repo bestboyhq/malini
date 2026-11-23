@@ -8,6 +8,7 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	moveFoldersMaliniHolds,
 	openWorkstream,
 	seedWorkstream,
 } from './harness';
@@ -16,13 +17,15 @@ const WORKSTREAM_ID = 'e2e-base-reclone-ws';
 
 test('a workstream whose base clone is gone clones it again and links back, asking for nothing', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({
+	const options = {
 		allowedDiagnostics: [
-			/not a git repository|io error: ENOENT|Invalid path '[^']+': No such file|current branch appears to be broken|is missing\./u,
+			/not a git repository|gitfile does not point to a valid repository|io error: ENOENT|Invalid path '[^']+': No such file|current branch appears to be broken|is missing\./u,
 		],
-	});
+	};
+	let app = await launchMalini(options);
 	try {
-		const { page, root } = app;
+		const { root } = app;
+		let { page } = app;
 		const source = await createSourceRepo(root, 'app');
 		const origin = join(root, 'github', 'acme', 'app.git');
 		mkdirSync(join(root, 'github', 'acme'), { recursive: true });
@@ -33,7 +36,10 @@ test('a workstream whose base clone is gone clones it again and links back, aski
 		await openWorkstream(page, WORKSTREAM_ID);
 		writeFileSync(join(worktree, 'notes.txt'), 'kept\n');
 
-		renameSync(basePath, join(root, 'trashed-base'));
+		app = await moveFoldersMaliniHolds(app, options, WORKSTREAM_ID, () =>
+			renameSync(basePath, join(root, 'trashed-base')),
+		);
+		({ page } = app);
 		await page.evaluate(`globalThis.dispatchEvent(new Event('focus'))`);
 
 		await expect.poll(() => existsSync(join(basePath, '.git')), { timeout: 60_000 }).toBe(true);

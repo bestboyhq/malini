@@ -1,3 +1,4 @@
+import { win32 } from 'node:path';
 import type { ResourceKind, ResourceUsage } from '$contract/stats';
 
 export const PROCESS_TABLE_ARGS = ['-A', '-o', 'pid=,ppid=,rss=,%cpu=,comm='] as const;
@@ -8,6 +9,11 @@ export interface ProcessRow {
 	readonly memoryBytes: number;
 	readonly cpuPercent: number;
 	readonly command: string;
+}
+
+export interface CpuTimes {
+	readonly at: number;
+	readonly ticks: ReadonlyMap<number, number>;
 }
 
 export interface ProcessRoots {
@@ -32,23 +38,78 @@ export interface ProcessTreeUsage {
 
 type OpenUnit = { -readonly [Key in keyof ProcessUnit]: ProcessUnit[Key] };
 
+interface TableRow {
+	readonly pid: number;
+	readonly ppid: number;
+	readonly memory: number;
+	readonly cpu: number;
+	readonly command: string;
+}
+
 const ROW = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+(.+)$/u;
 const KIND_ORDER: readonly ResourceKind[] = ['malini', 'browser', 'agents', 'tools'];
+const CPU_TICKS_PER_MS = 10_000;
 
 export function parseProcessTable(output: string): ProcessRow[] {
-	const rows: ProcessRow[] = [];
-	for (const line of output.split('\n')) {
-		const [, pid, ppid, rssKilobytes, cpu, command] = ROW.exec(line) ?? [];
-		if (!pid || !ppid || !rssKilobytes || !cpu || !command) continue;
-		rows.push({
-			pid: Number(pid),
-			ppid: Number(ppid),
-			memoryBytes: Number(rssKilobytes) * 1_024,
-			cpuPercent: Number(cpu),
-			command: command.trim(),
-		});
-	}
-	return rows;
+	return tableRows(output).map(({ memory, cpu, ...row }) => ({
+		...row,
+		memoryBytes: memory * 1_024,
+		cpuPercent: cpu,
+	}));
+}
+
+export function parseWindowsProcessTable(
+	output: string,
+	at: number,
+	since: CpuTimes | null,
+): { readonly rows: ProcessRow[]; readonly cpuTimes: CpuTimes } {
+	const table = tableRows(output);
+	const elapsedTicks = since ? (at - since.at) * CPU_TICKS_PER_MS : 0;
+	return {
+		rows: table.map(({ memory, cpu, ...row }) => ({
+			...row,
+			memoryBytes: memory,
+			cpuPercent:
+				elapsedTicks > 0
+					? (Math.max(0, cpu - (since?.ticks.get(row.pid) ?? 0)) / elapsedTicks) * 100
+					: 0,
+		})),
+		cpuTimes: { at, ticks: new Map(table.map(({ pid, cpu }) => [pid, cpu])) },
+	};
+}
+
+export const WINDOWS_POWERSHELL = win32.join(
+	process.env['SystemRoot'] ?? 'C:\\Windows',
+	'System32',
+	'WindowsPowerShell',
+	'v1.0',
+	'powershell.exe',
+);
+
+export function powerShellArgs(script: string): readonly string[] {
+	return [
+		'-NoLogo',
+		'-NoProfile',
+		'-NonInteractive',
+		'-EncodedCommand',
+		Buffer.from(script, 'utf16le').toString('base64'),
+	];
+}
+
+function tableRows(output: string): TableRow[] {
+	return output.split(/\r?\n/u).flatMap((line) => {
+		const [, pid, ppid, memory, cpu, command] = ROW.exec(line) ?? [];
+		if (!pid || !ppid || !memory || !cpu || !command) return [];
+		return [
+			{
+				pid: Number(pid),
+				ppid: Number(ppid),
+				memory: Number(memory),
+				cpu: Number(cpu),
+				command: command.trim(),
+			},
+		];
+	});
 }
 
 export function measureProcessTree(

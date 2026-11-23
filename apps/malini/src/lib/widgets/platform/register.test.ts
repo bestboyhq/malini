@@ -492,9 +492,11 @@ describe('watching', () => {
 
 		widgetFile('rooms', { title: 'Rooms', source: { command: run(2) } });
 		await place('rooms');
-		await vi.waitFor(() => expect(runs()).toBe(2));
-		const rooms = (await board()).readings.find(({ widgetId }) => widgetId === 'rooms');
-		expect(rooms?.data).toMatchObject({ value: 2 });
+		await vi.waitFor(async () => {
+			const rooms = (await board()).readings.find(({ widgetId }) => widgetId === 'rooms');
+			expect(rooms?.data).toMatchObject({ value: 2 });
+		});
+		expect(runs()).toBe(2);
 		await context.commands.call('widgets.watch', { workstreamId: WORKSTREAM, watching: false });
 	});
 

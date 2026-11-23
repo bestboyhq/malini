@@ -1,4 +1,4 @@
-import { mediaKind, workstreamImagePath } from '$contract/workstream-images';
+import { forwardSlashed, mediaKind, workstreamImagePath } from '$contract/workstream-images';
 
 export const WORKSTREAM_IMAGE_ATTRIBUTE = 'data-workstream-image';
 
@@ -44,11 +44,6 @@ export function showImages(
 	}
 }
 
-export function workstreamImageFilePath(root: string | null, path: string): string {
-	if (root === null || path.startsWith('/')) return path;
-	return `${root.replace(/\/+$/u, '')}/${path.replace(/^(?:\.\/)+/u, '')}`;
-}
-
 export const GALLERY_IMAGE_ATTRIBUTE = 'data-gallery-image';
 
 export type GalleryMedia = 'image' | 'video';
@@ -89,7 +84,7 @@ export function markdownImageName(image: HTMLImageElement, id: string): string {
 	const alt = image.alt.trim();
 	if (alt) return alt;
 	if (!image.hasAttribute(WORKSTREAM_IMAGE_ATTRIBUTE)) return 'image';
-	return id.split('/').filter(Boolean).pop() ?? id;
+	return forwardSlashed(id).split('/').filter(Boolean).pop() ?? id;
 }
 
 export function reportMediaSource(

@@ -53,7 +53,7 @@ async function harness(): Promise<Harness> {
 		startupReclaim: false,
 	});
 	cleanups.push(async () => {
-		platform.watchers.dispose();
+		await platform.watchers.dispose();
 		await archivedLeftoversCleared();
 		context.db.close();
 	});

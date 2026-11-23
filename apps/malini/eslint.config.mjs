@@ -33,7 +33,7 @@ const BOUNDARY_OPTIONS = {
 	domainPackages: ['ts-pattern'],
 	compositionRoots: ['src/main/modules.ts', 'src/main/index.ts'],
 	consumerDomains: ['app'],
-	sharedDomains: ['repositories', 'providers', 'sounds'],
+	sharedDomains: ['repositories', 'providers', 'sounds', 'os'],
 };
 
 const PRODUCT_SOURCE = ['src/renderer/**/*.{svelte,ts}', 'src/lib/**/*.{svelte,ts}'];
@@ -121,13 +121,25 @@ export default [
 	},
 	{
 		files: ['src/**/*.ts'],
-		ignores: ['src/**/*.test.ts', 'src/main/process/detached.ts', 'src/main/process/reaper.ts'],
+		ignores: [
+			'src/**/*.test.ts',
+			'src/main/process/detached.ts',
+			'src/main/process/reaper.ts',
+			'src/main/process/process-group.ts',
+			'src/lib/app/platform/lid-hold.ts',
+		],
 		rules: {
 			'no-restricted-syntax': [
 				'error',
 				{
 					selector:
 						"Property[key.name='detached'][value.value=true]:not(CallExpression[callee.name='endWithMalini'] Property)",
+					message:
+						'A process in its own group outlives a Malini that crashes. Wrap its spawn in endWithMalini from $main/process/reaper.',
+				},
+				{
+					selector:
+						"SpreadElement[argument.name='OWN_PROCESS_GROUP']:not(CallExpression[callee.name='endWithMalini'] SpreadElement)",
 					message:
 						'A process in its own group outlives a Malini that crashes. Wrap its spawn in endWithMalini from $main/process/reaper.',
 				},

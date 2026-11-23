@@ -1,3 +1,5 @@
+import { rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -8,8 +10,11 @@ import {
 	launchMalini,
 	listEvents,
 	openWorkstream,
+	REAL_GIT,
 	seedWorkstream,
 	sendPrompt,
+	writeExecutable,
+	type LaunchedApp,
 	type MaliniEvent,
 } from './harness';
 
@@ -59,6 +64,7 @@ test('@todos sends the workstream todo list with the prompt', async () => {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-todos-ws', 'Todos');
+		const releaseGitStatus = holdGitStatus(app);
 		await openWorkstream(page, workstreamId);
 
 		await openPicker(page);
@@ -66,6 +72,7 @@ test('@todos sends the workstream todo list with the prompt', async () => {
 		await expect(page.getByTestId('chat-composer-input')).toContainText('@todos');
 		await page.keyboard.type('Work through ', { delay: 10 });
 		await page.getByTestId('chat-composer-submit').click();
+		releaseGitStatus();
 		await expectAssistantReply(page);
 
 		const text = String((await lastUserMessage(page))?.['text'] ?? '');
@@ -78,6 +85,58 @@ test('@todos sends the workstream todo list with the prompt', async () => {
 		await app.close();
 	}
 });
+
+test('leaving a workstream while its @todos load frees the composer and keeps the prompt', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const left = await seedWorkstream(page, source, 'e2e-todos-left', 'Left');
+		const other = await seedWorkstream(page, source, 'e2e-todos-other', 'Other');
+		const releaseGitStatus = holdGitStatus(app);
+		await openWorkstream(page, left.workstreamId);
+
+		const input = page.getByTestId('chat-composer-input');
+		await openPicker(page);
+		await page.getByTestId('chat-context-todos').click();
+		await page.keyboard.type('Work through ', { delay: 10 });
+		await page.getByTestId('chat-composer-submit').click();
+		await expect(input).toHaveAttribute('aria-disabled', 'true');
+
+		await workstreamLink(page, other.workstreamId).click();
+		await expect(input).toHaveAttribute('aria-disabled', 'false', { timeout: 5_000 });
+		releaseGitStatus();
+
+		await workstreamLink(page, left.workstreamId).click();
+		await expect(input).toContainText('@todos');
+		await expect(input).toContainText('Work through');
+		await expect(page.getByTestId('chat-message-bubble')).toHaveCount(0);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+function workstreamLink(page: Page, workstreamId: string) {
+	return page.locator(`a[data-navigation-workstream-id="${workstreamId}"]`).first();
+}
+
+function holdGitStatus(app: LaunchedApp): () => void {
+	const gate = join(app.root, 'git-status-held');
+	writeExecutable(
+		join(app.bin, 'git'),
+		[
+			'#!/bin/sh',
+			`case " $* " in *" status --porcelain "*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac`,
+			`exec '${REAL_GIT}' "$@"`,
+			'',
+		].join('\n'),
+	);
+	writeFileSync(gate, '');
+	return () => rmSync(gate, { force: true });
+}
 
 async function openPicker(page: Page): Promise<void> {
 	await page.getByTestId('chat-composer-input').click();

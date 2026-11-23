@@ -10,7 +10,7 @@ It is one list: what you installed on top, each with a switch, and every other e
 **Install** puts an extension in every chat from that chat's next prompt.
 Click an extension to open it in place: its README, the MCP servers and skills it adds, the hosts it connects to, who published it, and its repository.
 
-An extension adds remote MCP servers and skills, so nothing it adds runs on your Mac.
+An extension adds remote MCP servers and skills, so nothing it adds runs on your computer.
 An extension's servers show under Settings, MCP servers beside your own, and one that needs a sign-in gets **Sign in** there.
 Malini keeps extensions in its own folder and hands them to every agent session itself, never through `claude plugin install` or `~/.claude`, so the Claude Code plugins you installed yourself keep working as they are.
 

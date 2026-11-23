@@ -3,18 +3,19 @@
 	import Icon from '../../icons/Icon.svelte';
 
 	interface Props {
-		mod?: boolean;
+		label: string;
+		mod?: string;
 		size?: number;
 		class?: ClassValue;
 	}
 
-	let { mod = false, size = 12, class: className }: Props = $props();
+	let { label, mod, size = 12, class: className }: Props = $props();
 </script>
 
 <kbd class={['inline-flex items-center font-sans', className]}>
 	{#if mod}
-		<span aria-hidden="true">⌘</span>
+		<span aria-hidden="true">{mod}</span>
 	{/if}
 	<Icon name="enter" {size} class={['-mr-0.5', mod && '-ml-0.5']} />
-	<span class="sr-only">{mod ? 'Command Return' : 'Return'}</span>
+	<span class="sr-only">{label}</span>
 </kbd>

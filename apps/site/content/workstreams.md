@@ -35,7 +35,7 @@ The inspector is on the right from the start, its striped top reading **No chang
 
 ## Where checkouts live
 
-Checkouts live in `~/malini` unless you pick another folder, where Finder, your editor and your terminal find them:
+Checkouts live in `~/malini` unless you pick another folder, where your file manager, your editor and your terminal find them:
 
 - `~/malini/repositories` holds the clone of each repository;
 - `~/malini/workstreams/<id>` holds each workstream.
@@ -66,7 +66,7 @@ Malini fixes these on its own:
 - **Its copy of the repository is gone.** Each workstream keeps its git data in Malini's clone of the repository, `~/malini/repositories/<owner>__<name>/base`.
   When that folder is gone, Malini clones the repository again from GitHub and links every workstream of it back, with the clone's progress in the step.
   Your files stay as they are.
-  A branch that is on GitHub comes back from there; a branch that was only on this Mac starts again from where it began, and its commits show as edits; the step says **Nothing lost** when there were none.
+  A branch that is on GitHub comes back from there; a branch that was only on this computer starts again from where it began, and its commits show as edits; the step says **Nothing lost** when there were none.
   When the clone has no room, the step says the disk is full, and Malini clones again once 1 GB more is free.
 - **A missing folder, `.git` link or git record of the checkout.** A missing folder comes back from its branch with the newest checkpoint of its uncommitted work.
 - **A lock a stopped git command left behind.** It goes only when it is more than 2 minutes old and no git command holds it.
@@ -101,7 +101,7 @@ Workstreams share disk space, so you can keep as many as you like.
   Malini first moves that clone to the latest default branch it fetched, so files that changed there are shared too.
 - **Dependencies are shared.** With npm or yarn, a workstream copies `node_modules` the same way from another workstream with the same lockfile, instead of installing again.
   pnpm and bun share packages through their own store.
-- **One clone per repository.** A repository you open from a folder on your Mac is cloned from that folder and shares its git objects, then fetches the rest from its remote.
+- **One clone per repository.** A repository you open from a folder on your computer is cloned from that folder and shares its git objects, then fetches the rest from its remote.
   A GitHub repository is cloned without the old versions of its files of 1 MB or more, and over 1 GB without the history of any file; git fetches an old version the first time something reads it.
 - **Archives stay small.** Archiving keeps the commits, uncommitted changes, chats, attachments, every image or recording a chat showed, and the text files up to 10 MB in the `.context` folder, so an agent can still learn from the work.
   It drops the rest of `.context`, such as other screenshots, downloads, builds and dependency folders.
@@ -194,12 +194,12 @@ List the ports your workstreams serve on by name in `.malini/workspace.json`, an
 - The clock beside a workstream's archive button saves it for later.
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
   It waits on its repository's page instead of **Recently archived**.
-- Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
-  **Open folder…** connects a folder on your Mac, and **Find repository…** finds any repository you work on, on GitHub or already here.
+- Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar, which sits in the taskbar corner on Windows and the tray on Linux.
+  **Open folder…** connects a folder on your computer, and **Find repository…** finds any repository you work on, on GitHub or already here.
   Or press **⌘K** and type its name.
   Each one starts a workstream in that repository and opens it.
 - **File → New Workstream** (**⌘N**) starts a workstream in the repository you're in, and **File → New Chat** (**⌘T**) opens a chat in the workstream you're in.
-- Open a workstream in your editor or reveal it in Finder.
+- Open a workstream in your editor or reveal it in your file manager.
 - Open a repository on GitHub from its right-click menu, the repository list, or its page.
 - Each workstream holds many chats, as tabs, named for you.
   A new workstream is **New workstream** until its first chat has a name, and that name names the workstream too.
@@ -232,10 +232,10 @@ Click one to resume it where you left off, or archive it to move it to **Recentl
 Hover **Pull requests**, in the bar of a repository's page, to list the pull requests you have open in it, each with its number, whether it is a draft, and when it last changed.
 It shows once the repository has a GitHub owner and its clone is ready.
 Malini reads them from GitHub each time the list opens, and leaves out pull requests from forks.
-Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another Mac.
+Hover one and click **Continue here** to open it as a workstream on its own branch, at the commit GitHub has, so you pick up where you left off on another computer.
 Claude names it from its title.
 One you already work on here says **Open**, catches up with what you pushed elsewhere, and takes you to it, and one you archived comes back from **Recently archived**.
-Malini opens none of them on its own, so a pull request you merged or closed on another Mac never turns into work here.
+Malini opens none of them on its own, so a pull request you merged or closed on another computer never turns into work here.
 Like every workstream, each one stays on its own commits while main moves elsewhere, and Malini merges main into it once main conflicts with it or changes a file it changed.
 
 ## From prompt to merged
@@ -294,7 +294,7 @@ Like every workstream, each one stays on its own commits while main moves elsewh
   When a personal access token or a GitHub App pushes instead, give it the workflow permission on GitHub, then press **Retry now**.
 - **A push without write access waits for you.** When your GitHub account can read a repository but not push to it, GitHub refuses every push, so the note names the account and the repository, such as **`octocat` can't push to acme/app**, and waits for you.
   Once an owner gives that account write access, press **Retry now**.
-- **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
+- **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your computer loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
   To ask now, press **Refresh** in the pull request detail.

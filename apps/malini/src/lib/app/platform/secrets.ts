@@ -1,5 +1,6 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { renameWhenFree } from '$main/fs/atomic';
 import { AppError } from './app-error';
 
 export const SECRET_STORE_FILE = 'renderer-secrets.json';
@@ -140,7 +141,7 @@ export class RendererSecretStore {
 		const temporary = `${this.path}.tmp`;
 		await writeFile(temporary, JSON.stringify(file), { mode: 0o600 });
 		await chmod(temporary, 0o600);
-		await rename(temporary, this.path);
+		await renameWhenFree(temporary, this.path);
 	}
 }
 

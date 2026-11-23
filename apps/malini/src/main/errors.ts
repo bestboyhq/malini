@@ -1,6 +1,8 @@
-import { basename } from 'node:path';
+import { basename, win32 } from 'node:path';
 import { githubFailure, isNetworkFailure, type GithubFailure } from '../contract/github-failure.ts';
 import type { ShipWaitsFor } from '$contract/pull-requests';
+import { osFor } from '../lib/shared/os/os.platform.ts';
+import { findExecutable } from './process/command.ts';
 import {
 	ghSaid,
 	ghSubcommand,
@@ -202,7 +204,7 @@ export class GitError extends MaliniError<GitErrorKind> {
 	}
 
 	static gitUnavailable(detail: string): GitError {
-		return new GitError('git-unavailable', `git unavailable: ${detail}`);
+		return new GitError('git-unavailable', gitMissingMessage(), { detail });
 	}
 
 	static git(detail: string): GitError {
@@ -274,14 +276,22 @@ const REMOTE_REJECTED = /^\s*!\s+\[remote rejected\][^\n(]*\((.+)\)[ \t]*$/mu;
 const WORKFLOW_REFUSED =
 	/refusing to allow an? (OAuth App|Personal Access Token|GitHub App) to create or update workflow `([^`]+)` without `workflows?` (?:scope|permission)/u;
 const REMOTE_LINE = /^remote:[ \t]?(.*)$/gmu;
-const PUSHED_TO_FOLDER = /^To (\/.*?)\/?$/mu;
+const PUSHED_TO_FOLDER = /^To ((?:\/|[A-Za-z]:[\\/]|\\\\).*?)[\\/]?$/mu;
 const REMOTE_PROGRESS = /^(?:Enumerating|Counting|Compressing|Resolving|Total|Writing)\b/u;
 const REMOTE_SAID_MAX_CHARS = 2_000;
 const MERGE_CONFLICT = /^CONFLICT \(/mu;
 const MERGE_CONFLICT_PATH = /^CONFLICT \([^)]*\): Merge conflict in (.+)$/gmu;
 const INDEX_LOCKED = /index\.lock'?: File exists/u;
 const FOLDER_GONE = /cannot change to '([^']+)': No such file or directory/u;
-const GENERIC_REMOTE_FAILURE = /could not read from remote repository/iu;
+const GENERIC_FAILURE = /could not read from remote repository|adding files failed/iu;
+const DEVELOPER_TOOLS_MISSING =
+	/xcrun: error: invalid active developer path|xcode-select: note: no developer tools were found/iu;
+const LINUX_GIT_INSTALLS = [
+	['apt-get', 'sudo apt install git'],
+	['dnf', 'sudo dnf install git'],
+	['pacman', 'sudo pacman -S git'],
+	['zypper', 'sudo zypper install git'],
+] as const;
 const LISTED_CONFLICT_PATHS = 3;
 
 const WORKFLOW_FIXES: Readonly<Record<string, string>> = {
@@ -316,17 +326,37 @@ function refusedPush(output: string, reason: string): string {
 	const fix = workflow?.[1] === undefined ? undefined : WORKFLOW_FIXES[workflow[1]];
 	if (!workflow || fix === undefined) {
 		const folder = PUSHED_TO_FOLDER.exec(output)?.[1];
-		const refuser = folder === undefined ? 'GitHub' : `The folder ${basename(folder)}`;
+		const refuser = folder === undefined ? 'GitHub' : `The folder ${pathName(folder)}`;
 		return `${refuser} refused the push: ${/[.!?]$/u.test(reason) ? reason : `${reason}.`}`;
 	}
 	return `GitHub refused the push: this change edits \`${workflow[2] ?? 'a workflow'}\`, and ${fix}`;
 }
 
 function folderMissing(folder: string): GitFailureVerdict {
-	return { kind: 'io', message: `The folder ${basename(folder)} is missing.`, code: 'ENOENT' };
+	return { kind: 'io', message: `The folder ${pathName(folder)} is missing.`, code: 'ENOENT' };
+}
+
+export function gitMissingMessage(
+	platform: string = process.platform,
+	path: string = process.env['PATH'] ?? '',
+): string {
+	if (platform === 'win32') {
+		return 'Git for Windows is not on this PC. Press Try again on the Repositories page.';
+	}
+	const { terminal } = osFor(platform);
+	if (platform === 'darwin') {
+		return `Git needs the Command Line Tools. Run xcode-select --install in ${terminal}, then try again.`;
+	}
+	const install = LINUX_GIT_INSTALLS.find(([tool]) => findExecutable(tool, path) !== null);
+	return install
+		? `Git is not installed. Run ${install[1]} in ${terminal}, then try again.`
+		: 'Git is not installed. Install it with your package manager, then try again.';
 }
 
 export function gitFailureVerdict(output: string): GitFailureVerdict {
+	if (DEVELOPER_TOOLS_MISSING.test(output)) {
+		return { kind: 'git-unavailable', message: gitMissingMessage('darwin') };
+	}
 	const gone = FOLDER_GONE.exec(output)?.[1];
 	if (gone) return folderMissing(gone);
 	const denied = PUSH_DENIED.exec(output);
@@ -417,17 +447,24 @@ function gitVerdictLine(output: string): string {
 		.filter((line) => line.length > 0 && !/^hint:/iu.test(line));
 	const verdicts = lines.filter((line) => /^(?:fatal|error):/iu.test(line));
 	const verdict =
-		verdicts.filter((line) => !GENERIC_REMOTE_FAILURE.test(line)).at(-1) ??
+		verdicts.filter((line) => !GENERIC_FAILURE.test(line)).at(-1) ??
 		verdicts.at(-1) ??
 		lines.at(-1);
 	const cleaned = withoutAbsolutePaths(verdict?.replace(/^(?:fatal|error):\s*/iu, '') ?? '');
 	return cleaned.length > 0 ? cleaned : 'Git stopped without giving a reason.';
 }
 
+const QUOTED_PATH = /'((?:\/|[a-z]:[\\/]|\\\\)[^']+)'/giu;
+const BARE_PATH = /(?<![\w:/\\.~-])(?:\/|[a-z]:[\\/]|\\\\)[^\s'",;]+/giu;
+
 function withoutAbsolutePaths(line: string): string {
 	return line
-		.replace(/'(\/[^']+)'/gu, (_, path: string) => `'${basename(path)}'`)
-		.replace(/(?<![\w:/.~-])\/[^\s'",;]+/gu, (path) => basename(path));
+		.replace(QUOTED_PATH, (_, path: string) => `'${pathName(path)}'`)
+		.replace(BARE_PATH, pathName);
+}
+
+function pathName(path: string): string {
+	return /^(?:[a-z]:|\\\\)/iu.test(path) ? win32.basename(path) : basename(path);
 }
 
 const CREDENTIAL_CONFIG = /^((?:credential\b[^=]*|http\.[^=]*extraheader)=)(.+)$/iu;
@@ -509,7 +546,7 @@ export class GhError extends MaliniError<GhErrorKind> {
 	static notInstalled(): GhError {
 		return new GhError(
 			'not-installed',
-			'The GitHub CLI (`gh`) is not on this Mac. Install it in Settings, Accounts.',
+			`The GitHub CLI (\`gh\`) is not on this ${osFor(process.platform).machine}. Install it in Settings, Accounts.`,
 			{ code: null },
 		);
 	}

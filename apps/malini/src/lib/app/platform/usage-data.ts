@@ -34,6 +34,7 @@ import { HEARD_ABOUT_SETTING, heardAbout, heardAboutProps } from '../domain/hear
 import { USAGE_DATA_SETTING, usageDataSetting, usageDataShared } from '../domain/usage-data';
 import { reportAge, reportDay } from '../domain/usage-report';
 import { deleteSetting, getSetting, setSetting } from './settings.repository';
+import { currentSystemLabel } from './system-label';
 import {
 	hasChangedPromptRun,
 	hasPromptRun,
@@ -607,7 +608,7 @@ function systemDetails(context: MainContext): ErrorSystem {
 			memory: gigabytes(totalmem(), 0),
 			arch: process.arch,
 		},
-		os: `macOS ${process.getSystemVersion()}`,
+		os: currentSystemLabel(),
 	};
 }
 
@@ -621,6 +622,7 @@ export function errorLine(headline: string, details: ErrorDetails): string {
 
 function processEnding(reason: string, status: number): string {
 	if (reason === 'launch-failed') return `code ${status}`;
+	if (process.platform === 'win32') return `exit ${status}`;
 	const signal = status & 0x7f;
 	if (signal === 0) return `exit ${status >> 8}`;
 	const name = Object.entries(constants.signals).find(([, number]) => number === signal)?.[0];

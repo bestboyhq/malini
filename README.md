@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg"><img src="https://img.shields.io/badge/Download_for_macOS-000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40"></a>
+  <a href="https://github.com/bestboyhq/malini/releases/latest/download/malini-universal.dmg"><img src="https://img.shields.io/badge/Download_for_macOS-000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40"></a>
 </p>
 
 <p align="center">
@@ -252,7 +252,7 @@ The [docs](https://bestboy.dev/malini/docs) explain each one.
 
 # Install
 
-[Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
+[Download Malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-universal.dmg) and drag it to Applications.
 It needs macOS 13 or later on Apple silicon, and git.
 Malini ships the GitHub CLI, installs Claude Code if this Mac lacks it, and updates itself.
 

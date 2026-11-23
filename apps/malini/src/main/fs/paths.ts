@@ -1,4 +1,6 @@
-import { isAbsolute, relative } from 'node:path';
+import { isAbsolute, relative, sep } from 'node:path';
+
+export const PATH_SEPARATORS = sep === '\\' ? /[\\/]/u : '/';
 
 export function isInsideDirectory(root: string, path: string): boolean {
 	const between = relative(root, path);
@@ -6,7 +8,7 @@ export function isInsideDirectory(root: string, path: string): boolean {
 }
 
 export function isAtOrInsideDirectory(root: string, path: string): boolean {
-	return path === root || isInsideDirectory(root, path);
+	return relative(root, path) === '' || isInsideDirectory(root, path);
 }
 
 export const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set([

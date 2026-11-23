@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
@@ -82,7 +83,7 @@ async function contextFiles(root: string): Promise<string[]> {
 	const entries = await readdir(context, { recursive: true, withFileTypes: true });
 	return entries
 		.filter((entry) => entry.isFile())
-		.map((entry) => relative(context, join(entry.parentPath, entry.name)))
+		.map((entry) => relative(context, join(entry.parentPath, entry.name)).split(sep).join('/'))
 		.sort();
 }
 
@@ -110,7 +111,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		...deps,
 	});
 	cleanups.push(async () => {
-		platform.watchers.dispose();
+		await platform.watchers.dispose();
 		await archivedLeftoversCleared();
 		context.db.close();
 	});
@@ -120,7 +121,7 @@ function harness(appDataRoot: string, deps: RepositoriesDeps = {}) {
 		if (!response.ok) throw new Error(response.error);
 		return response.value;
 	}
-	return { commands, events, invoke, db: context.db, context };
+	return { commands, events, invoke, db: context.db, context, platform };
 }
 
 function seed(
@@ -169,7 +170,7 @@ async function cloneAcmeApi(dir: string, invoke: Invoke): Promise<string> {
 	const source = join(dir, 'acme', 'api');
 	await initRealRepo(source);
 	await realGit(source, ['branch', '-M', 'main']);
-	return invoke<string>('repositories.create-repository', { repoUrl: `file://${source}` });
+	return invoke<string>('repositories.create-repository', { repoUrl: pathToFileURL(source).href });
 }
 
 function startWorkstream(
@@ -226,7 +227,7 @@ describe('retired chats', () => {
 		cleanups.push(() => removeDir(dir));
 		const appDataRoot = join(dir, 'app');
 		await mkdir(appDataRoot);
-		const { invoke, db, context } = harness(appDataRoot);
+		const { invoke, db, context, platform } = harness(appDataRoot);
 		const projectRepoPath = await cloneAcmeApi(dir, invoke);
 		await startWorkstream(invoke, projectRepoPath, 'work');
 		for (const [workstreamId, scope] of [
@@ -244,6 +245,7 @@ describe('retired chats', () => {
 			'acme/api',
 		]);
 
+		await platform.watchers.dispose();
 		const restarted = registerRepositories(
 			{ ...context, commands: new CommandRegistry() },
 			{ shell: silentShell, startupReclaim: false },
@@ -1084,6 +1086,34 @@ describe('reading a workstream while its files change', () => {
 			.map((line) => JSON.parse(line) as { level: string; command: string });
 		expect(recorded.map(({ level, command }) => [level, command])).toEqual([
 			['warn', 'repositories.workstream-snapshot'],
+		]);
+	});
+
+	it('records a read of a deleted workstream as a warning', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-deleted');
+		const { commands, db, invoke } = harness(dir);
+		const diagnostics = new MainDiagnosticsLog({
+			appDataRoot: dir,
+			runtime: { productName: 'Malini', bundleIdentifier: 'test', version: '0.0.0', pid: 1 },
+		});
+		commands.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+		seed(db, 'ws-deleted', base, checkout);
+
+		await invoke('repositories.delete-workstream', { workstreamId: 'ws-deleted' });
+		const read = await commands.invoke({
+			command: 'repositories.workstream-status',
+			args: { workstreamId: 'ws-deleted' },
+		});
+
+		expect(read.ok).toBe(false);
+		const recorded = (await readFile(currentLogPath(diagnosticsDirectory(dir), 'main'), 'utf8'))
+			.trim()
+			.split('\n')
+			.map((line) => JSON.parse(line) as { level: string; command: string });
+		expect(recorded.map(({ level, command }) => [level, command])).toEqual([
+			['warn', 'repositories.workstream-status'],
 		]);
 	});
 });

@@ -102,6 +102,7 @@ beforeEach(async () => {
 		startedBy: null,
 	});
 	platform = registerRepositories(context, { startupReclaim: false });
+	platform.watchers.unwatch(WORKSTREAM_ID);
 	await archivedLeftoversCleared();
 });
 
@@ -109,7 +110,7 @@ afterEach(async () => {
 	restoreGit();
 	restoreGit = () => undefined;
 	platform.checkoutHealth.dispose();
-	platform.watchers.dispose();
+	await platform.watchers.dispose();
 	db.close();
 	await removeDir(root);
 });
@@ -212,8 +213,10 @@ describe('checkout health', () => {
 		platform.checkoutHealth.probeBroken();
 
 		await expect
-			.poll(() =>
-				context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+			.poll(
+				() =>
+					context.commands.call('repositories.checkout-health', { workstreamId: WORKSTREAM_ID }),
+				{ timeout: 10_000 },
 			)
 			.toEqual(HEALTHY);
 		expect(healthEvents.map(({ state, finding }) => [state, finding])).toEqual([

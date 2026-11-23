@@ -1,10 +1,8 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import {
 	chmod,
 	mkdir,
 	readdir,
-	readFile,
 	realpath,
 	stat,
 	symlink,
@@ -12,11 +10,11 @@ import {
 	writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	fakeGithubAccount,
 	initRealRepo,
+	readCheckedOutText,
 	realGit,
 	removeDir,
 	tempDir,
@@ -32,14 +30,12 @@ import {
 	cleanupFailedWorkstream,
 	deleteWorkstreamBranch,
 	listWorktrees,
+	makeTreeWritable,
 	parseWorktreeListPorcelain,
 	populateCheckout,
 	removeCheckoutDirResilient,
-	removeWorktree,
 	withProjectLock,
 } from './worktrees';
-
-const execFileAsync = promisify(execFile);
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -193,8 +189,8 @@ describe('addWorktree', () => {
 		await addWorktree(base, wt, workstreamBranchName('ws-cow'), 'next');
 
 		expect((await stat(join(wt, 'src', 'kept.txt'))).mtime).toEqual(longAgo);
-		expect(await readFile(join(wt, 'src', 'changed.txt'), 'utf8')).toBe('new\n');
-		expect(await readFile(join(wt, 'seed.txt'), 'utf8')).toBe('seed\n');
+		expect(await readCheckedOutText(join(wt, 'src', 'changed.txt'))).toBe('new\n');
+		expect(await readCheckedOutText(join(wt, 'seed.txt'))).toBe('seed\n');
 		expect(existsSync(join(wt, 'src', 'untracked.txt'))).toBe(false);
 		expect(existsSync(join(wt, 'src', 'node_modules'))).toBe(false);
 		expect(existsSync(join(wt, 'junk'))).toBe(false);
@@ -217,8 +213,8 @@ describe('addWorktree', () => {
 		expect((await realGit(base, ['rev-parse', 'HEAD'])).trim()).toBe(
 			(await realGit(base, ['rev-parse', 'origin/main'])).trim(),
 		);
-		expect(await readFile(join(base, 'landed.txt'), 'utf8')).toBe('landed on main\n');
-		expect(await readFile(join(wt, 'landed.txt'), 'utf8')).toBe('landed on main\n');
+		expect(await readCheckedOutText(join(base, 'landed.txt'))).toBe('landed on main\n');
+		expect(await readCheckedOutText(join(wt, 'landed.txt'))).toBe('landed on main\n');
 		expect(await realGit(wt, ['status', '--porcelain', '--ignored'])).toBe('');
 	});
 
@@ -244,8 +240,8 @@ describe('addWorktree', () => {
 		expect((await realGit(base, ['rev-parse', 'HEAD'])).trim()).toBe(
 			(await realGit(base, ['rev-parse', 'origin/main'])).trim(),
 		);
-		expect(await readFile(join(base, 'first.txt'), 'utf8')).toBe('first commit\n');
-		expect(await readFile(join(wt, 'first.txt'), 'utf8')).toBe('first commit\n');
+		expect(await readCheckedOutText(join(base, 'first.txt'))).toBe('first commit\n');
+		expect(await readCheckedOutText(join(wt, 'first.txt'))).toBe('first commit\n');
 	});
 
 	it('leaves a submodule folder empty even when the base checked it out', async () => {
@@ -330,20 +326,6 @@ describe('addWorktreeWithRollback', () => {
 });
 
 describe('removeWorktree and cleanup', () => {
-	it('removes a real checkout and refuses a path that does not encode a workstream branch', async () => {
-		const dir = await tempDir();
-		cleanups.push(() => removeDir(dir));
-		const base = join(dir, 'base');
-		await initRealRepo(base);
-		const wt = join(dir, 'workstreams', 'ws-gone');
-		await mkdir(join(dir, 'workstreams'), { recursive: true });
-		await realGit(base, ['worktree', 'add', '-q', '-b', 'malini/ws-gone', wt]);
-		await removeWorktree(wt);
-		expect(existsSync(wt)).toBe(false);
-		expect(await listWorktrees(base)).toHaveLength(1);
-		await expect(removeWorktree('')).rejects.toThrow(/does not encode a workstream branch/);
-	});
-
 	it('t9i cleanupFailedWorkstream removes checkout and branch', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
@@ -415,7 +397,7 @@ describe('removeCheckoutDirResilient', () => {
 	it('t19d removes a read-only nested tree the way rm -rf does', async () => {
 		const dir = await tempDir();
 		cleanups.push(async () => {
-			await execFileAsync('chmod', ['-R', 'u+w', dir]);
+			await makeTreeWritable(dir);
 			await removeDir(dir);
 		});
 		const target = join(dir, 'checkout');
@@ -434,7 +416,7 @@ describe('removeCheckoutDirResilient', () => {
 	it('t19e never loosens anything a symlink inside the tree points to', async () => {
 		const dir = await tempDir();
 		cleanups.push(async () => {
-			await execFileAsync('chmod', ['-R', 'u+w', dir]);
+			await makeTreeWritable(dir);
 			await removeDir(dir);
 		});
 		const outside = join(dir, 'outside');
@@ -449,7 +431,7 @@ describe('removeCheckoutDirResilient', () => {
 		expect(await removeCheckoutDirResilient(target)).toBeNull();
 		expect(existsSync(target)).toBe(false);
 		expect(existsSync(join(outside, 'keep.txt'))).toBe(true);
-		expect((await stat(outside)).mode & 0o777).toBe(0o555);
+		expect((await stat(outside)).mode & 0o222).toBe(0);
 	});
 
 	it('t19c treats a missing directory as removed', async () => {

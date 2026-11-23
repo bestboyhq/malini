@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { SourceMap, type SourceMapPayload } from 'node:module';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const FRAME_LOCATION = /^\s*at .*?\(?((?:file:\/\/)?\/[^\s()]+):(\d+):(\d+)\)?$/u;
+const FRAME_LOCATION = /^\s*at .*?\(?((?:file:\/\/)?(?:\/|[A-Za-z]:\\)[^\s()]+):(\d+):(\d+)\)?$/u;
 const APP_SOURCE = /\/(?:src\/((?:lib|main|contract)\/.+)|(packages\/(?!.*\/node_modules\/).+))$/u;
 const ERROR_FACTORIES = new Set(['main/errors.ts']);
 
@@ -32,15 +32,19 @@ export function throwSites(error: unknown, limit: number): string[] {
 function frameOrigin(frame: string): Origin | null {
 	const match = FRAME_LOCATION.exec(frame);
 	if (!match?.[1]) return null;
-	const file = match[1].startsWith('file://') ? fileURLToPath(match[1]) : match[1];
+	const file = forwardSlashes(match[1].startsWith('file://') ? fileURLToPath(match[1]) : match[1]);
 	if (file.includes('/node_modules/')) return null;
 	const line = Number(match[2]);
 	const map = sourceMapOf(file);
 	if (map === null) return { file, line };
 	const origin = map.findOrigin(line, Number(match[3]));
 	return 'fileName' in origin
-		? { file: resolve(dirname(file), origin.fileName), line: origin.lineNumber }
+		? { file: forwardSlashes(resolve(dirname(file), origin.fileName)), line: origin.lineNumber }
 		: null;
+}
+
+function forwardSlashes(path: string): string {
+	return path.replaceAll(sep, '/');
 }
 
 function appSource(file: string): string | null {

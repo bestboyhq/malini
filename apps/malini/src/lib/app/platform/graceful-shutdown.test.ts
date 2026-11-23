@@ -101,8 +101,8 @@ function releasedAt(db: MaliniDatabase, containerId: string): string | null {
 }
 
 function aReapedPid(): number {
-	const child = spawnSync('/bin/sh', ['-c', 'exit 0']);
-	if (child.pid === undefined) throw new Error('spawn');
+	const child = spawnSync(process.execPath, ['-e', '']);
+	if (child.error) throw child.error;
 	return child.pid;
 }
 
@@ -481,18 +481,12 @@ describe('the confirmed shutdown', () => {
 	it('reclaims, closes runs, joins a shutdown in flight, and reclaims what started since', async () => {
 		const db = openDb();
 		recordStartedContainers(db, [record('mine', process.pid, INSTANCE)]);
-		let reopened = false;
-		const runner = new ScriptedRunner()
-			.on((file, args) => reopened && /(^|\/)docker$/.test(file) && args[0] === 'ps', {
-				kind: 'exit',
-				code: 0,
-				stdout: `later\tmalini-later-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\n`,
-			})
-			.onCommand('docker', ['ps'], {
-				kind: 'exit',
-				code: 0,
-				stdout: `mine\tmalini-mine-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\nforeign\tpostgres\trunning\t\n`,
-			});
+		const listing = {
+			kind: 'exit' as const,
+			code: 0,
+			stdout: `mine\tmalini-mine-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\nforeign\tpostgres\trunning\t\n`,
+		};
+		const runner = new ScriptedRunner().onCommand('docker', ['ps'], listing);
 		const reaper = new RecordingReaper();
 		const kids = children();
 		const shutdown = new ConfirmedShutdown({
@@ -521,7 +515,7 @@ describe('the confirmed shutdown', () => {
 		expect(joined).toMatchObject({ containersRemoved: ['mine'], alreadyReclaimed: true });
 		expect(runner.spawns).toHaveLength(1);
 
-		reopened = true;
+		listing.stdout = `later\tmalini-later-svc-1\trunning\t${LABEL_APP}=${BUNDLE}\n`;
 		recordStartedContainers(db, [record('later', process.pid, INSTANCE)]);
 		const again = await shutdown.run(5_000);
 		expect(again).toMatchObject({ containersRemoved: ['later'], alreadyReclaimed: false });

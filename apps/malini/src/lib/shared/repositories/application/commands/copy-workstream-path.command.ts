@@ -1,3 +1,4 @@
+import { workstreamFilePath } from '$contract/workstream-images';
 import { toast } from '$hyper-ui/components/toast';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { clipboardService } from '$shared/system/clipboard.service';
@@ -12,7 +13,7 @@ function copyWorkstreamPathCommand(
 		toast.error('Could not copy the path · this workstream has no checkout yet');
 		return;
 	}
-	const text = input.absolute && root ? `${root.replace(/\/+$/u, '')}/${input.path}` : input.path;
+	const text = input.absolute && root ? workstreamFilePath(root, input.path) : input.path;
 	void (async () => {
 		try {
 			await clipboardService.write(text);

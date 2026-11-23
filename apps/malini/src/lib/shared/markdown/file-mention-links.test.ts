@@ -34,6 +34,17 @@ describe('file mentions in an agent answer', () => {
 		expect(paths('<p>Bumped <code>package.json</code>.</p>')).toEqual(['package.json']);
 	});
 
+	it('links a Windows path inside the workstream, whichever separator it uses', () => {
+		const root = 'C:\\Users\\me\\AppData\\Roaming\\malini\\workstreams\\01JABC';
+		expect(
+			mentions(`<p>I changed ${root}\\src\\app.ts and <code>${root}\\src\\b.ts:12</code>.</p>`),
+		).toEqual([
+			{ text: `${root}\\src\\app.ts`, path: 'src/app.ts', line: null },
+			{ text: `${root}\\src\\b.ts:12`, path: 'src/b.ts', line: 12 },
+		]);
+		expect(paths(`<p>Read ${root.replaceAll('\\', '/')}/src/c.ts.</p>`)).toEqual(['src/c.ts']);
+	});
+
 	it('links a path written bare in prose', () => {
 		expect(
 			mentions('<p>The projector lives in src/lib/chat/presentation/render-state.ts today.</p>'),

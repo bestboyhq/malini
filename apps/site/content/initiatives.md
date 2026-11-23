@@ -105,5 +105,5 @@ Deleting an initiative deletes its dependencies and their links, and keeps the w
 
 ## Where it lives
 
-Initiatives live in Malini's database on this Mac, each under its repository's full name.
+Initiatives live in Malini's database on this computer, each under its repository's full name.
 They are not in git, they do not sync, and nothing about them leaves the Mac.

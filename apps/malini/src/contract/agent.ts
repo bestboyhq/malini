@@ -6,6 +6,19 @@ export type AgentRunMode = 'agent' | 'plan';
 
 export type AgentAccess = 'sandboxed' | 'auto' | 'full';
 
+export type SandboxProblem =
+	'unsupported' | 'missing' | 'outdated' | 'blocked' | 'nested' | 'not-set-up';
+
+export interface SandboxSetupArgs {
+	replace: boolean;
+}
+
+export interface SandboxSetupOutcome {
+	outcome: 'done' | 'cancelled' | 'conflict' | 'busy' | 'failed';
+	reason: string | null;
+	problem: SandboxProblem | null;
+}
+
 export type AgentReport = 'low' | 'medium' | 'high';
 
 export type AgentTheme = 'light' | 'dark';
@@ -159,8 +172,6 @@ export interface ProviderCapability {
 	defaultModel: string;
 	message: string;
 }
-
-export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh | bash';
 
 export interface ClaudeCodeFailedUpdate {
 	version: string | null;

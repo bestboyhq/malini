@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
@@ -11,7 +10,11 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	lockFolder,
+	REAL_GIT,
 	seedWorkstream,
+	unlockFolder,
+	writeExecutable,
 	type LaunchedApp,
 } from './harness';
 
@@ -171,34 +174,29 @@ async function updateFromMainRuns(page: Page): Promise<string[][]> {
 }
 
 function slowWorktreeAdd(app: LaunchedApp): void {
-	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 	const stub = join(app.bin, 'git');
-	writeFileSync(
+	writeExecutable(
 		stub,
-		`#!/bin/sh\ncase " $* " in *" worktree add "*) sleep 4 ;; esac\nexec "${git}" "$@"\n`,
+		`#!/bin/sh\ncase " $* " in *" worktree add "*) sleep 4 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
 	);
-	chmodSync(stub, 0o755);
 }
 
 function slowMerge(app: LaunchedApp): void {
-	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 	const stub = join(app.bin, 'git');
-	writeFileSync(
+	writeExecutable(
 		stub,
-		`#!/bin/sh\ncase " $* " in *" merge --no-edit "*) sleep 3 ;; esac\nexec "${git}" "$@"\n`,
+		`#!/bin/sh\ncase " $* " in *" merge --no-edit "*) sleep 3 ;; esac\nexec "${REAL_GIT}" "$@"\n`,
 	);
-	chmodSync(stub, 0o755);
 }
 
 function installNpmStub(app: LaunchedApp): { succeeds: string; held: string } {
 	const succeeds = join(app.home, 'npm-succeeds');
 	const held = join(app.home, 'npm-held');
 	const stub = join(app.bin, 'npm');
-	writeFileSync(
+	writeExecutable(
 		stub,
 		`#!/bin/sh\nwhile [ -f "${held}" ]; do sleep 0.1; done\nif [ -f "${succeeds}" ]; then exit 0; fi\necho "e2e install failure" 1>&2\nexit 1\n`,
 	);
-	chmodSync(stub, 0o755);
 	return { succeeds, held };
 }
 
@@ -272,7 +270,7 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 		await expect(workstreamRow(page, seeded.workstreamId)).toBeVisible({ timeout: 20_000 });
 		lockedDirectory = dirname(seeded.worktree);
 
-		chmodSync(lockedDirectory, 0o555);
+		lockFolder(lockedDirectory);
 		const headlineOverlaps = await watchHeadlineOverlaps(page);
 		const retried = await newWorkstream(page, 'alpha');
 		const failure = setupStep(page, 'Copy failed');
@@ -300,17 +298,17 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 		await expect(page.getByTestId('global-topbar-github-headline')).toBeVisible();
 		await captureFlow(app, 'workstream-setup-failed');
 
-		chmodSync(lockedDirectory, 0o755);
+		unlockFolder(lockedDirectory);
 		await failure.getByRole('button', { name: 'Retry setup' }).click();
 		await expect(failure).toHaveCount(0, { timeout: 30_000 });
 		await expect(setupStep(page, 'Made a fresh copy')).toBeVisible({ timeout: 30_000 });
 		await expect(composerReady(page)).toBeVisible({ timeout: 30_000 });
 		await expect(workstreamRow(page, retried)).toHaveAttribute('aria-current', 'page');
 
-		chmodSync(lockedDirectory, 0o555);
+		lockFolder(lockedDirectory);
 		const removed = await newWorkstream(page, 'alpha');
 		await expect(failure).toBeVisible({ timeout: 30_000 });
-		chmodSync(lockedDirectory, 0o755);
+		unlockFolder(lockedDirectory);
 		await failure.getByRole('button', { name: 'Remove this workstream' }).click();
 
 		await expect(workstreamRow(page, removed)).toHaveCount(0, { timeout: 30_000 });
@@ -321,7 +319,7 @@ test('a failed setup says why in its steps, retries in place, and removes a fail
 		await expect(failure).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
-		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
+		if (lockedDirectory) unlockFolder(lockedDirectory);
 		await app.close();
 	}
 });

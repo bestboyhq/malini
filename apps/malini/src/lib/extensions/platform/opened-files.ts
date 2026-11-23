@@ -1,6 +1,6 @@
 import { mkdir, open, readFile as readFileBytes, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 import type { ExtensionFileStat } from '$contract/system';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -105,7 +105,7 @@ function openedFile(db: MaliniDatabase, workstreamId: string, path: string): str
 		db,
 		'SELECT path FROM workstream_opened_files WHERE workstream_id = ? AND path = ?',
 		workstreamId,
-		path,
+		normalize(path),
 	);
 	if (!granted)
 		throw new ExtensionError(

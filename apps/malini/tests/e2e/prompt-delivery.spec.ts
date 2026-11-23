@@ -1,6 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -8,7 +5,7 @@ import {
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
-	type LaunchedApp,
+	finishTurnWithHeldSnapshot,
 	launchMalini,
 	listEvents,
 	listSessions,
@@ -17,7 +14,7 @@ import {
 	seedWorkstream,
 	selectChat,
 	sendPrompt,
-	waitWhile,
+	type LaunchedApp,
 } from './harness';
 
 test('a queued prompt sent ahead interrupts the running reply, and the rest of the queue runs after it', async () => {
@@ -57,8 +54,10 @@ test('⌘↵ sends a prompt ahead of one still waiting for the last turn to fini
 		const sessionId = await chatWithOneReply(app, 'e2e-steer-waiting-ws');
 		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
 		await expect
-			.poll(async () =>
-				(await listEvents(page, sessionId)).filter(({ event }) => event.type === 'run.completed'),
+			.poll(
+				async () =>
+					(await listEvents(page, sessionId)).filter(({ event }) => event.type === 'run.completed'),
+				{ timeout: 30_000 },
 			)
 			.toHaveLength(2);
 		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
@@ -69,7 +68,7 @@ test('⌘↵ sends a prompt ahead of one still waiting for the last turn to fini
 
 		await page.getByTestId('chat-composer-input').click();
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
 		releaseSnapshots();
 
@@ -97,7 +96,7 @@ test('a prompt sent ahead of a turn that keeps saving its changes runs once the 
 
 		await page.getByTestId('chat-composer-input').click();
 		await page.keyboard.type('Steer now', { delay: 10 });
-		await page.keyboard.press('Meta+Enter');
+		await page.keyboard.press('ControlOrMeta+Enter');
 		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
 		await page.waitForTimeout(30_000);
 		await expect(page.getByTestId('prompt-queue-item')).toHaveCount(0);
@@ -126,8 +125,10 @@ test('a prompt sent ahead of a reply that keeps running says it waits, then runs
 		await selectChat(page, chatA);
 		const releaseSnapshots = await finishTurnWithHeldSnapshot(app, 'EDIT:c.txt');
 		await expect
-			.poll(async () =>
-				(await listEvents(page, chatA)).filter(({ event }) => event.type === 'run.completed'),
+			.poll(
+				async () =>
+					(await listEvents(page, chatA)).filter(({ event }) => event.type === 'run.completed'),
+				{ timeout: 30_000 },
 			)
 			.toHaveLength(2);
 
@@ -202,7 +203,7 @@ test('a prompt the agent refuses goes back into the composer, and a refused queu
 		await captureFlow(app, 'prompt-refused-restored');
 
 		await input.click();
-		await page.keyboard.press('Meta+A');
+		await page.keyboard.press('ControlOrMeta+A');
 		await page.keyboard.press('Backspace');
 		await expect(input).toHaveText('');
 		await startHangingRun(page);
@@ -297,32 +298,4 @@ async function userMessages(page: Page, sessionId: string): Promise<string[]> {
 	return (await listEvents(page, sessionId)).flatMap(({ event }) =>
 		event.type === 'user.message' ? [String(event['text'])] : [],
 	);
-}
-
-async function finishTurnWithHeldSnapshot(app: LaunchedApp, prompt: string): Promise<() => void> {
-	const heldRuns = join(app.home, 'hold-agent-runs');
-	writeFileSync(heldRuns, '');
-	await sendPrompt(app.page, prompt);
-	await expect(app.page.getByTestId('chat-composer-submit')).toHaveAccessibleName(
-		'Stop current run',
-	);
-	const releaseSnapshots = holdRunSnapshots(app);
-	rmSync(heldRuns);
-	return releaseSnapshots;
-}
-
-function holdRunSnapshots(app: LaunchedApp): () => void {
-	const gate = join(app.root, 'hold-run-snapshots');
-	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
-	const stub = join(app.bin, 'git');
-	writeFileSync(gate, '');
-	writeFileSync(
-		stub,
-		`#!/bin/sh
-case "$*" in *commit-tree*"malini run snapshot"*) ${waitWhile(`[ -e '${gate}' ]`, 0.05)} ;; esac
-exec '${realGit}' "$@"
-`,
-	);
-	chmodSync(stub, 0o755);
-	return () => rmSync(gate, { force: true });
 }

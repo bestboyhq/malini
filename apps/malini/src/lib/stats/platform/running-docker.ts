@@ -1,4 +1,5 @@
-import { basename, sep } from 'node:path';
+import { basename } from 'node:path';
+import { isAtOrInsideDirectory } from '$main/fs/paths';
 import type { RunningItem } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
 import { LABEL_WORKSTREAM } from '$main/docker/labels';
@@ -123,19 +124,14 @@ export function withAliases(
 ): WorkstreamFolder[] {
 	return folders.flatMap((folder) => [
 		folder,
-		...(isInside(folder.path, root)
+		...(isAtOrInsideDirectory(root, folder.path)
 			? aliases.map((alias) => ({ id: folder.id, path: alias + folder.path.slice(root.length) }))
 			: []),
 	]);
 }
 
 function folderOf(path: string, workstreams: readonly WorkstreamFolder[]): string | undefined {
-	return workstreams.find((workstream) => isInside(path, workstream.path))?.id;
-}
-
-function isInside(directory: string, folder: string): boolean {
-	const root = folder.endsWith(sep) ? folder.slice(0, -sep.length) : folder;
-	return directory === root || directory.startsWith(`${root}${sep}`);
+	return workstreams.find((workstream) => isAtOrInsideDirectory(workstream.path, path))?.id;
 }
 
 export function dockerRunning(

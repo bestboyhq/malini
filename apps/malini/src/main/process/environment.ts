@@ -1,7 +1,14 @@
 import { spawn } from 'node:child_process';
-import { accessSync, constants, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
-import { killProcessGroup } from './process-group';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import {
+	environmentVariable,
+	findExecutable,
+	spawnable,
+	type EnvironmentVariables,
+} from './command';
+import { gitHome, gitHomes } from './git-install';
+import { killProcessGroup, OWN_PROCESS_GROUP } from './process-group';
 import { endWithMalini } from './reaper';
 import { StringDecoder } from 'node:string_decoder';
 
@@ -35,12 +42,13 @@ export const CAPTURE_TIMEOUT_MS = 5_000;
 
 const DRAIN_GRACE_MS = 500;
 
-const DEFAULT_SHELL = '/bin/zsh';
+const WINDOWS = process.platform === 'win32';
+const DEFAULT_SHELL = process.platform === 'linux' ? '/bin/bash' : '/bin/zsh';
 const LAST_RESORT_SHELL = '/bin/sh';
 const DIAGNOSTICS_DIRECTORY = 'diagnostics';
 const DIAGNOSTICS_FILE_NAME = 'environment.json';
 
-export type EnvironmentVariables = Readonly<Record<string, string | undefined>>;
+export type { EnvironmentVariables } from './command';
 
 export type EnvironmentSource = 'login-shell' | 'inherited';
 
@@ -60,7 +68,7 @@ export function resolveEnvironmentFrom(
 ): ResolvedEnvironment {
 	const capturedVariables = 'raw' in captured ? parseEnvironmentRecords(captured.raw) : [];
 	const capturedPath = lookup(capturedVariables, 'PATH') ?? '';
-	const inheritedPath = inherited['PATH'] ?? '';
+	const inheritedPath = environmentVariable(inherited, 'PATH') ?? '';
 
 	const directories: string[] = [];
 	const seen = new Set<string>();
@@ -71,8 +79,8 @@ export function resolveEnvironmentFrom(
 		seen.add(entry);
 		directories.push(entry);
 	};
-	for (const entry of capturedPath.split(':')) push(entry);
-	for (const entry of inheritedPath.split(':')) push(entry);
+	for (const entry of capturedPath.split(delimiter)) push(entry);
+	for (const entry of inheritedPath.split(delimiter)) push(entry);
 
 	const source: EnvironmentSource = capturedPath.length === 0 ? 'inherited' : 'login-shell';
 	let degradation: string | null = null;
@@ -82,15 +90,16 @@ export function resolveEnvironmentFrom(
 
 	const toolchainVariables: Array<readonly [string, string]> = [];
 	for (const name of TOOLCHAIN_ALLOWLIST) {
-		const value = lookup(capturedVariables, name) ?? inherited[name];
+		const value = lookup(capturedVariables, name) ?? environmentVariable(inherited, name);
 		if (value === undefined || value.length === 0) continue;
 		toolchainVariables.push([name, value]);
 	}
-	const doNotTrack = [lookup(capturedVariables, 'DO_NOT_TRACK'), inherited['DO_NOT_TRACK']].some(
-		(value) => value === '1' || value === 'true',
-	);
+	const doNotTrack = [
+		lookup(capturedVariables, 'DO_NOT_TRACK'),
+		environmentVariable(inherited, 'DO_NOT_TRACK'),
+	].some((value) => value === '1' || value === 'true');
 
-	return { path: directories.join(':'), toolchainVariables, doNotTrack, source, degradation };
+	return { path: directories.join(delimiter), toolchainVariables, doNotTrack, source, degradation };
 }
 
 export function childEnvironment(resolved: ResolvedEnvironment): Record<string, string> {
@@ -128,37 +137,32 @@ export function buildSpawnEnvironment(
 	for (const [name, value] of Object.entries(process.env)) {
 		if (value !== undefined) env[name] = value;
 	}
-	Object.assign(env, childEnvironment(currentEnvironment()));
-	for (const [name, value] of Object.entries(overrides)) {
-		if (value === undefined) delete env[name];
-		else env[name] = value;
+	for (const [name, value] of Object.entries(childEnvironment(currentEnvironment()))) {
+		setVariable(env, name, value);
 	}
+	for (const [name, value] of Object.entries(overrides)) setVariable(env, name, value);
 	return env;
+}
+
+export function setVariable(
+	env: Record<string, string | undefined>,
+	name: string,
+	value: string | undefined,
+): void {
+	if (WINDOWS) {
+		for (const key of Object.keys(env)) {
+			if (key.toUpperCase() === name.toUpperCase()) delete env[key];
+		}
+	}
+	if (value === undefined) delete env[name];
+	else env[name] = value;
 }
 
 export function resolveToolPath(
 	name: string,
-	environment: ResolvedEnvironment = currentEnvironment(),
+	environment: Pick<ResolvedEnvironment, 'path'> = currentEnvironment(),
 ): string | null {
-	if (name.length === 0) return null;
-	if (isAbsolute(name)) return isExecutableFile(name) ? name : null;
-	if (name.includes('/')) return null;
-	for (const directory of environment.path.split(':')) {
-		if (directory.length === 0) continue;
-		const candidate = join(directory, name);
-		if (isExecutableFile(candidate)) return candidate;
-	}
-	return null;
-}
-
-function isExecutableFile(candidate: string): boolean {
-	try {
-		if (!statSync(candidate).isFile()) return false;
-		accessSync(candidate, constants.X_OK);
-		return true;
-	} catch {
-		return false;
-	}
+	return findExecutable(name, environment.path);
 }
 
 export function writeEnvironmentDiagnostics(
@@ -180,6 +184,7 @@ export function writeEnvironmentDiagnostics(
 }
 
 export function preferredShell(env: EnvironmentVariables = process.env): string | null {
+	if (WINDOWS) return gitBash(env);
 	const configured = env['SHELL'];
 	if (configured && isAbsolute(configured) && existsSync(configured)) return configured;
 	for (const fallback of [DEFAULT_SHELL, LAST_RESORT_SHELL]) {
@@ -188,9 +193,62 @@ export function preferredShell(env: EnvironmentVariables = process.env): string 
 	return null;
 }
 
+export function gitBash(env: EnvironmentVariables = process.env): string | null {
+	const configured = environmentVariable(env, 'CLAUDE_CODE_GIT_BASH_PATH');
+	if (configured && isAbsolute(configured) && existsSync(configured)) return configured;
+	const git = findExecutable('git', environmentVariable(env, 'PATH') ?? currentEnvironment().path);
+	const roots = [git && dirname(dirname(git)), git && dirname(dirname(dirname(git)))];
+	return (
+		[...roots.filter((root) => typeof root === 'string'), ...systemGitRoots(env)]
+			.map((root) => join(root, 'bin', 'bash.exe'))
+			.find((bash) => existsSync(bash)) ?? null
+	);
+}
+
+export function useGitForWindows(
+	vendor: string,
+	env: Record<string, string | undefined> = process.env,
+): void {
+	const path = environmentVariable(env, 'PATH') ?? '';
+	if (findExecutable('git', path) === null) {
+		const system = systemGitRoots(env).find((root) => existsSync(join(root, 'cmd', 'git.exe')));
+		const roots = system === undefined ? gitHomes(vendor) : [system];
+		const folders = [path, ...roots.map((root) => join(root, 'cmd'))];
+		setVariable(env, 'PATH', folders.filter(Boolean).join(delimiter));
+	}
+	const bash = gitBash(env) ?? join(gitHome(vendor), 'bin', 'bash.exe');
+	setVariable(env, 'CLAUDE_CODE_GIT_BASH_PATH', bash);
+}
+
+export function gitForWindowsNeeds(
+	vendor: string,
+	env: EnvironmentVariables = process.env,
+): 'nothing' | 'install' | 'upgrade' {
+	const git = findExecutable('git', environmentVariable(env, 'PATH') ?? '');
+	if (git === null || gitBash(env) === null) return 'install';
+	return git.startsWith(vendor) && !existsSync(gitHome(vendor)) ? 'upgrade' : 'nothing';
+}
+
+function systemGitRoots(env: EnvironmentVariables): string[] {
+	const local = environmentVariable(env, 'LOCALAPPDATA');
+	return [
+		...['ProgramFiles', 'ProgramW6432', 'ProgramFiles(x86)'].map((name) => {
+			const folder = environmentVariable(env, name);
+			return folder && join(folder, 'Git');
+		}),
+		local && join(local, 'Programs', 'Git'),
+	].filter((root): root is string => typeof root === 'string' && root.length > 0);
+}
+
 export async function captureLoginShellEnvironment(
 	options: { shell?: string | null; timeoutMs?: number } = {},
 ): Promise<CaptureResult> {
+	if (WINDOWS && options.shell === undefined) {
+		return {
+			error:
+				'Windows starts apps with the environment of the user, so there is no login shell to read',
+		};
+	}
 	const shell = options.shell === undefined ? preferredShell() : options.shell;
 	if (!shell) {
 		return { error: 'no usable login shell (`$SHELL` unset and /bin/zsh missing)' };
@@ -232,12 +290,14 @@ export function runWithTimeout(
 	options: RunOptions,
 ): Promise<RunResult> {
 	return new Promise((resolve, reject) => {
+		const command = spawnable(file, args, options.env);
 		const child = endWithMalini(
-			spawn(file, [...args], {
+			spawn(command.file, command.args, {
 				cwd: options.cwd,
 				env: options.env,
 				stdio: ['ignore', 'pipe', 'pipe'],
-				detached: true,
+				...OWN_PROCESS_GROUP,
+				...command.options,
 			}),
 		);
 		const stdout = new PipeCollector(options.onStdout);

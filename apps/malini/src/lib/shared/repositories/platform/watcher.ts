@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { lstat } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { join, posix, resolve, sep } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
 import { WorkstreamError } from './checkout-resolver';
 import { getWorkstream, listWorkstreams } from './workstreams.repository';
@@ -48,7 +48,7 @@ export interface WorkstreamWatchers {
 	refresh(workstreamId: string): Promise<void>;
 	reportMergeConflict(conflict: MergeConflict): void;
 	whilePulling<T>(workstreamId: string, pull: () => Promise<T>): Promise<T>;
-	dispose(): void;
+	dispose(): Promise<void>;
 }
 
 interface GitFacts {
@@ -95,6 +95,11 @@ function workstreamIdOf(payload: unknown): string | null {
 function recordChangedPath(paths: Set<string> | null, name: string | null): Set<string> | null {
 	if (paths === null || name === null || paths.size >= MAX_RECORDED_CHANGED_PATHS) return null;
 	return paths.add(name.split(sep).join('/'));
+}
+
+function withoutParentDirectories(paths: ReadonlySet<string>): string[] {
+	const parents = new Set([...paths].map((path) => posix.dirname(path)));
+	return [...paths].filter((path) => !parents.has(path));
 }
 
 async function stampOf(path: string): Promise<string> {
@@ -238,9 +243,10 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		recorded: ReadonlySet<string>,
 	): Promise<string[]> => {
 		const worktreePath = set.worktreePath;
-		if (worktreePath === null) return [...recorded];
+		const paths = withoutParentDirectories(recorded);
+		if (worktreePath === null) return paths;
 		const stamped = await Promise.all(
-			[...recorded].map(async (path) => ({ path, stamp: await stampOf(join(worktreePath, path)) })),
+			paths.map(async (path) => ({ path, stamp: await stampOf(join(worktreePath, path)) })),
 		);
 		// ponytail: forgets every stamp past the cap, so an echo right after that reports once more
 		if (set.stamps.size > MAX_REMEMBERED_STAMPS) set.stamps.clear();
@@ -412,9 +418,11 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		refresh,
 		reportMergeConflict,
 		whilePulling,
-		dispose() {
+		async dispose() {
 			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
-			for (const set of [...sets.values()]) close(set);
+			const closed = [...sets.values()];
+			for (const set of closed) close(set);
+			await Promise.allSettled(closed.map((set) => set.reading));
 		},
 	};
 }

@@ -1,9 +1,10 @@
 import { existsSync, rmSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	launchMalini,
+	moveFoldersMaliniHolds,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -11,13 +12,22 @@ import {
 
 const INSPECTOR_DID_NOT_START = /\[malini extensions\] runtime activation failed/u;
 
+function changedFiles(page: Page): Locator {
+	return page.getByRole('region', { name: /^Files changed in this chat/u });
+}
+
+function changedFilesToggle(page: Page): Locator {
+	return changedFiles(page).getByTestId('chat-changed-files-toggle');
+}
+
 test('a chat whose workstream folder is gone keeps its change counts, and the folder comes back to open its diff', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini({
+	const options = {
 		allowedDiagnostics: [/folder is missing|folder \S+ is missing/u, INSPECTOR_DID_NOT_START],
-	});
+	};
+	let app = await launchMalini(options);
 	try {
-		const { page } = app;
+		let { page } = app;
 		const source = await createSourceRepo(app.root);
 		const { workstreamId, worktree } = await seedWorkstream(
 			page,
@@ -27,18 +37,22 @@ test('a chat whose workstream folder is gone keeps its change counts, and the fo
 		);
 		await openWorkstream(page, workstreamId);
 
-		const changedFiles = page.getByRole('region', { name: /^Files changed in this chat/u });
-		const toggle = changedFiles.getByTestId('chat-changed-files-toggle');
 		await sendPrompt(page, 'EDIT:notes.txt');
-		await expect(toggle).toContainText('1 file changed in this chat', { timeout: 30_000 });
+		await expect(changedFilesToggle(page)).toContainText('1 file changed in this chat', {
+			timeout: 30_000,
+		});
 
-		rmSync(worktree, { recursive: true, force: true });
+		app = await moveFoldersMaliniHolds(app, options, workstreamId, () =>
+			rmSync(worktree, { recursive: true, force: true }),
+		);
+		({ page } = app);
 		await page.reload();
+		const toggle = changedFilesToggle(page);
 		await expect(toggle).toContainText('1 file changed in this chat', { timeout: 30_000 });
 		await expect(toggle).toContainText('+1');
 
 		await toggle.click();
-		await changedFiles
+		await changedFiles(page)
 			.getByRole('button', { name: 'Open notes.txt agent chat diff in Files' })
 			.click();
 		await expect(page.getByRole('table', { name: 'Unified diff for notes.txt' })).toBeVisible({

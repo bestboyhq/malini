@@ -7,6 +7,9 @@ import type { InstallProgressPayload } from '$contract/events';
 import { installClaudeCode } from './claude-install';
 
 const RELEASES = 'https://downloads.example.invalid/claude-code-releases';
+const WINDOWS = process.platform === 'win32';
+const PLATFORM = `${process.platform}-${process.arch}`;
+const NAME = WINDOWS ? 'claude.exe' : 'claude';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -35,9 +38,9 @@ function release(
 		[`${RELEASES}/latest`]: latest,
 		[`${RELEASES}/9.9.9/manifest.json`]: JSON.stringify({
 			version: '9.9.9',
-			platforms: { 'darwin-arm64': { binary: 'claude', checksum, size: binary.byteLength } },
+			platforms: { [PLATFORM]: { binary: NAME, checksum, size: binary.byteLength } },
 		}),
-		[`${RELEASES}/9.9.9/darwin-arm64/claude`]: binary,
+		[`${RELEASES}/9.9.9/${PLATFORM}/${NAME}`]: binary,
 	};
 	return (url: string): Promise<Response> => {
 		const body = files[url];
@@ -71,23 +74,26 @@ function options(
 }
 
 describe('installClaudeCode', () => {
-	it('downloads the latest build with progress, checks it, hands it to its own installer and leaves no download behind', async () => {
-		const progress: InstallProgressPayload[] = [];
-		const { home, directory, install } = options(release(INSTALLS_LAUNCHER), progress);
+	it.skipIf(WINDOWS)(
+		'downloads the latest build with progress, checks it, hands it to its own installer and leaves no download behind',
+		async () => {
+			const progress: InstallProgressPayload[] = [];
+			const { home, directory, install } = options(release(INSTALLS_LAUNCHER), progress);
 
-		await installClaudeCode(install);
+			await installClaudeCode(install);
 
-		expect(() => accessSync(join(home, '.local', 'bin', 'claude'), constants.X_OK)).not.toThrow();
-		expect(
-			readFileSync(join(home, '.local', 'share', 'claude', 'versions', '9.9.9')).equals(
-				INSTALLS_LAUNCHER,
-			),
-		).toBe(true);
-		const size = INSTALLS_LAUNCHER.byteLength;
-		expect(progress.at(0)).toEqual({ received: 0, total: size });
-		expect(progress.at(-1)).toEqual({ received: size, total: size });
-		expect(readdirSync(directory)).toEqual([]);
-	});
+			expect(() => accessSync(join(home, '.local', 'bin', 'claude'), constants.X_OK)).not.toThrow();
+			expect(
+				readFileSync(join(home, '.local', 'share', 'claude', 'versions', '9.9.9')).equals(
+					INSTALLS_LAUNCHER,
+				),
+			).toBe(true);
+			const size = INSTALLS_LAUNCHER.byteLength;
+			expect(progress.at(0)).toEqual({ received: 0, total: size });
+			expect(progress.at(-1)).toEqual({ received: size, total: size });
+			expect(readdirSync(directory)).toEqual([]);
+		},
+	);
 
 	it('names the stage that failed and leaves no download behind', async () => {
 		const offline = options(() => Promise.reject(new Error('net::ERR_NAME_NOT_RESOLVED')));
@@ -108,7 +114,9 @@ describe('installClaudeCode', () => {
 		await expect(installClaudeCode(tampered.install)).rejects.toMatchObject({ kind: 'checksum' });
 		expect(readdirSync(tampered.directory)).toEqual([]);
 		expect(readdirSync(tampered.home)).toEqual([]);
+	});
 
+	it.skipIf(WINDOWS)('names a failed setup by the last line its installer wrote', async () => {
 		const full = options(release(installer('echo "No space left on device" >&2; exit 1')));
 		await expect(installClaudeCode(full.install)).rejects.toMatchObject({
 			kind: 'setup',

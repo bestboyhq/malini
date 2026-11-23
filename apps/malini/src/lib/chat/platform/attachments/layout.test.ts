@@ -114,7 +114,7 @@ describe('attachmentsRoot', () => {
 		test = createAttachmentsTestContext();
 		const worktree = test.checkout('ws-root');
 		const root = attachmentsRoot(worktree);
-		expect(root).toBe(join(realpathSync(worktree), '.malini', 'agent-attachments'));
+		expect(root).toBe(join(realpathSync.native(worktree), '.malini', 'agent-attachments'));
 		expect(existsSync(root)).toBe(true);
 		expect(attachmentsRoot(worktree)).toBe(root);
 	});

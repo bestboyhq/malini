@@ -16,7 +16,10 @@ const FRONT_MATTER = /^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/u;
 const SOURCE_LINE = 'data-source-line';
 const OPENING_TAG = /^<[a-z][a-z\d]*/iu;
 const WEB_LINK = /^https?:/iu;
-const NOT_A_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu;
+const NOT_A_FILE = /^(?:[a-z][a-z\d+.-]+:|\/\/)/iu;
+const WINDOWS_PATH = /^(?:[a-z]:[\\/]|\\\\)/iu;
+const DRIVE = /^[a-z]:$/iu;
+const DRIVE_PATH = /^\/[a-z]:\//iu;
 const INLINE_MEDIA = /^(?:data|blob):/iu;
 const CODE_LANGUAGE = /(?:^|\s)language-(\S+)/u;
 
@@ -152,13 +155,32 @@ function linkedPath(href: string, documentPath: string): string | null {
 	const target = href.replace(/[?#].*$/su, '');
 	if (target === '' || NOT_A_FILE.test(target)) return null;
 	try {
-		const base = new URL(documentPath.split('/').map(encodeURIComponent).join('/'), 'file:///');
-		const path = decodeURIComponent(new URL(target, base).pathname);
-		const linked = documentPath.startsWith('/') ? path : path.replace(/^\/+/u, '');
-		return linked === '' || linked.endsWith('/') ? null : linked;
+		const base = new URL(urlPath(documentPath).split('/').map(urlSegment).join('/'), 'file:///');
+		const url = new URL(urlPath(target), base);
+		if (url.protocol !== 'file:') return null;
+		const path = decodeURIComponent(url.pathname);
+		const linked =
+			url.host !== ''
+				? `\\\\${url.host}${path.replaceAll('/', '\\')}`
+				: DRIVE_PATH.test(path)
+					? path.slice(1).replaceAll('/', '\\')
+					: documentPath.startsWith('/')
+						? path
+						: path.replace(/^\/+/u, '');
+		return linked === '' || /[\\/]$/u.test(linked) ? null : linked;
 	} catch {
 		return null;
 	}
+}
+
+function urlPath(path: string): string {
+	if (!WINDOWS_PATH.test(path)) return path;
+	const slashed = path.replaceAll('\\', '/');
+	return slashed.startsWith('//') ? slashed : `/${slashed}`;
+}
+
+function urlSegment(segment: string): string {
+	return DRIVE.test(segment) ? segment : encodeURIComponent(segment);
 }
 
 function decoded(text: string): string {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { osQuery } from '$shared/os/os.api';
 	import {
 		isAgentlessAutomationBuiltin,
 		type AutomationBoundary,
@@ -229,7 +230,7 @@
 			<p class="text-fg-tertiary flex items-center gap-2 px-3 py-1.5 text-xs">
 				<Icon name="shield-check" size={14} class="text-success-content shrink-0" />
 				{words
-					? 'It sees your words, and nothing it does leaves your Mac except through Claude.'
+					? `It sees your words, and nothing it does leaves your ${osQuery.data.machine} except through Claude.`
 					: 'It never sees your words.'}
 			</p>
 		{/if}

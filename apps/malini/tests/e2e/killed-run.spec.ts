@@ -17,6 +17,8 @@ import {
 
 const electronBinary = createRequire(__filename)('electron') as string;
 
+test.skip(process.platform === 'win32', 'the reaper and process groups are POSIX only');
+
 interface RunnerLaunch {
 	readonly runner: ChildProcess;
 	readonly malini: number;
@@ -31,7 +33,7 @@ test.afterEach(async () => {
 	launched = undefined;
 	runner.kill('SIGKILL');
 	const table = await processTable();
-	for (const entry of await stillRunning([...tracked, ...processTree(table, malini)], table)) {
+	for (const entry of await stillRunning([...tracked, ...processTree(table, [malini])], table)) {
 		stopProcess(entry.pid);
 	}
 });
@@ -69,7 +71,7 @@ test('a crashed app ends the process groups it started', async () => {
 	const { malini } = await launchUnderRunner({ env: { FAKE_BRIDGE_GROUP_MATE: groupMate } });
 	await expect
 		.poll(async () =>
-			processTree(await processTable(), malini).some(({ line }) => line.includes(groupMate)),
+			processTree(await processTable(), [malini]).some(({ line }) => line.includes(groupMate)),
 		)
 		.toBe(true);
 	const started = await remember(malini);
@@ -104,7 +106,7 @@ async function launchUnderRunner(options: LaunchOptions = {}): Promise<RunnerLau
 	launched = { runner, malini: 0, tracked: [] };
 	await expect.poll(() => existsSync(pidFile)).toBe(true);
 	const malini = Number(readFileSync(pidFile, 'utf8'));
-	launched = { runner, malini, tracked: processTree(await processTable(), malini) };
+	launched = { runner, malini, tracked: processTree(await processTable(), [malini]) };
 	await expect
 		.poll(() => windowTitles(output), { timeout: 30_000 })
 		.toContain('Malini · Repositories');
@@ -112,7 +114,7 @@ async function launchUnderRunner(options: LaunchOptions = {}): Promise<RunnerLau
 }
 
 async function remember(malini: number): Promise<ProcessEntry[]> {
-	const started = processTree(await processTable(), malini);
+	const started = processTree(await processTable(), [malini]);
 	expect(pidsOf(started), 'the app and the processes it started').toContain(malini);
 	expect(started.length, 'the app and the processes it started').toBeGreaterThan(1);
 	if (launched) launched.tracked = started;

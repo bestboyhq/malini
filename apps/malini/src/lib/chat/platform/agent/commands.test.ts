@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { stubHome } from '$main/process/test-support';
 import { WORKSTREAM_FOLDER_MISSING } from '$main/errors';
 
 vi.mock('electron', () => ({
@@ -57,7 +58,7 @@ let service: AgentService;
 
 beforeEach(async () => {
 	test = createTestContext();
-	vi.stubEnv('HOME', test.appDataRoot);
+	stubHome(test.appDataRoot);
 	fake = writeFakeBridge();
 });
 
@@ -391,16 +392,17 @@ describe('prompt round trips', () => {
 		expect(getSession(test.db, sessionId)?.status).toBe('completed');
 	});
 
-	it('answers a prompt sent again with the same request id with its first run', async () => {
+	it('answers a request it already accepted with the same run, once a reload sends it again', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		const send = { sessionId, prompt: 'Fix the login bug', clientRequestId: 'req-again' };
+		const send = { sessionId, prompt: 'Start the billing page', clientRequestId: 'req-again' };
 		const runId = await invokeString('chat.send-prompt', send);
 		await waitFor(() => turnLanded(runId));
 		await service.runtime.settlePump();
 
 		expect(await invokeString('chat.send-prompt', send)).toBe(runId);
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs')).toBe(1);
 		expect(
 			listEventRowsForSession(test.db, sessionId, 0).filter((row) => row.kind === 'user.message'),
 		).toHaveLength(1);
@@ -833,19 +835,20 @@ describe('prompt round trips', () => {
 		});
 	});
 
-	it('pauses a prompt a quit cut before it reached the agent, and sends it again once Malini started', async () => {
+	it('pauses a prompt a quit cut before it reached the agent before Malini closes the runs left open, and sends it again once Malini started', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
-		let capturing = false;
+		let cut = '';
 		let finishCapture = (): void => {};
 		const captured = new Promise<void>((resolve) => {
 			finishCapture = resolve;
 		});
+		test.context.commands.define('app.list-settings', () => new Promise<never>(() => undefined));
 		await boot(
 			{},
 			{
 				hooks: {
 					captureCheckpoint: async (input) => {
-						capturing = true;
+						cut = input.runId;
 						await captured;
 						return recordCheckpoint(input);
 					},
@@ -859,10 +862,12 @@ describe('prompt round trips', () => {
 			prompt: 'Ship the fix',
 			profile,
 		});
-		await waitFor(() => capturing, 2_000, 'the checkpoint before the prompt');
+		await waitFor(() => cut !== '', 2_000, 'the checkpoint before the prompt');
 
 		await service.stop();
 		finishCapture();
+		await waitFor(() => getRun(test.db, cut) !== null, 2_000, 'the cut prompt to be recorded');
+		expect(await service.closeOpenRunsForExit()).toBe(0);
 		const runId = await sending;
 		expect(getRun(test.db, runId)).toMatchObject({ error: PAUSED_FOR_EXIT_ERROR });
 		expect(
@@ -1260,7 +1265,9 @@ describe('prompt round trips', () => {
 		expect(() => promptWithWorkstreamContext('p', ['../x'])).toThrow(
 			'invalid prompt context: `../x` must be a normalized workstream-relative path',
 		);
-		expect(() => promptWithWorkstreamContext('p', ['/abs'])).toThrow('invalid prompt context');
+		for (const outside of ['/abs', 'C:\\Users\\me\\x', 'C:x', 'a\\..\\..\\x']) {
+			expect(() => promptWithWorkstreamContext('p', [outside])).toThrow('invalid prompt context');
+		}
 		expect(() =>
 			promptWithWorkstreamContext(
 				'p',
@@ -1452,7 +1459,7 @@ describe('interactions', () => {
 	});
 
 	it('remembers a session-scoped allow as a rule and reports its id', async () => {
-		vi.stubEnv('HOME', emptyHome());
+		stubHome(emptyHome());
 		const { sessionId, runId } = await pendingApproval();
 		const permission = permissionFor(approvalPath);
 		expect(

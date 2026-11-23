@@ -528,6 +528,46 @@ test('closing a tab saves what was typed, and a change on disk never overwrites 
 	});
 });
 
+test('a file with Windows line endings keeps them: opening it writes nothing, a change on disk shows, and typing saves them', async () => {
+	await withDom(async (window) => {
+		const repository = followableRepository();
+		const host = await createHost({
+			manifest,
+			fixtureRepository: { name: 'file-tab-crlf', files: { 'src/app.ts': 'const b = 2;\r\n' } },
+			repository,
+		});
+		try {
+			await host.activate(extension);
+			const looked = await mountFileTab(host, window, 'src/app.ts');
+			await looked.instance.dispose();
+			assert.deepEqual(savedFiles(host), []);
+
+			const tab = await mountFileTab(host, window, 'src/app.ts');
+			try {
+				await host.api.workstream.writeFile('src/app.ts', 'const b = 3;\r\n');
+				repository.status.dirtyPaths = ['src/app.ts'];
+				repository.diffs = [replacement('src/app.ts', 1, 'const b = 2;', 'const b = 3;')];
+				await host.invokeCommand('malini.repository.refresh');
+				await eventually(() =>
+					tab.editor.state.doc.toString() === 'const b = 3;\n' ? true : null,
+				);
+
+				type(tab.editor, 'const b = 3;'.length, ' // checked');
+
+				await eventually(() => (savedFiles(host).length === 2 ? true : null));
+				assert.equal(
+					await host.api.workstream.readFile('src/app.ts'),
+					'const b = 3; // checked\r\n',
+				);
+			} finally {
+				await tab.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
 test('a save that fails says why in the tab, and tells the user when the tab is closing', async () => {
 	await withDom(async (window) => {
 		const host = await hostWithRepository();
@@ -551,29 +591,30 @@ test('a save that fails says why in the tab, and tells the user when the tab is 
 	});
 });
 
-test('a file an agent opened outside the worktree opens pinned, with no tree to look it up in', async () => {
-	const host = await hostWithRepository();
-	try {
-		await host.activate(extension);
+test('a file an agent opened outside the worktree opens pinned, with no tree to look it up in, on macOS, Linux and Windows', async () => {
+	for (const path of [
+		'/Users/someone/.secrets/malini.keys',
+		'C:\\Users\\someone\\.secrets\\malini.keys',
+	]) {
+		const host = await hostWithRepository();
+		try {
+			await host.activate(extension);
 
-		await host.invokeCommand('malini.repository.open-file', {
-			path: '/Users/someone/.secrets/malini.keys',
-			line: null,
-			pinned: true,
-		});
+			await host.invokeCommand('malini.repository.open-file', { path, line: null, pinned: true });
 
-		assert.deepEqual(openedTabs(host), [
-			{
-				panelId: 'malini.repository.file:/Users/someone/.secrets/malini.keys',
-				label: 'malini.keys',
-				icon: 'path:/Users/someone/.secrets/malini.keys',
-				tooltip: '/Users/someone/.secrets/malini.keys',
-				pinned: true,
-			},
-		]);
-		assert.equal(await selectedPath(host), null);
-	} finally {
-		await host.cleanup();
+			assert.deepEqual(openedTabs(host), [
+				{
+					panelId: `malini.repository.file:${path}`,
+					label: 'malini.keys',
+					icon: `path:${path}`,
+					tooltip: path,
+					pinned: true,
+				},
+			]);
+			assert.equal(await selectedPath(host), null);
+		} finally {
+			await host.cleanup();
+		}
 	}
 });
 
@@ -618,8 +659,18 @@ test('only files that hold secrets, or live outside the worktree, count as priva
 		'config/.secrets/token.txt',
 		'/Users/someone/.secrets/malini.keys',
 		'/etc/hosts',
+		'C:\\Users\\someone\\.secrets\\malini.keys',
+		'D:/notes/todo.md',
+		'config\\.secrets\\token.txt',
 	];
-	const publicPaths = ['src/env.ts', 'README.md', 'environment.yml', '.envoy/config', 'keys.ts'];
+	const publicPaths = [
+		'src/env.ts',
+		'src\\env.ts',
+		'README.md',
+		'environment.yml',
+		'.envoy/config',
+		'keys.ts',
+	];
 
 	assert.deepEqual(
 		privatePaths.filter((path) => !isPrivateFile(path)),

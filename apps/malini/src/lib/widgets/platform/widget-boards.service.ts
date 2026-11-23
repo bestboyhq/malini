@@ -85,7 +85,7 @@ export class WidgetBoards {
 	readonly #context: WidgetsContext;
 	readonly #deps: WidgetsDeps;
 	readonly #locations = new Map<string, Promise<Location>>();
-	readonly #reads = new Map<string, Promise<WidgetReading>>();
+	readonly #reads = new Map<string, { fingerprint: string; read: Promise<WidgetReading> }>();
 	readonly #watches = new Map<string, Watch>();
 	readonly #skipped = new Set<string>();
 	readonly #unsubscribes: Array<() => void>;
@@ -338,16 +338,20 @@ export class WidgetBoards {
 	#read(opened: Opened, widget: WidgetDefinition): Promise<WidgetReading> {
 		const key = readKey(opened.board, widget.id);
 		const running = this.#reads.get(key);
-		if (running) return running;
-		const read = (async () => {
+		if (running?.fingerprint === widget.fingerprint) return running.read;
+		let read: Promise<WidgetReading> | undefined;
+		read = (async () => {
+			try {
+				await running?.read;
+			} catch {}
 			try {
 				await this.#fetch(opened, widget);
 			} finally {
-				this.#reads.delete(key);
+				if (this.#reads.get(key)?.read === read) this.#reads.delete(key);
 			}
 			return this.#emitReading(opened.board, widget);
 		})();
-		this.#reads.set(key, read);
+		this.#reads.set(key, { fingerprint: widget.fingerprint, read });
 		this.#emitReading(opened.board, widget);
 		return read;
 	}

@@ -8,7 +8,13 @@ import {
 import { ensureStagingPrecondition } from './excludes';
 import { isAppManagedGitPath, REPORTING_PATHSPECS, WORKTREE_CONTENT_PATHSPEC } from './paths';
 import { GitError } from '$main/errors';
-import { runGit, runGitBoundedStdout, runGitWithInput, type GitEnv } from './run';
+import {
+	EXACT_CONTENT_CONFIG,
+	runGit,
+	runGitBoundedStdout,
+	runGitWithInput,
+	type GitEnv,
+} from './run';
 import { statusCollector } from './status';
 
 export const MAX_RUN_CHANGE_PATCH_BYTES = 2 * 1024 * 1024;
@@ -110,7 +116,10 @@ async function headCommit(worktree: string): Promise<string | null> {
 function stageWorktreeContent(worktree: string, env: GitEnv, head: string | null): Promise<string> {
 	return retryingVanishedFileRace(async () => {
 		await runGit(['-C', worktree, 'read-tree', head ?? '--empty'], env);
-		await runGit(['-C', worktree, 'add', '-A', '--', WORKTREE_CONTENT_PATHSPEC], env);
+		await runGit(
+			['-C', worktree, '-c', EXACT_CONTENT_CONFIG, 'add', '-A', '--', WORKTREE_CONTENT_PATHSPEC],
+			env,
+		);
 		return (await runGit(['-C', worktree, 'write-tree'], env)).trim();
 	});
 }
@@ -609,11 +618,13 @@ export async function restoreCheckpointSnapshot(
 	commit: string,
 ): Promise<void> {
 	await runGit(['-C', worktreePath, 'cat-file', '-e', `${commit}^{commit}`]);
-	await runGit(['-C', worktreePath, 'reset', '--hard', 'HEAD']);
+	await runGit(['-C', worktreePath, '-c', EXACT_CONTENT_CONFIG, 'reset', '--hard', 'HEAD']);
 	await runGit(['-C', worktreePath, 'clean', '-fd']);
 	await runGit([
 		'-C',
 		worktreePath,
+		'-c',
+		EXACT_CONTENT_CONFIG,
 		'restore',
 		'--source',
 		commit,

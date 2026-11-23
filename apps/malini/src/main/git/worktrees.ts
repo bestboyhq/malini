@@ -5,12 +5,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { basename, dirname, join } from 'node:path';
 import { promises as originalFs } from 'original-fs';
 import { promisify } from 'node:util';
-import {
-	deriveBranchFromPath,
-	deriveProjectId,
-	validateBranch,
-	WORKSTREAM_BRANCH_PREFIX,
-} from './paths';
+import { deriveProjectId, validateBranch } from './paths';
 import { describeError, GitError } from '$main/errors';
 import { cloneInto } from '$main/fs/copy-on-write';
 import { isInsideDirectory } from '$main/fs/paths';
@@ -301,20 +296,6 @@ function classifyWorktreeRemoval(error: unknown, worktreePath: string): GitError
 	return error instanceof GitError ? error : GitError.fromNodeError(error);
 }
 
-export async function removeWorktree(worktreePath: string): Promise<void> {
-	const expectedBranch = deriveBranchFromPath(worktreePath);
-	if (!expectedBranch.startsWith(WORKSTREAM_BRANCH_PREFIX)) {
-		throw GitError.unsafePath(
-			`worktree path \`${worktreePath}\` does not encode a workstream branch`,
-		);
-	}
-	try {
-		await runGit(['-C', worktreePath, 'worktree', 'remove', '--force', worktreePath]);
-	} catch (error) {
-		throw classifyWorktreeRemoval(error, worktreePath);
-	}
-}
-
 export async function removeWorktreeFromBase(
 	basePath: string,
 	worktreePath: string,
@@ -383,14 +364,37 @@ const CHECKOUT_REMOVAL_REPORTED_ENTRIES = 3;
 
 export type RemoveDirectory = (path: string) => Promise<void>;
 
-const removeDirectoryReal: RemoveDirectory = async (path) => {
-	try {
-		await execFileAsync('/bin/rm', ['-rf', '--', path]);
-	} catch {
-		await execFileAsync('/bin/chmod', ['-R', 'u+w', '--', path]);
-		await execFileAsync('/bin/rm', ['-rf', '--', path]);
-	}
-};
+const removeDirectoryReal: RemoveDirectory =
+	process.platform === 'win32'
+		? async (path) => {
+				try {
+					await removeTree(path);
+				} catch {
+					await makeTreeWritable(path);
+					await removeTree(path);
+				}
+			}
+		: async (path) => {
+				try {
+					await execFileAsync('/bin/rm', ['-rf', '--', path]);
+				} catch {
+					await execFileAsync('/bin/chmod', ['-R', 'u+w', '--', path]);
+					await execFileAsync('/bin/rm', ['-rf', '--', path]);
+				}
+			};
+
+// ponytail: in-process rm shares the libuv threadpool with the rest of the main process; move it to a worker if a big tree stalls the app
+function removeTree(path: string): Promise<void> {
+	return originalFs.rm(path, { recursive: true, force: true, maxRetries: 3 });
+}
+
+export async function makeTreeWritable(path: string): Promise<void> {
+	const entry = await originalFs.lstat(path);
+	if (entry.isSymbolicLink()) return;
+	await originalFs.chmod(path, entry.isDirectory() ? 0o777 : 0o666);
+	if (!entry.isDirectory()) return;
+	for (const name of await originalFs.readdir(path)) await makeTreeWritable(join(path, name));
+}
 
 export async function removeCheckoutDirResilient(
 	path: string,

@@ -29,6 +29,7 @@ electron (MIT): Copyright (c) Electron contributors
 Chromium (BSD-3-Clause and others): Copyright The Chromium Authors; see LICENSES.chromium.html
 Node.js (MIT and others): Copyright Node.js contributors; see LICENSES.chromium.html
 @anthropic-ai/claude-agent-sdk (Anthropic's proprietary license): © Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance. Malini conveys it under the additional permission in README.md.
+@anthropic-ai/sandbox-runtime (Apache-2.0): Copyright Anthropic PBC
 zod (MIT): Copyright (c) 2025 Colin McDonnell
 GitHub CLI (MIT): Copyright (c) 2019 GitHub Inc.
 RTK (Apache-2.0): Copyright 2026 RTK AI Labs

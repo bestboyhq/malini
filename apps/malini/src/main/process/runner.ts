@@ -1,8 +1,14 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { describeError } from '$main/errors';
+import { spawnable } from './command';
 import { ProcessError } from './errors';
-import { killProcessGroup, processGroupIsAlive, processIsAlive } from './process-group';
+import {
+	killProcessGroup,
+	OWN_PROCESS_GROUP,
+	processGroupIsAlive,
+	processIsAlive,
+} from './process-group';
 import { endWithMalini } from './reaper';
 
 export { processGroupIsAlive, processIsAlive } from './process-group';
@@ -36,12 +42,14 @@ export interface ProcessRunner {
 export function createNodeProcessRunner(): ProcessRunner {
 	return {
 		spawn(file, args, options = {}) {
+			const command = spawnable(file, args, options.env);
 			const child = endWithMalini(
-				spawn(file, [...args], {
+				spawn(command.file, command.args, {
 					cwd: options.cwd,
 					env: options.env,
 					stdio: ['ignore', 'pipe', 'pipe'],
-					detached: true,
+					...OWN_PROCESS_GROUP,
+					...command.options,
 				}),
 			);
 			const exit = new Promise<ProcessExit>((resolve) => {

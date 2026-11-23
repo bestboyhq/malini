@@ -6,6 +6,7 @@ import {
 import { pullRequestTopBar } from '$lib/pull-requests/domain/pull-request-top-bar';
 import type { RepositorySurface } from '$lib/pull-requests/domain/repository-surface';
 import { pullRequestShipAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-ship.aggregate.svelte';
+import { pullRequestStateAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-state.aggregate.svelte';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/pull-request-scope.store.svelte';
 import { checkoutHealthQuery, connectionProblemQuery } from '$shared/repositories/repositories.api';
@@ -20,6 +21,7 @@ class PullRequestTopBarQuery {
 				surfaceWithoutDiagnosedCheckout(pullRequestScopeStore.workstreamId),
 				pullRequestAvailabilityOf(pullRequestScopeStore),
 				agentStatus,
+				pullRequestStateAggregate.readHeadFor(pullRequestScopeStore.workstreamId),
 				connectionProblemQuery.data === null,
 			),
 	);

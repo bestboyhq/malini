@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDockerStats } from './docker-usage';
-import { measureProcessTree, parseProcessTable } from './process-tree';
+import { measureProcessTree, parseProcessTable, parseWindowsProcessTable } from './process-tree';
 
 const PS_OUTPUT = [
 	'  100     1 204800  12.0 /Applications/malini.app/Contents/MacOS/malini',
@@ -55,6 +55,37 @@ describe('measureProcessTree', () => {
 			usage: [],
 			units: [],
 		});
+	});
+});
+
+describe('parseWindowsProcessTable', () => {
+	it('reads working sets in bytes and CPU as the share of one core since the last reading', () => {
+		const first = parseWindowsProcessTable(
+			['100 8 104857600 50000000 Malini.exe', '120 100 52428800 10000000 node.exe', ''].join(
+				'\r\n',
+			),
+			1_000,
+			null,
+		);
+		expect(first.rows).toEqual([
+			{ pid: 100, ppid: 8, memoryBytes: 100 * MIB, cpuPercent: 0, command: 'Malini.exe' },
+			{ pid: 120, ppid: 100, memoryBytes: 50 * MIB, cpuPercent: 0, command: 'node.exe' },
+		]);
+
+		const second = parseWindowsProcessTable(
+			[
+				'100 8 104857600 75000000 Malini.exe',
+				'120 100 52428800 5000000 node.exe',
+				'130 100 1048576 10000000 git.exe',
+			].join('\r\n'),
+			6_000,
+			first.cpuTimes,
+		);
+		expect(second.rows.map(({ pid, cpuPercent }) => [pid, cpuPercent])).toEqual([
+			[100, 50],
+			[120, 0],
+			[130, 20],
+		]);
 	});
 });
 

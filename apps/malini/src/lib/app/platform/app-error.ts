@@ -12,6 +12,8 @@ const APP_ERROR_VERDICTS = {
 	'tool-failed': 'bug',
 	'sleep-refused': 'bug',
 	'not-administrator': 'expected',
+	'no-lid-action': 'expected',
+	'no-logind': 'expected',
 } as const satisfies ErrorVerdicts;
 
 export type AppErrorKind = keyof typeof APP_ERROR_VERDICTS;

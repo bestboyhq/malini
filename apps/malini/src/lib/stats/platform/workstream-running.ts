@@ -35,8 +35,11 @@ import {
 	parseProcessList,
 	PROCESS_LIST_ARGS,
 	stopProcesses,
+	windowsTerminalProcesses,
+	WINDOWS_PROCESS_LIST_ARGS,
 	type LeftoverPlace,
 } from './leftovers';
+import { WINDOWS_POWERSHELL } from './process-tree';
 import {
 	dockerRunning,
 	parseDockerInspect,
@@ -63,6 +66,7 @@ const DOCKER_SCAN_MS = 15_000;
 const EVENT_DEBOUNCE_MS = 300;
 const DOCKER_AFTER_COMMAND_MS = 1_000;
 const LOOKUP_TIMEOUT_MS = 4_000;
+const WINDOWS_PROCESS_LIST_TIMEOUT_MS = 10_000;
 const DOCKER_TIMEOUT_MS = 10_000;
 const DOCKER_STOP_TIMEOUT_MS = 20_000;
 const REFRESHING_EVENTS = new Set([
@@ -191,13 +195,25 @@ export class WorkstreamRunningMonitor {
 
 	async stopLeftovers(place: LeftoverPlace): Promise<void> {
 		const [listed, containers, folders, live] = await Promise.all([
-			this.#readTool('ps', PROCESS_LIST_ARGS),
+			this.#listProcesses(),
 			this.#scanContainers(),
 			this.#withAliases(place.folders),
 			this.#withAliases(place.live),
 		]);
 		const aliased = { folders, live };
-		const pids = leftoverProcesses(parseProcessList(listed), aliased, process.pid);
+		const rows = parseProcessList(listed);
+		const terminals =
+			process.platform === 'win32'
+				? await windowsTerminalProcesses(
+						this.#deps.runner,
+						leftoverProcesses(rows, aliased, process.pid),
+					)
+				: new Set<number>();
+		const pids = leftoverProcesses(
+			rows.map((row) => (terminals.has(row.pid) ? { ...row, terminal: true } : row)),
+			aliased,
+			process.pid,
+		);
 		const containerIds = leftoverContainers(containers, aliased);
 		const [processes, ...stopped] = await Promise.all([
 			stopProcesses(pids, (pid) => this.#deps.runner.processIsAlive(pid)),
@@ -391,14 +407,32 @@ export class WorkstreamRunningMonitor {
 		}
 	}
 
-	async #readTool(tool: PortTool, args: readonly string[]): Promise<string> {
+	#readTool(tool: PortTool, args: readonly string[]): Promise<string> {
+		return this.#read(resolveToolPath(tool) ?? TOOL_FALLBACKS[tool], args, LOOKUP_TIMEOUT_MS, {
+			LC_ALL: 'C',
+		});
+	}
+
+	#listProcesses(): Promise<string> {
+		if (process.platform !== 'win32') return this.#readTool('ps', PROCESS_LIST_ARGS);
+		return this.#read(
+			WINDOWS_POWERSHELL,
+			WINDOWS_PROCESS_LIST_ARGS,
+			WINDOWS_PROCESS_LIST_TIMEOUT_MS,
+		);
+	}
+
+	async #read(
+		file: string,
+		args: readonly string[],
+		timeoutMs: number,
+		env?: Readonly<Record<string, string>>,
+	): Promise<string> {
 		try {
-			const run = await runBounded(
-				this.#deps.runner,
-				resolveToolPath(tool) ?? TOOL_FALLBACKS[tool],
-				args,
-				{ deadline: Date.now() + LOOKUP_TIMEOUT_MS, env: { LC_ALL: 'C' } },
-			);
+			const run = await runBounded(this.#deps.runner, file, args, {
+				deadline: Date.now() + timeoutMs,
+				...(env ? { env } : {}),
+			});
 			return run.stdout;
 		} catch {
 			return '';

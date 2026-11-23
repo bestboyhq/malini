@@ -14,7 +14,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
-import { canSandbox, sandboxProfile } from '../sandbox.js';
+import { canSandbox, sandboxPrefix } from '../sandbox.js';
 import {
 	bridgeSecretsFolder,
 	claudeShell,
@@ -22,7 +22,8 @@ import {
 	sessionSecretsFolder,
 } from './secrets.js';
 
-const ROOT = mkdtempSync(join(tmpdir(), 'malini-secrets-test-'));
+const WINDOWS = process.platform === 'win32';
+const ROOT = mkdtempSync(join(tmpdir(), 'malini-session-test-'));
 
 afterAll(() => rm(ROOT, { recursive: true, force: true }));
 
@@ -32,6 +33,16 @@ interface Ran {
 	readonly stderr: string;
 }
 
+const GIT_BASH =
+	process.env['CLAUDE_CODE_GIT_BASH_PATH'] ??
+	join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe');
+
+function prefixed(runScript: string, command: string): [file: string, args: string[]] {
+	return WINDOWS ? [GIT_BASH, [runScript, command]] : [runScript, [command]];
+}
+
+const ENVIRONMENT = { PATH: process.env['PATH'], HOME: ROOT, CLAUDE_CODE_SHELL: '/bin/bash' };
+
 function run(
 	secrets: SessionSecrets,
 	command: string,
@@ -39,9 +50,8 @@ function run(
 ): Promise<Ran> {
 	return new Promise((resolve) => {
 		execFile(
-			secrets.runScript,
-			[command],
-			{ cwd, env: { PATH: process.env['PATH'], CLAUDE_CODE_SHELL: '/bin/bash', ...env } },
+			...prefixed(secrets.runScript, command),
+			{ cwd, env: { ...ENVIRONMENT, ...env } },
 			(error, stdout, stderr) =>
 				resolve({ status: typeof error?.code === 'number' ? error.code : 0, stdout, stderr }),
 		);
@@ -107,10 +117,13 @@ describe('SessionSecrets', () => {
 		const file = openSync(output, 'w');
 
 		const status = await new Promise<number | null>((resolve) =>
-			spawn(secrets.runScript, ['echo 1-$STRIPE_KEY; echo 2 >&2; echo 3; echo 4 >&2; exit 5'], {
-				env: { PATH: process.env['PATH'], CLAUDE_CODE_SHELL: '/bin/bash' },
-				stdio: ['ignore', file, file],
-			}).on('exit', resolve),
+			spawn(
+				...prefixed(
+					secrets.runScript,
+					'echo 1-$STRIPE_KEY; echo 2 >&2; echo 3; echo 4 >&2; exit 5',
+				),
+				{ env: ENVIRONMENT, stdio: ['ignore', file, file] },
+			).on('exit', resolve),
 		);
 		closeSync(file);
 
@@ -165,7 +178,7 @@ describe('SessionSecrets', () => {
 		expect(secrets.mask(clean)).toBe(clean);
 	});
 
-	it('writes its files for the user alone, and removes them', async () => {
+	it.skipIf(WINDOWS)('writes its files for the user alone', async () => {
 		const secrets = session();
 		await secrets.set({ TOKEN: 'secret-token-value' });
 		const folder = secrets.runScript.replace(/\/run$/u, '');
@@ -173,6 +186,12 @@ describe('SessionSecrets', () => {
 		expect(statSync(folder).mode & 0o777).toBe(0o700);
 		expect(statSync(join(folder, 'secrets.sh')).mode & 0o777).toBe(0o600);
 		expect(statSync(join(folder, 'masks')).mode & 0o777).toBe(0o600);
+	});
+
+	it('removes its files', async () => {
+		const secrets = session();
+		await secrets.set({ TOKEN: 'secret-token-value' });
+		const folder = secrets.runScript.replace(/\/run$/u, '');
 
 		await secrets.remove();
 		expect(existsSync(folder)).toBe(false);
@@ -194,7 +213,7 @@ describe('SessionSecrets environment', () => {
 	});
 });
 
-describe('SessionSecrets leftovers', () => {
+describe.skipIf(WINDOWS)('SessionSecrets leftovers', () => {
 	function runLeading(secrets: SessionSecrets, command: string): Promise<Ran & { pid: number }> {
 		return new Promise((resolve) => {
 			const child = spawn(secrets.runScript, [command], {
@@ -248,6 +267,7 @@ describe('SessionSecrets leftovers', () => {
 
 		expect(alive(ran.pid)).toBe(false);
 		expect(Date.now() - started).toBeGreaterThanOrEqual(2_900);
+		expect(Date.now() - started).toBeLessThan(4_800);
 	}, 10_000);
 
 	it('stops leftovers when the command output is masked too', async () => {
@@ -292,16 +312,15 @@ describe('SessionSecrets compact output', () => {
 			env: { FAKE_SLEEP: '5' },
 		});
 
-		expect(ran.stdout).toBe('hi\n');
+		expect(ran).toEqual({ status: 0, stdout: 'hi\n', stderr: '' });
 		expect(Date.now() - started).toBeLessThan(4000);
 	});
 
 	it('takes only a rewrite that puts rtk in front of commands, so cat stays cat', async () => {
-		const file = join(ROOT, 'whole.txt');
-		writeFileSync(file, 'whole file\n');
+		writeFileSync(join(ROOT, 'whole.txt'), 'whole file\n');
 
-		const ran = await run(compacting(fakeRtk()), claudeCommand(`cat ${file}`), {
-			env: { FAKE_REWRITE: `rtk read ${file}` },
+		const ran = await run(compacting(fakeRtk()), claudeCommand('cat whole.txt'), {
+			env: { FAKE_REWRITE: 'rtk read whole.txt' },
 		});
 
 		expect(ran.stdout).toBe('whole file\n');
@@ -330,7 +349,7 @@ describe('SessionSecrets compact output', () => {
 	});
 });
 
-describe.runIf(existsSync(BUNDLED_RTK) || process.env['CI'] !== undefined)(
+describe.runIf(existsSync(BUNDLED_RTK) || (process.env['CI'] !== undefined && !WINDOWS))(
 	'SessionSecrets with the rtk that scripts/fetch-rtk.mjs puts in apps/malini/vendor',
 	() => {
 		it('shortens git status, and keeps the exit code of a git command that fails', async () => {
@@ -354,8 +373,8 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		const hidden = mkdtempSync(join(ROOT, 'hidden-'));
 		writeFileSync(join(hidden, 'token'), 'hidden-token');
 		const secrets = session(rtk);
-		secrets.confine(sandboxProfile({ checkout: ROOT, hidden: [hidden], internet: false }));
-		return { secrets, read: `cat ${join(hidden, 'token')}` };
+		secrets.confine(sandboxPrefix({ checkout: ROOT, hidden: [hidden], internet: false }));
+		return { secrets, read: `cat '${join(hidden, 'token').replaceAll('\\', '/')}'` };
 	}
 
 	it('runs every command inside the sandbox, with its secrets', async () => {
@@ -382,7 +401,7 @@ describe.runIf(canSandbox())('SessionSecrets in a sandbox', () => {
 		const write = `touch ${join(granted, 'state')}`;
 		const once = secrets.passInside(
 			write,
-			sandboxProfile({
+			sandboxPrefix({
 				checkout: ROOT,
 				hidden: [],
 				internet: false,
@@ -437,7 +456,7 @@ describe('bridgeSecretsFolder', () => {
 		expect(folder.startsWith(join(parent, `malini-secrets-${process.pid}-`))).toBe(true);
 	});
 
-	it('removes its folder when Malini stops the bridge with SIGTERM', async () => {
+	it.skipIf(WINDOWS)('removes its folder when Malini stops the bridge with SIGTERM', async () => {
 		const parent = mkdtempSync(join(ROOT, 'stopped-'));
 		const built = pathToFileURL(resolve(__dirname, '..', '..', 'dist', 'claude', 'secrets.js'));
 		const bridge = spawn(
@@ -464,11 +483,13 @@ describe('bridgeSecretsFolder', () => {
 	});
 });
 
-describe('claudeShell', () => {
-	it('takes the shell Claude Code would pick', () => {
+describe.skipIf(WINDOWS)('claudeShell', () => {
+	it('takes the shell Claude Code would pick, and the one this computer has otherwise', () => {
+		const own = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
+
 		expect(claudeShell({ CLAUDE_CODE_SHELL: '/bin/bash', SHELL: '/bin/zsh' })).toBe('/bin/bash');
 		expect(claudeShell({ SHELL: '/bin/bash' })).toBe('/bin/bash');
-		expect(claudeShell({ SHELL: '/opt/homebrew/bin/fish' })).toBe('/bin/zsh');
-		expect(claudeShell({ CLAUDE_CODE_SHELL: '/nowhere/zsh' })).toBe('/bin/zsh');
+		expect(claudeShell({ SHELL: '/opt/homebrew/bin/fish' })).toBe(own);
+		expect(claudeShell({ CLAUDE_CODE_SHELL: '/nowhere/zsh' })).toBe(own);
 	});
 });

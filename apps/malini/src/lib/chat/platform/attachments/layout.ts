@@ -108,7 +108,7 @@ export function expectedRelativePath(id: string, displayName: string): string {
 export function attachmentsRoot(worktree: string): string {
 	let canonicalWorktree: string;
 	try {
-		canonicalWorktree = realpathSync(worktree);
+		canonicalWorktree = realpathSync.native(worktree);
 	} catch (error) {
 		throw new AttachmentError('io', `canonicalize worktree: ${describeError(error)}`, error);
 	}
@@ -148,7 +148,7 @@ export function attachmentsRoot(worktree: string): string {
 	}
 	let canonicalRoot: string;
 	try {
-		canonicalRoot = realpathSync(current);
+		canonicalRoot = realpathSync.native(current);
 	} catch (error) {
 		throw new AttachmentError(
 			'io',
@@ -184,7 +184,7 @@ export function deleteAttachmentDirectory(worktree: string, id: string): void {
 	}
 	let canonical: string;
 	try {
-		canonical = realpathSync(directory);
+		canonical = realpathSync.native(directory);
 	} catch (error) {
 		throw new AttachmentError(
 			'io',

@@ -18,7 +18,7 @@ import { BackgroundWork } from './background-work';
 import { checkCompatibility } from './compatibility-check';
 import { pruneEvents, startEventLog, type DispatchedEvent } from './event-log.service';
 import { AutomationExperiments } from './automation-experiments.service';
-import { AutomationRunner } from './automation-runner.service';
+import { AutomationRunner, type ChangeSaves } from './automation-runner.service';
 import { createAutomationSchedules } from './automation-schedules.service';
 import { startAutomationTriggers } from './automation-triggers.service';
 import { pruneDecisions } from './reconciler-decisions.repository';
@@ -45,9 +45,15 @@ export interface AutomationsOptions {
 	readonly deliveries?: (event: DispatchedEvent) => Promise<void>;
 	readonly deliver?: DeliverWake;
 	readonly brainWorkstream?: () => Promise<string | null>;
+	readonly leases?: ChangeSaves;
 }
 
 const NO_RULE = (): Promise<void> => Promise.resolve();
+
+const NO_SAVES: ChangeSaves = {
+	savingChanges: () => false,
+	runChangeCaptureSettled: () => Promise.resolve(),
+};
 
 const NO_SHIPPING: ShippingRule = {
 	hear: () => Promise.resolve([]),
@@ -78,7 +84,7 @@ export function registerAutomations(
 				new AutomationError('invariant', 'Answering is not available in this Malini.'),
 			));
 	const work = new BackgroundWork(log);
-	const runner = new AutomationRunner(context, log, work);
+	const runner = new AutomationRunner(context, log, work, options.leases ?? NO_SAVES);
 	const experiments = new AutomationExperiments(
 		context,
 		(builtin, task, automation) =>
@@ -174,8 +180,10 @@ export function registerAutomations(
 				work.settled(),
 				delay(SETTLE_BUDGET_MS, 'late', { ref: false }),
 			]);
-			// ponytail: work past the budget meets a closed database; abort each job if that shows up
-			if (late === 'late') log('automations: Malini closed before its work finished');
+			// ponytail: a cut job is re-handled at the next launch; abort each job once that is not enough
+			if (late === 'late') {
+				log(`automations: Malini closed before its work finished: ${work.pending().join(', ')}`);
+			}
 		},
 	};
 }

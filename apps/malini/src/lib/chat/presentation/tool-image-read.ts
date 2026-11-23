@@ -1,3 +1,4 @@
+import { forwardSlashed } from '$contract/workstream-images';
 import { toolActionKind } from './tool-display-name';
 
 export type ToolImageRead = {
@@ -40,13 +41,15 @@ export function toolImageRead(
 	if (!path || !mediaType) return null;
 
 	const read = workstreamRelativePath(path, workstreamId);
-	return { path: read, fileName: read.split('/').filter(Boolean).pop() ?? read, mediaType };
+	const fileName = forwardSlashed(read).split('/').filter(Boolean).pop() ?? read;
+	return { path: read, fileName, mediaType };
 }
 
 function workstreamRelativePath(path: string, workstreamId: string | null): string {
+	const slashed = forwardSlashed(path);
 	const worktree = `/workstreams/${workstreamId}/`;
-	const at = workstreamId === null ? -1 : path.indexOf(worktree);
-	return at === -1 ? path : path.slice(at + worktree.length);
+	const at = workstreamId === null ? -1 : slashed.indexOf(worktree);
+	return at === -1 ? path : slashed.slice(at + worktree.length);
 }
 
 function stringAt(value: unknown, keys: readonly string[]): string | null {

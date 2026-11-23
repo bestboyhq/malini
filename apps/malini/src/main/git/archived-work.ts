@@ -8,6 +8,7 @@ import { ensureStagingPrecondition } from './excludes';
 import { WORKTREE_CONTENT_PATHSPEC, deriveProjectId, validateWorkstreamId } from './paths';
 import {
 	DISABLED_GIT_HOOKS_CONFIG,
+	EXACT_CONTENT_CONFIG,
 	runGit,
 	runGitAllowingExit,
 	runGitWithInput,
@@ -236,15 +237,34 @@ export async function restoreArchivedWork(restore: ArchivedWorkRestore): Promise
 	);
 	await populateCheckout(repository, checkout);
 	if (saved?.uncommitted !== true) return;
-	await runGit([
+	const changed = await runGit([
 		'-C',
 		checkout,
-		'restore',
-		`--source=${saved.commit}`,
-		'--worktree',
+		'diff',
+		'--name-only',
+		'-z',
+		'--no-renames',
+		'HEAD',
+		saved.commit,
 		'--',
 		WORKTREE_CONTENT_PATHSPEC,
 	]);
+	if (changed.length === 0) return;
+	await runGitWithInput(
+		[
+			'-C',
+			checkout,
+			'--literal-pathspecs',
+			'-c',
+			EXACT_CONTENT_CONFIG,
+			'restore',
+			`--source=${saved.commit}`,
+			'--worktree',
+			'--pathspec-from-file=-',
+			'--pathspec-file-nul',
+		],
+		changed,
+	);
 }
 
 export async function releaseRestoredWork(
@@ -380,6 +400,8 @@ function stagedCheckoutTree(
 					`--work-tree=${checkout}`,
 					'-c',
 					DISABLED_GIT_HOOKS_CONFIG,
+					'-c',
+					EXACT_CONTENT_CONFIG,
 					...args,
 				],
 				{ ...index.env(), ...env },

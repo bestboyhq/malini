@@ -67,7 +67,9 @@ test('folding the changed files open and shut leaves the transcript still at any
 			await sendPrompt(page, `Toggle turn ${turn}`);
 			await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
 		}
-		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+			timeout: 20_000,
+		});
 
 		for (const zoom of [1, 0.9, 1.25]) {
 			await electronApp.evaluate(

@@ -1,6 +1,14 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	buildSpawnEnvironment,
@@ -11,11 +19,16 @@ import {
 	resolveEnvironment,
 	resolveEnvironmentFrom,
 	resolveToolPath,
+	gitForWindowsNeeds,
 	runWithTimeout,
+	useGitForWindows,
 	writeEnvironmentDiagnostics,
 } from './environment';
+import { gitHome } from './git-install';
 
+const WINDOWS = process.platform === 'win32';
 const tempDirs: string[] = [];
+const searchPath = (...entries: string[]): string => entries.join(delimiter);
 
 function tempDir(): string {
 	const dir = mkdtempSync(join(tmpdir(), 'malini-env-'));
@@ -80,10 +93,10 @@ describe('parseEnvironmentRecords', () => {
 describe('resolveEnvironmentFrom', () => {
 	it('never lets a relative PATH entry reach a child', () => {
 		const resolved = resolveEnvironmentFrom(
-			{ raw: 'PATH=.:node_modules/.bin:~/bin:/opt/homebrew/bin\0' },
-			{ PATH: 'relative/too:/usr/bin' },
+			{ raw: `PATH=${searchPath('.', 'node_modules/.bin', '~/bin', '/opt/homebrew/bin')}\0` },
+			{ PATH: searchPath('relative/too', '/usr/bin') },
 		);
-		const entries = resolved.path.split(':');
+		const entries = resolved.path.split(delimiter);
 		for (const rejected of ['.', 'node_modules/.bin', '~/bin', 'relative/too']) {
 			expect(entries).not.toContain(rejected);
 		}
@@ -92,10 +105,12 @@ describe('resolveEnvironmentFrom', () => {
 
 	it('puts the captured PATH first, appends the inherited one, and dedupes', () => {
 		const resolved = resolveEnvironmentFrom(
-			{ raw: 'PATH=/home/u/.nvm/versions/node/v24/bin:/usr/bin\0' },
-			{ PATH: '/usr/bin:/bin:/usr/sbin:/sbin' },
+			{ raw: `PATH=${searchPath('/home/u/.nvm/versions/node/v24/bin', '/usr/bin')}\0` },
+			{ PATH: searchPath('/usr/bin', '/bin', '/usr/sbin', '/sbin') },
 		);
-		expect(resolved.path).toBe('/home/u/.nvm/versions/node/v24/bin:/usr/bin:/bin:/usr/sbin:/sbin');
+		expect(resolved.path).toBe(
+			searchPath('/home/u/.nvm/versions/node/v24/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'),
+		);
 		expect(resolved.source).toBe('login-shell');
 		expect(resolved.degradation).toBeNull();
 	});
@@ -103,11 +118,11 @@ describe('resolveEnvironmentFrom', () => {
 	it('carries no hardcoded directories: a failed capture is the inherited PATH alone', () => {
 		const resolved = resolveEnvironmentFrom(
 			{ error: '`/bin/zsh -ilc env` did not finish within 5s' },
-			{ PATH: '/usr/bin:/bin:/usr/sbin:/sbin' },
+			{ PATH: searchPath('/usr/bin', '/bin', '/usr/sbin', '/sbin') },
 		);
 		expect(resolved.source).toBe('inherited');
 		expect(resolved.degradation).toBe('`/bin/zsh -ilc env` did not finish within 5s');
-		expect(resolved.path).toBe('/usr/bin:/bin:/usr/sbin:/sbin');
+		expect(resolved.path).toBe(searchPath('/usr/bin', '/bin', '/usr/sbin', '/sbin'));
 		expect(resolved.path).not.toContain('.hermes');
 		expect(resolved.path).not.toContain('/opt/homebrew');
 	});
@@ -177,11 +192,11 @@ describe('resolveToolPath', () => {
 	it('finds the first executable on the resolved PATH and nothing else', () => {
 		const first = tempDir();
 		const second = tempDir();
-		const executable = join(second, 'node');
+		const executable = join(second, WINDOWS ? 'node.cmd' : 'node');
 		writeFileSync(executable, '#!/bin/sh\n');
 		chmodSync(executable, 0o755);
 		writeFileSync(join(first, 'node'), 'not executable');
-		const environment = resolveEnvironmentFrom({ raw: `PATH=${first}:${second}\0` }, {});
+		const environment = resolveEnvironmentFrom({ raw: `PATH=${searchPath(first, second)}\0` }, {});
 
 		expect(resolveToolPath('node', environment)).toBe(executable);
 		expect(resolveToolPath('definitely-not-installed', environment)).toBeNull();
@@ -199,10 +214,15 @@ describe('buildSpawnEnvironment', () => {
 	});
 });
 
+const NODE_EXITS_3 =
+	"process.stdout.write('out'); process.stderr.write('err'); process.exitCode = 3";
+const NODE_LEAVES_GRANDCHILD =
+	"require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20_000)'], { stdio: 'inherit', detached: true }).unref()";
+
 describe('runWithTimeout', () => {
 	it('returns the exit code and both streams, chunk callbacks included', async () => {
 		const seen: string[] = [];
-		const result = await runWithTimeout('/bin/sh', ['-c', 'printf out; printf err >&2; exit 3'], {
+		const result = await runWithTimeout(process.execPath, ['-e', NODE_EXITS_3], {
 			timeoutMs: 5_000,
 			onStdout: (text) => seen.push(`stdout:${text}`),
 			onStderr: (text) => seen.push(`stderr:${text}`),
@@ -213,7 +233,9 @@ describe('runWithTimeout', () => {
 
 	it('kills a child that never exits', async () => {
 		const started = Date.now();
-		const result = await runWithTimeout('/bin/sh', ['-c', 'sleep 30'], { timeoutMs: 200 });
+		const result = await runWithTimeout(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'], {
+			timeoutMs: 200,
+		});
 		expect(result.exitCode).toBeNull();
 		expect(result.timedOut).toBe(true);
 		expect(Date.now() - started).toBeLessThan(5_000);
@@ -221,18 +243,22 @@ describe('runWithTimeout', () => {
 
 	it('returns when a backgrounded grandchild holds the pipe', async () => {
 		const started = Date.now();
-		const result = await runWithTimeout('/bin/sh', ['-c', '(sleep 60 &); sleep 60'], {
-			timeoutMs: 300,
-		});
+		const result = await runWithTimeout(
+			process.execPath,
+			['-e', `${NODE_LEAVES_GRANDCHILD}; setTimeout(() => {}, 20_000)`],
+			{ timeoutMs: 300 },
+		);
 		expect(result.timedOut).toBe(true);
 		expect(Date.now() - started).toBeLessThan(3_000);
 	});
 
 	it('returns when a grandchild holds the pipe after the child exited normally', async () => {
 		const started = Date.now();
-		const result = await runWithTimeout('/bin/sh', ['-c', 'echo first; (sleep 60 &); exit 0'], {
-			timeoutMs: 5_000,
-		});
+		const result = await runWithTimeout(
+			process.execPath,
+			['-e', `console.log('first'); ${NODE_LEAVES_GRANDCHILD}`],
+			{ timeoutMs: 5_000 },
+		);
 		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toBe('first\n');
 		expect(Date.now() - started).toBeLessThan(3_000);
@@ -246,7 +272,17 @@ describe('runWithTimeout', () => {
 });
 
 describe('captureLoginShellEnvironment', () => {
-	it('captures PATH from a controlled shell', async () => {
+	it.runIf(WINDOWS)('reads no login shell on Windows and keeps the PATH the app got', async () => {
+		expect(await captureLoginShellEnvironment()).toEqual({
+			error:
+				'Windows starts apps with the environment of the user, so there is no login shell to read',
+		});
+		const resolved = await resolveEnvironment();
+		expect(resolved.source).toBe('inherited');
+		expect(resolveToolPath('cmd', resolved)).not.toBeNull();
+	});
+
+	it.skipIf(WINDOWS)('captures PATH from a controlled shell', async () => {
 		const dir = tempDir();
 		const shell = join(dir, 'shell.sh');
 		writeFileSync(
@@ -261,7 +297,7 @@ describe('captureLoginShellEnvironment', () => {
 		expect(resolved.source).toBe('login-shell');
 	});
 
-	it('reports a shell that exits non-zero, times out, or is missing', async () => {
+	it.skipIf(WINDOWS)('reports a shell that exits non-zero, times out, or is missing', async () => {
 		const dir = tempDir();
 		const failing = join(dir, 'failing.sh');
 		writeFileSync(failing, '#!/bin/sh\nexit 7\n');
@@ -287,21 +323,131 @@ describe('captureLoginShellEnvironment', () => {
 		).toBe(true);
 	});
 
-	it('never throws for the real login shell and always yields a usable PATH', async () => {
-		const resolved = await resolveEnvironment();
-		expect(resolved.path).toContain('/usr/bin');
-		expect(resolveToolPath('sh', resolved)).not.toBeNull();
-		expect(await resolveEnvironment()).toBe(resolved);
-	});
+	it.skipIf(WINDOWS)(
+		'never throws for the real login shell and always yields a usable PATH',
+		async () => {
+			const resolved = await resolveEnvironment();
+			expect(resolved.path).toContain('/usr/bin');
+			expect(resolveToolPath('sh', resolved)).not.toBeNull();
+			expect(await resolveEnvironment()).toBe(resolved);
+		},
+	);
 });
 
 describe('preferredShell', () => {
-	it('takes an absolute existing $SHELL, else /bin/zsh, else /bin/sh', () => {
-		const fallback = existsSync('/bin/zsh') ? '/bin/zsh' : '/bin/sh';
-		expect(preferredShell({ SHELL: '/bin/sh' })).toBe('/bin/sh');
-		expect(preferredShell({ SHELL: 'zsh' })).toBe(fallback);
-		expect(preferredShell({ SHELL: '/does/not/exist' })).toBe(fallback);
-		expect(preferredShell({})).toBe(fallback);
+	it.runIf(WINDOWS)('takes the Git Bash Claude Code is pointed at, else the one beside git', () => {
+		const bash = join(tempDir(), 'bash.exe');
+		writeFileSync(bash, '');
+		expect(preferredShell({ CLAUDE_CODE_GIT_BASH_PATH: bash })).toBe(bash);
+		expect(preferredShell({})).toMatch(/\\bin\\bash\.exe$/u);
+	});
+
+	it.skipIf(WINDOWS)(
+		'takes an absolute existing $SHELL, else bash on Linux or zsh on macOS, else /bin/sh',
+		() => {
+			const shell = process.platform === 'linux' ? '/bin/bash' : '/bin/zsh';
+			const fallback = existsSync(shell) ? shell : '/bin/sh';
+			expect(preferredShell({ SHELL: '/bin/sh' })).toBe('/bin/sh');
+			expect(preferredShell({ SHELL: 'zsh' })).toBe(fallback);
+			expect(preferredShell({ SHELL: '/does/not/exist' })).toBe(fallback);
+			expect(preferredShell({})).toBe(fallback);
+		},
+	);
+});
+
+describe('useGitForWindows', () => {
+	function gitForWindows(root: string): string {
+		mkdirSync(join(root, 'cmd'), { recursive: true });
+		mkdirSync(join(root, 'bin'), { recursive: true });
+		for (const name of ['git', 'git.exe']) {
+			writeFileSync(join(root, 'cmd', name), '');
+			chmodSync(join(root, 'cmd', name), 0o755);
+		}
+		writeFileSync(join(root, 'bin', 'bash.exe'), '');
+		return join(root, 'bin', 'bash.exe');
+	}
+
+	it('keeps the git on PATH and points Claude Code at the Git Bash beside it', () => {
+		const system = join(tempDir(), 'Git');
+		const bash = gitForWindows(system);
+		const vendor = tempDir();
+		gitForWindows(gitHome(vendor));
+		const env = { PATH: searchPath(tempDir(), join(system, 'cmd')) };
+		const path = env.PATH;
+
+		useGitForWindows(vendor, env);
+
+		expect(env).toEqual({ PATH: path, CLAUDE_CODE_GIT_BASH_PATH: bash });
+	});
+
+	it('adds a Git for Windows that is off PATH before the one Malini installs', () => {
+		const programs = tempDir();
+		const bash = gitForWindows(join(programs, 'Git'));
+		const vendor = tempDir();
+		gitForWindows(gitHome(vendor));
+		const empty = tempDir();
+		const env = { PATH: empty, ProgramFiles: programs };
+
+		useGitForWindows(vendor, env);
+
+		expect(env).toEqual({
+			PATH: searchPath(empty, join(programs, 'Git', 'cmd')),
+			ProgramFiles: programs,
+			CLAUDE_CODE_GIT_BASH_PATH: bash,
+		});
+	});
+
+	it('adds the Git Malini installs, then an older one it installed, when no other Git exists', () => {
+		const vendor = tempDir();
+		const older = join(vendor, '2.40.0');
+		const olderBash = gitForWindows(older);
+		const empty = tempDir();
+		const env: Record<string, string> = { PATH: empty };
+
+		useGitForWindows(vendor, env);
+		expect(env).toEqual({
+			PATH: searchPath(empty, join(gitHome(vendor), 'cmd'), join(older, 'cmd')),
+			CLAUDE_CODE_GIT_BASH_PATH: olderBash,
+		});
+
+		rmSync(older, { recursive: true });
+		const fresh = { PATH: empty };
+		useGitForWindows(vendor, fresh);
+		expect(fresh).toEqual({
+			PATH: searchPath(empty, join(gitHome(vendor), 'cmd')),
+			CLAUDE_CODE_GIT_BASH_PATH: join(gitHome(vendor), 'bin', 'bash.exe'),
+		});
+	});
+
+	it('asks for the pinned Git when git or Git Bash is missing, or only an older one it installed is in use', () => {
+		const vendor = tempDir();
+		const older = join(vendor, '2.40.0');
+		gitForWindows(older);
+		const system = join(tempDir(), 'Git');
+		gitForWindows(system);
+		const empty = tempDir();
+		const withOlder = { PATH: empty };
+		useGitForWindows(vendor, withOlder);
+
+		expect(gitForWindowsNeeds(vendor, { PATH: empty })).toBe('install');
+		expect(gitForWindowsNeeds(vendor, withOlder)).toBe('upgrade');
+		expect(gitForWindowsNeeds(vendor, { PATH: join(system, 'cmd') })).toBe('nothing');
+		gitForWindows(gitHome(vendor));
+		expect(gitForWindowsNeeds(vendor, withOlder)).toBe('nothing');
+	});
+
+	it('keeps a Git Bash the user set that exists, and replaces one that does not', () => {
+		const vendor = tempDir();
+		const chosen = join(tempDir(), 'bash.exe');
+		writeFileSync(chosen, '');
+		const kept = { PATH: tempDir(), CLAUDE_CODE_GIT_BASH_PATH: chosen };
+		const replaced = { PATH: tempDir(), CLAUDE_CODE_GIT_BASH_PATH: join(vendor, 'gone.exe') };
+
+		useGitForWindows(vendor, kept);
+		useGitForWindows(vendor, replaced);
+
+		expect(kept.CLAUDE_CODE_GIT_BASH_PATH).toBe(chosen);
+		expect(replaced.CLAUDE_CODE_GIT_BASH_PATH).toBe(join(gitHome(vendor), 'bin', 'bash.exe'));
 	});
 });
 

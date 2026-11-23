@@ -56,6 +56,7 @@ const WARN_LINES: readonly RegExp[] = [
 	/^malini: (?:stopped watching|not watching) workstream /u,
 	/^malini: watching workstream `[^`]*` without its git dir/u,
 	/^malini: could not fetch \S+ of /u,
+	/^automations: Malini closed before its work finished: /u,
 ];
 
 const STACK_CONTINUATION = /^\s+(?:at\s|\.\.\.|\{|\}|[A-Za-z_$][\w$]*:)/u;

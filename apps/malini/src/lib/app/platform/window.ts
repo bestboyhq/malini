@@ -7,10 +7,13 @@ import {
 	APP_MENU_COMMAND_CHOSEN_CHANNEL,
 	APP_FULL_SCREEN_CHANGED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
+	APP_WINDOW_CONTROLS_CHANGED_CHANNEL,
 	type MenuCommand,
 	type MenuCommandChosen,
 	type NotificationTarget,
+	type WindowControlsState,
 } from '$contract/events';
+import type { PressWindowControlArgs, WindowControl } from '$contract/commands';
 import type { NotificationPermissionResult } from '$contract/system';
 import type { EventBus } from '$main/events';
 import { AppError } from './app-error';
@@ -105,6 +108,12 @@ export type ShellWindow = Pick<
 	| 'getBounds'
 	| 'setBounds'
 	| 'isFullScreen'
+	| 'isFocused'
+	| 'isMaximized'
+	| 'close'
+	| 'minimize'
+	| 'maximize'
+	| 'unmaximize'
 	| 'on'
 > & {
 	readonly webContents: Pick<
@@ -134,6 +143,8 @@ export interface WindowCommands {
 	setInterfaceScale(args: { scale: number }): void;
 	logicalViewport(): { width: number; height: number };
 	isFullScreen(): boolean;
+	windowControls(): WindowControlsState;
+	pressWindowControl(args: PressWindowControlArgs): void;
 	setCloseGuard(args: { armed: boolean }): void;
 	destroy(): void;
 	notify(args: { options: { title: string; body: string; opens?: NotificationTarget } }): void;
@@ -148,8 +159,23 @@ export interface WindowCommands {
 
 export const CRASH_RELOAD_COOLDOWN_MS = 30_000;
 
+const PRESS_WINDOW_CONTROL: Readonly<Record<WindowControl, (window: ShellWindow) => void>> = {
+	close: (window) => window.close(),
+	minimize: (window) => window.minimize(),
+	maximize: (window) => window.maximize(),
+	restore: (window) => window.unmaximize(),
+};
+
 function isGone(window: ShellWindow): boolean {
 	return window.isDestroyed() || window.webContents.isDestroyed();
+}
+
+function controlsOf(window: ShellWindow): WindowControlsState {
+	return { focused: window.isFocused(), maximized: window.isMaximized() };
+}
+
+function isWindowControl(value: unknown): value is WindowControl {
+	return typeof value === 'string' && Object.hasOwn(PRESS_WINDOW_CONTROL, value);
 }
 
 export function createWindowCommands(deps: WindowDeps): WindowCommands {
@@ -217,6 +243,14 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		};
 		window.on('enter-full-screen', announceFullScreen(true));
 		window.on('leave-full-screen', announceFullScreen(false));
+		const announceControls = (change: Partial<WindowControlsState>) => () => {
+			if (deps.getMainWindow() !== window || isGone(window)) return;
+			events.emit(APP_WINDOW_CONTROLS_CHANGED_CHANNEL, { ...controlsOf(window), ...change });
+		};
+		window.on('focus', announceControls({ focused: true }));
+		window.on('blur', announceControls({ focused: false }));
+		window.on('maximize', announceControls({ maximized: true }));
+		window.on('unmaximize', announceControls({ maximized: false }));
 		window.on('close', (event) => {
 			persist();
 			if (!armed || quitting || deps.getMainWindow() !== window) return;
@@ -278,6 +312,22 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		isFullScreen() {
 			const window = deps.getMainWindow();
 			return window !== null && !window.isDestroyed() && window.isFullScreen();
+		},
+		windowControls() {
+			const window = deps.getMainWindow();
+			if (!window || window.isDestroyed()) return { focused: false, maximized: false };
+			attach(window);
+			return controlsOf(window);
+		},
+		pressWindowControl(args) {
+			const control = args?.control;
+			if (!isWindowControl(control)) {
+				throw new AppError(
+					'invalid-argument',
+					'control must be close, minimize, maximize or restore',
+				);
+			}
+			PRESS_WINDOW_CONTROL[control](requireWindow());
 		},
 		setCloseGuard(args) {
 			if (typeof args?.armed !== 'boolean')

@@ -23,6 +23,10 @@ import { isRecord } from '../type-guards.js';
 
 const execFileAsync = promisify(execFile);
 
+const BROWSER_OPENERS: Partial<Record<NodeJS.Platform, readonly [string, ...string[]]>> = {
+	darwin: ['/usr/bin/open'],
+	win32: ['rundll32.exe', 'url.dll,FileProtocolHandler'],
+};
 const LISTED_WITHIN_MS = 15_000;
 export const AUTHORIZATION_WINDOW_MS = 5 * 60_000;
 const SETTLE_WINDOW_MS = 30_000;
@@ -167,7 +171,8 @@ export async function signInMcpServer(
 }
 
 export async function openInBrowser(url: string): Promise<void> {
-	await execFileAsync('/usr/bin/open', [url], { timeout: SAVE_TIMEOUT_MS });
+	const [opener, ...args] = BROWSER_OPENERS[process.platform] ?? ['xdg-open'];
+	await execFileAsync(opener, [...args, url], { timeout: SAVE_TIMEOUT_MS });
 }
 
 export async function probeMcpServer(

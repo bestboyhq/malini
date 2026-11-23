@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	classifyCloneError,
@@ -58,7 +59,7 @@ describe('ensureBaseClone', () => {
 		const events: Progress[] = [];
 
 		await ensureBaseClone({
-			repoPath: `file://${source}`,
+			repoPath: pathToFileURL(source).href,
 			checkoutsRoot: join(dir, 'app-data'),
 			githubToken: null,
 			credentials: noPromptCredentialEnv,
@@ -312,7 +313,7 @@ describe('ensureBaseClone', () => {
 		cleanups.push(() => removeDir(dir));
 		const remote = await seedRemote(dir);
 		const folder = join(dir, 'folder');
-		await realGit(dir, ['clone', '-q', '--depth', '1', `file://${remote}`, folder]);
+		await realGit(dir, ['clone', '-q', '--depth', '1', pathToFileURL(remote).href, folder]);
 
 		const { path } = await ensureBaseCloneWithOutcome({
 			repoPath: remote,
@@ -339,7 +340,7 @@ describe('ensureBaseClone', () => {
 			await realGit(remote, ['config', 'uploadpack.allowFilter', 'true']);
 
 			const { path } = await ensureBaseCloneWithOutcome({
-				repoPath: `file://${remote}`,
+				repoPath: pathToFileURL(remote).href,
 				checkoutsRoot: join(dir, 'app-data'),
 				githubToken: null,
 				credentials: noPromptCredentialEnv,

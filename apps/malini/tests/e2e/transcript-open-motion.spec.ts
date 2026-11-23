@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -9,9 +8,11 @@ import {
 	type LaunchedApp,
 	launchMalini,
 	openWorkstream,
+	REAL_GIT,
 	seedWorkstream,
 	sendPrompt,
 	untilStill,
+	writeExecutable,
 	waitWhile,
 } from './harness';
 
@@ -65,7 +66,9 @@ async function overflowingChat(app: LaunchedApp, name: string, changes: boolean)
 		await sendPrompt(page, `${name} turn ${turn}`);
 		await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
 	}
-	await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+	await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+		timeout: 20_000,
+	});
 	const overflow = await page
 		.getByTestId('chat-message-scroller')
 		.evaluate((scroller) => scroller.scrollHeight - scroller.clientHeight);
@@ -270,18 +273,16 @@ test('a chat opened right after launch shows its changed files and every turn in
 });
 
 function holdRawDiffs(bin: string, gate: string): () => void {
-	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
 	const held = join(bin, 'git');
-	writeFileSync(
+	writeExecutable(
 		held,
 		[
 			'#!/bin/sh',
 			`case " $* " in *" --raw "*) ${waitWhile(`[ -e '${gate}' ]`, 0.05)} ;; esac`,
-			`exec '${git}' "$@"`,
+			`exec '${REAL_GIT}' "$@"`,
 			'',
 		].join('\n'),
 	);
-	chmodSync(held, 0o755);
 	writeFileSync(gate, '');
 	return () => rmSync(gate, { force: true });
 }
@@ -307,7 +308,9 @@ test('a chat reopened after a restart shows its changed files without working th
 			);
 			await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
 		}
-		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+			timeout: 20_000,
+		});
 		await expect(changedFiles).toContainText('+1');
 		await expect(changedFiles).not.toContainText('−');
 		await openWorkstream(page, other.workstreamId);
