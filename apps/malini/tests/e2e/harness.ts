@@ -919,6 +919,23 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
+export async function moveFoldersMaliniHolds(
+	app: LaunchedApp,
+	options: LaunchOptions,
+	workstreamId: string,
+	move: () => void,
+): Promise<LaunchedApp> {
+	if (process.platform !== 'win32') {
+		move();
+		return app;
+	}
+	await app.quit();
+	move();
+	const relaunched = await launchMalini({ ...options, profile: app.root });
+	await openWorkstream(relaunched.page, workstreamId);
+	return relaunched;
+}
+
 export async function showInspector(page: Page): Promise<void> {
 	await page
 		.getByTestId('extension-inspector-gutter')
