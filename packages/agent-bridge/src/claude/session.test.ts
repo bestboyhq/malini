@@ -1385,6 +1385,54 @@ describe('ClaudeSession', () => {
 		});
 	});
 
+	it('opens the sign-in of a server whose tool asked for one and has the agent call it again', async () => {
+		const tool = 'mcp__producthunt__get_my_account';
+		const opened: string[] = [];
+		let signedIn = false;
+		const script = recordedScript('readAndBash');
+		const failed: ScriptStep = {
+			hook: {
+				session_id: READ_AND_BASH_SESSION,
+				transcript_path: '/tmp/transcript.jsonl',
+				cwd: '/work/repo',
+				hook_event_name: 'PostToolUseFailure',
+				tool_name: tool,
+				tool_input: {},
+				tool_use_id: 'toolu_signed_out',
+				error: 'MCP server "producthunt" needs you to sign in again (run /mcp to re-authenticate)',
+			},
+		};
+		const { session, claude, events } = harness(
+			[[...script.slice(0, 1), failed, ...script.slice(1)]],
+			{
+				mcpServerStatus: () => [
+					signedIn
+						? { name: 'producthunt', status: 'connected', tools: [{ name: 'get_my_account' }] }
+						: { name: 'producthunt', status: 'needs-auth' },
+				],
+				openUrl: async (url) => {
+					opened.push(url);
+					signedIn = true;
+				},
+			},
+		);
+
+		await session.sendPrompt('Who am I on Product Hunt?', 'run-1', profile());
+
+		expect(opened).toEqual(['https://sign-in.example/authorize?server=producthunt']);
+		expect(claude.runs[0]?.hookOutputs).toContainEqual({
+			hookSpecificOutput: {
+				hookEventName: 'PostToolUseFailure',
+				additionalContext: `${tool} failed because producthunt needs a sign-in. It is connected in this chat, and its tools work now: 1 tool.`,
+			},
+		});
+		expect(ofType(events, 'mcp.status').at(-1)?.servers).toContainEqual({
+			name: 'producthunt',
+			status: 'connected',
+			toolCount: 1,
+		});
+	});
+
 	it('marks a server another Claude Code connected in the report of a chat at rest', async () => {
 		const { session, events } = harness([recordedScript('readAndBash')]);
 

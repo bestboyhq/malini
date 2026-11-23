@@ -412,6 +412,7 @@ When two servers share a name, each shows where it comes from, such as claude.ai
 
 Ask the agent to add a server and it does, with [`mcp_servers_add`](/malini/docs/agent-tools.md#mcp-servers): it connects in the chat at once and is saved for every chat and the terminal.
 A server that needs a sign-in opens its sign-in page in your browser, and the agent goes on once you finish.
+So does a server that asks for a sign-in only when the agent calls one of its tools.
 
 Settings, MCP servers lists every server a chat in the open workstream connects, grouped by where it comes from: claude.ai connectors, each plugin, your own servers, and the repository's `.mcp.json`.
 It opens with what it found last time and updates each row live while its server connects, signs in or fails.
