@@ -86,7 +86,10 @@
 						<OwnPullRequests repositoryId={repo.id} />
 					{/if}
 					{#if webUrl}
-						<div class="text-fg-secondary text-2xs flex h-6 min-w-0 items-center px-2.5">
+						<div
+							class="text-fg-secondary text-2xs flex h-6 min-w-0 items-center gap-1.5 pr-2.5 pl-2"
+						>
+							<Icon name="users" size={14} class="shrink-0" />
 							<PlanSyncSwitch repositoryFullName={repo.fullName} withPeople />
 						</div>
 					{/if}
