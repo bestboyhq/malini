@@ -55,6 +55,7 @@ export interface FakeGithub {
 	plan(): FakePlan;
 	setPlan(plan: FakePlan): void;
 	answerGet(path: string, output: unknown): void;
+	makePublic(): void;
 }
 
 export interface PullRequestWorkstream {
@@ -328,6 +329,7 @@ async function fakeGithubFor(
 			const answers: unknown = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 			writeAtomically(file, JSON.stringify({ ...Object(answers), [path]: output }));
 		},
+		makePublic: () => writeFileSync(join(state, 'public'), ''),
 	};
 }
 
@@ -449,6 +451,8 @@ if (command === 'auth' && sub === 'status') {
 	out(args.some((arg) => arg.startsWith('[.id')) ? '4242\\te2e-user\\tE2E Chef\\n' : 'e2e-user\\n');
 } else if (command === 'api' && sub.startsWith('user/repos')) {
 	out('[]');
+} else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+$/u.test(sub) && args.length === 2) {
+	out(JSON.stringify({ private: !fs.existsSync(path.join(state, 'public')) }));
 } else if (command === 'api' && /^repos\\/[^/]+\\/[^/]+\\/(milestones|issues)/u.test(sub)) {
 	const planFile = path.join(state, 'plan.json');
 	const plan = fs.existsSync(planFile)

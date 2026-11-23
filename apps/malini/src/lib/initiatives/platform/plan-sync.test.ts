@@ -44,6 +44,7 @@ function fakeGithub(viewer: string) {
 	const calls: string[][] = [];
 	const numbers = { milestone: 0, issue: 0 };
 	let offline = false;
+	let isPrivate = true;
 	const answer = (value: unknown): GhResult => ({
 		stdout: typeof value === 'string' ? value : JSON.stringify(value),
 		stderr: '',
@@ -68,6 +69,7 @@ function fakeGithub(viewer: string) {
 		});
 		const url = new URL(path, 'https://api.github.com/');
 		const [, , , , collection, number, sub] = url.pathname.split('/');
+		if (collection === undefined && !args.includes('-X')) return answer({ private: isPrivate });
 		if (url.searchParams.get('page') !== null && url.searchParams.get('page') !== '1') {
 			return answer([]);
 		}
@@ -132,6 +134,9 @@ function fakeGithub(viewer: string) {
 	return {
 		run,
 		calls,
+		makePublic: () => {
+			isPrivate = false;
+		},
 		milestones,
 		issues,
 		events,
@@ -221,6 +226,7 @@ describe('plan sync with GitHub', () => {
 		expect(await call.state()).toEqual({
 			repositoryFullName: REPOSITORY,
 			enabled: false,
+			private: true,
 			syncedAt: null,
 			error: null,
 			people: [],
@@ -241,6 +247,36 @@ describe('plan sync with GitHub', () => {
 				args: { repositoryFullName: 'not a repository', enabled: true },
 			}),
 		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('GitHub owner/name') });
+	});
+
+	it('refuses to turn on sync for a public repository and writes nothing there', async () => {
+		await call.create('Launch day', '2026-12-01');
+		github.makePublic();
+		expect(await call.state()).toMatchObject({ enabled: false, private: false });
+		await expect(
+			context.commands.invoke({
+				command: 'initiatives.set-sync',
+				args: { repositoryFullName: REPOSITORY, enabled: true },
+			}),
+		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('is public') });
+		expect(github.writes()).toEqual([]);
+		expect(github.milestones).toEqual([]);
+	});
+
+	it('stops syncing once a private repository turns public, and writes nothing after', async () => {
+		const [launch] = await call.create('Launch day', '2026-12-01');
+		await call.turn(true);
+		await call.sync();
+		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
+
+		github.makePublic();
+		github.calls.length = 0;
+		await context.commands.call('initiatives.update', { id: launch?.id ?? '', title: 'Secret' });
+		await call.create('Another secret');
+		await call.sync();
+		expect(github.writes()).toEqual([]);
+		expect(github.milestones.map(({ title }) => title)).toEqual(['Launch day']);
+		expect(await call.state()).toMatchObject({ enabled: false, private: false });
 	});
 
 	it('syncs both ways at first, links by title and imports only open milestones', async () => {

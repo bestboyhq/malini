@@ -57,6 +57,7 @@ A finished initiative leaves the rail once its day has passed.
 
 A plan lives on your Mac until you turn on **Sync with GitHub**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
 Sync is per repository and off until you turn it on.
+It works only with a private repository: a public repository has no switch, and its plan never leaves your Mac.
 
 - Each outcome becomes a milestone, with its day as the due date and its note as the description.
 - Each dependency becomes an issue in that milestone, with its note as the body, and a closed issue means done.
@@ -67,7 +68,8 @@ Sync is per repository and off until you turn it on.
 
 Malini reads GitHub every 30 seconds while the plan is on screen, and writes after each edit.
 A change someone else made shows as a line at the bottom of the window, such as who closed which issue.
-Everyone with access to the repository sees the milestones and issues, people without Malini included.
+Everyone with access to the private repository sees the milestones and issues, people without Malini included.
+Malini checks that the repository is still private before each sync, and turns sync off once it is public.
 The scratchpad stays on your Mac.
 
 Turning sync off stops it and leaves GitHub as it is.

@@ -49,6 +49,7 @@ export type LinkInitiativeWorkstreamArgs = Readonly<{ dependencyId: string; work
 export type PlanSync = Readonly<{
 	repositoryFullName: string;
 	enabled: boolean;
+	private: boolean | null;
 	syncedAt: string | null;
 	error: string | null;
 	people: readonly string[];

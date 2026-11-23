@@ -73,7 +73,10 @@ const INITIATIVE_SYNC_COLUMNS =
 const DEPENDENCY_SYNC_COLUMNS = `d.id, d.initiative_id, d.title, d.done, d.note, d.assignee,
 	d.github_issue, d.github_title, d.github_done, d.github_note`;
 
-export function planSync(db: MaliniDatabase, repositoryFullName: string): PlanSync {
+export function planSync(
+	db: MaliniDatabase,
+	repositoryFullName: string,
+): Omit<PlanSync, 'private'> {
 	const row = get<SyncRow>(
 		db,
 		'SELECT enabled, synced_at, error, people FROM initiative_syncs WHERE repository_full_name = ?',

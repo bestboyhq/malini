@@ -36,6 +36,7 @@ import {
 	recordPlanSyncError,
 	saveDependencySync,
 	saveInitiativeSync,
+	setPlanSyncEnabled,
 	syncedDependencies,
 	syncedInitiatives,
 	type IssueBase,
@@ -74,11 +75,26 @@ export class PlanSyncService {
 	readonly #context: MainContext;
 	readonly #deps: PlanSyncDeps;
 	readonly #lanes = new Map<string, Lane>();
+	readonly #private = new Map<string, boolean>();
 	#viewer: string | null = null;
 
 	constructor(context: MainContext, deps: PlanSyncDeps) {
 		this.#context = context;
 		this.#deps = deps;
+	}
+
+	knownPrivate(repositoryFullName: string): boolean | null {
+		return this.#private.get(repositoryFullName.toLowerCase()) ?? null;
+	}
+
+	async isPrivate(repositoryFullName: string): Promise<boolean> {
+		const repository = parseGhJson<unknown>(
+			await this.#call(['api', `repos/${repositoryFullName}`]),
+			'read the repository on GitHub',
+		);
+		const isPrivate = isRecord(repository) && repository['private'] === true;
+		this.#private.set(repositoryFullName.toLowerCase(), isPrivate);
+		return isPrivate;
 	}
 
 	sync(repositoryFullName: string): Promise<void> {
@@ -144,6 +160,10 @@ export class PlanSyncService {
 			return;
 		}
 		try {
+			if (!(await this.isPrivate(repositoryFullName))) {
+				setPlanSyncEnabled(db, repositoryFullName, false);
+				return;
+			}
 			const people = kind === 'sync' ? await this.#pull(repositoryFullName) : null;
 			this.#closeMerged(repositoryFullName);
 			await this.#push(repositoryFullName);

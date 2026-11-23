@@ -210,3 +210,31 @@ test('a GitHub plan syncs once its switch is on and says what a teammate changed
 		await app.close();
 	}
 });
+
+test('a plan in a public repository offers no GitHub sync and stays on the Mac', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-public', null);
+		github.makePublic();
+		await page.reload();
+
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		const link = sidebar.getByRole('link', { name: 'Open e2e/hutch', exact: true });
+		await expect(link).toBeVisible({ timeout: 20_000 });
+		await link.click();
+		const main = page.getByRole('main');
+		const initiatives = main.getByRole('region', { name: 'Initiatives' });
+		await initiatives.getByRole('textbox', { name: 'Name an outcome with no date' }).fill(OUTCOME);
+		await page.keyboard.press('Enter');
+		await expect(
+			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
+		).toBeFocused();
+		await expect(main.getByRole('switch', { name: 'Sync with GitHub' })).toHaveCount(0);
+		expect(github.plan()).toEqual({ milestones: [], issues: [] });
+		await captureFlow(app, 'initiatives-public-no-sync');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

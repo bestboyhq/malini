@@ -121,4 +121,4 @@ An edit in either place shows in the other at once.
 - **Start workstream** on a dependency starts one in this repository.
 - **This chat** marks the dependency the workstream you are in serves, and **Needs you** marks one waiting on you.
 
-Turn on **Sync with GitHub** to share the plan with your team, as [milestones and issues](/malini/docs/initiatives.md#sync-with-github).
+In a private repository, turn on **Sync with GitHub** to share the plan with your team, as [milestones and issues](/malini/docs/initiatives.md#sync-with-github).

@@ -26,12 +26,12 @@
 	}
 </script>
 
-{#if sync && compact}
+{#if sync?.private && compact}
 	<Tooltip content={WHAT_ON_DOES} placement="top" class="flex min-w-0 items-center gap-2">
 		<Switch id={switchId} size="sm" checked={sync.enabled} {onchange} />
 		<label for={switchId} class="min-w-0 cursor-pointer truncate">{LABEL}</label>
 	</Tooltip>
-{:else if sync}
+{:else if sync?.private}
 	<div class="mb-5 flex items-start gap-3">
 		<div class="min-w-0 flex-1">
 			<label for={switchId} class="text-fg-default cursor-pointer text-sm font-medium">

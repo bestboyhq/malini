@@ -1,4 +1,4 @@
-import { INITIATIVE_TITLE_MAX_LENGTH, type Initiative } from '$contract/initiatives';
+import { INITIATIVE_TITLE_MAX_LENGTH, type Initiative, type PlanSync } from '$contract/initiatives';
 import {
 	REPOSITORY_FULL_NAME_MAX_LENGTH,
 	SCRATCHPAD_CONTENT_MAX_LENGTH,
@@ -86,11 +86,17 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 		return after(repository, () => linkWorkstream(db, dependencyId, workstreamId));
 	});
 
+	async function syncState(repository: string): Promise<PlanSync> {
+		const known = isGithubRepository(repository) ? github.knownPrivate(repository) : false;
+		const isPrivate = known ?? (await github.isPrivate(repository).catch(() => null));
+		return { ...planSync(db, repository), private: isPrivate };
+	}
+
 	commands.define('initiatives.sync-state', (args: unknown) =>
-		planSync(db, repositoryFullName(field(args, 'repositoryFullName'))),
+		syncState(repositoryFullName(field(args, 'repositoryFullName'))),
 	);
 
-	commands.define('initiatives.set-sync', (args: unknown) => {
+	commands.define('initiatives.set-sync', async (args: unknown) => {
 		const repository = repositoryFullName(field(args, 'repositoryFullName'));
 		const enabled = field(args, 'enabled');
 		if (typeof enabled !== 'boolean') {
@@ -105,9 +111,15 @@ export function registerInitiatives(context: MainContext, deps: PlanSyncDeps): v
 				'invalid args: `repositoryFullName` must be a GitHub owner/name to sync',
 			);
 		}
+		if (enabled && !(await github.isPrivate(repository))) {
+			throw new InitiativeError(
+				'public-repository',
+				`\`${repository}\` is public, and a plan syncs only with a private repository`,
+			);
+		}
 		setPlanSyncEnabled(db, repository, enabled);
 		if (enabled) void github.sync(repository);
-		return planSync(db, repository);
+		return syncState(repository);
 	});
 
 	commands.define('initiatives.sync', async (args: unknown) => {
