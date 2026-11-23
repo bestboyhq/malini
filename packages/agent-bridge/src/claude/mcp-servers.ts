@@ -24,7 +24,7 @@ import { isRecord } from '../type-guards.js';
 const execFileAsync = promisify(execFile);
 
 const LISTED_WITHIN_MS = 15_000;
-const AUTHORIZATION_WINDOW_MS = 5 * 60_000;
+export const AUTHORIZATION_WINDOW_MS = 5 * 60_000;
 const SETTLE_WINDOW_MS = 30_000;
 const POLL_MS = 1_000;
 const CONNECTOR_POLL_MS = 3_000;

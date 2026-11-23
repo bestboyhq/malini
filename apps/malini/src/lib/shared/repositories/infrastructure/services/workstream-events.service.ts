@@ -1,6 +1,5 @@
 import type {
 	CloneProgressPayload,
-	WorkstreamFilesChangedPayload,
 	WorkstreamInstallStatusPayload,
 	WorkstreamRenamedPayload,
 	WorkstreamSetupStatusPayload,
@@ -35,15 +34,20 @@ class WorkstreamEventsService {
 		);
 	}
 
-	onFilesChanged(listener: (workstreamId: string) => void): () => void {
-		return onPlatformEvent(
-			'repositories:workstream-files-changed',
-			(payload: WorkstreamFilesChangedPayload | null) => {
-				if (!payload || typeof payload !== 'object') return;
-				if (typeof payload.workstreamId !== 'string' || payload.workstreamId.length === 0) return;
-				listener(payload.workstreamId);
-			},
-		);
+	onCheckoutChanged(listener: (workstreamId: string) => void): () => void {
+		const notify = (payload: { workstreamId?: unknown } | null): void => {
+			if (!payload || typeof payload !== 'object') return;
+			if (typeof payload.workstreamId !== 'string' || payload.workstreamId.length === 0) return;
+			listener(payload.workstreamId);
+		};
+		const unlisteners = [
+			onPlatformEvent('repositories:workstream-files-changed', notify),
+			onPlatformEvent('repositories:workstream-head-moved', notify),
+			onPlatformEvent('repositories:workstream-pushed', notify),
+		];
+		return () => {
+			for (const unlisten of unlisteners) unlisten();
+		};
 	}
 
 	onInstallStatus(listener: (payload: WorkstreamInstallStatusPayload) => void): () => void {
