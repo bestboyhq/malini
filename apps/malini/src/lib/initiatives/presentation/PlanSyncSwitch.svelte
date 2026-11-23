@@ -4,18 +4,22 @@
 	import { setPlanSyncCommand } from '$lib/initiatives/application/commands/set-plan-sync.command';
 	import { planSyncQuery } from '$lib/initiatives/application/queries/plan-sync.query.svelte';
 	import { peopleLine, syncedLabel } from '$lib/initiatives/domain/plan';
-	import PlanSyncStatus from './PlanSyncStatus.svelte';
+	import { GitHubUserAvatar } from '$shared/repositories/repositories.api';
 
 	interface Props {
 		repositoryFullName: string;
-		compact: boolean;
+		withPeople: boolean;
 	}
 
-	let { repositoryFullName, compact }: Props = $props();
+	let { repositoryFullName, withPeople }: Props = $props();
 
 	const LABEL = 'Share internally';
 
 	const WAITING_ENDS = 'Shares by itself once they do';
+
+	const TAKES_THE_ASK_BACK = 'Turning it off takes the ask back';
+
+	const PEOPLE_SHOWN = 4;
 
 	const REPOSITORY_NAME = /([A-Za-z0-9-]+\/[A-Za-z0-9._-]+)/u;
 
@@ -27,15 +31,10 @@
 	const askers = $derived(sync?.enabled === false ? sync.requestedBy : []);
 	const asked = $derived(`${peopleLine(askers)} asked to share it`);
 	const label = $derived(waitingFor === null ? LABEL : `Asked ${waitingFor}`);
+	const where = $derived(`Private repo ${home}`);
 	const who = $derived(`Only collaborators of ${repositoryFullName} see it`);
-	const waiting = $derived(`Waiting for ${waitingFor} to make the plan repo`);
-	const whatOnDoes = $derived(
-		`${askers.length > 0 ? `${asked}. ` : ''}Private repo ${home}, as one plain file. ${who}`,
-	);
-	const whatOffDoes = $derived(
-		waitingFor === null
-			? `Private repo ${home}. ${who}. Turning it off stops sharing. The repo keeps its history`
-			: `${waiting}, ${home}. ${WAITING_ENDS}. Turning it off takes the ask back`,
+	const people = $derived(
+		withPeople && sync?.enabled && waitingFor === null ? sync.people.slice(0, PEOPLE_SHOWN) : [],
 	);
 
 	let now: number = $state(Date.now());
@@ -48,16 +47,20 @@
 				? syncedLabel(sync.syncedAt, now)
 				: `Not shared · ${sync.error}`,
 	);
-	const compactLines = $derived(
+	const lines = $derived(
 		waitingFor !== null
-			? [waiting, WAITING_ENDS]
-			: askers.length > 0
-				? [asked, 'Private GitHub repo, as one plain file']
-				: [sync?.enabled ? status : 'Private GitHub repo, as one plain file', who],
+			? [
+					`Waiting for ${waitingFor} to make the plan repo, ${home}`,
+					WAITING_ENDS,
+					TAKES_THE_ASK_BACK,
+				]
+			: sync?.enabled
+				? [status, where, who]
+				: [...(askers.length > 0 ? [asked] : []), `${where}, as one plain file`, who],
 	);
 
 	$effect(() => {
-		if (!compact || sync?.enabled !== true || waitingFor !== null) return;
+		if (sync?.enabled !== true || waitingFor !== null) return;
 		const timer = setInterval(() => (now = Date.now()), 1000);
 		return () => clearInterval(timer);
 	});
@@ -67,27 +70,34 @@
 	}
 </script>
 
-{#snippet compactTip()}
-	{#each compactLines as line (line)}
-		<span class="block">{line}</span>
-	{/each}
-{/snippet}
-
 {#snippet wholeNames(text: string)}
 	{#each text.split(REPOSITORY_NAME) as part, index (index)}
 		{#if index % 2 === 1}<span class="whitespace-nowrap">{part}</span>{:else}{part}{/if}
 	{/each}
 {/snippet}
 
-{#snippet askedDot()}
-	{#if askers.length > 0}
-		<span class="bg-brand size-1.5 shrink-0 rounded-full" role="img" aria-label={asked}></span>
-	{/if}
+{#snippet tip()}
+	{#each lines as line (line)}
+		<span class="block whitespace-normal">{@render wholeNames(line)}</span>
+	{/each}
 {/snippet}
 
-{#if sync && home !== null && compact}
-	<Tooltip content={compactTip} placement="top" class="flex min-w-0 items-center gap-1.5">
-		{@render askedDot()}
+{#if sync && home !== null}
+	{#if people.length > 0}
+		<span
+			class="mr-1 flex shrink-0 items-center -space-x-1"
+			role="group"
+			aria-label="People who edited the plan"
+		>
+			{#each people as login (login)}
+				<GitHubUserAvatar {login} label={login} />
+			{/each}
+		</span>
+	{/if}
+	<Tooltip content={tip} placement="top" nowrap class="flex min-w-0 items-center gap-1.5">
+		{#if askers.length > 0}
+			<span class="bg-brand size-1.5 shrink-0 rounded-full" role="img" aria-label={asked}></span>
+		{/if}
 		<label
 			for={switchId}
 			class={[
@@ -99,24 +109,4 @@
 		</label>
 		<Switch id={switchId} size="sm" checked={sync.enabled} {onchange} />
 	</Tooltip>
-{:else if sync && home !== null}
-	<div class="mb-5 flex items-start gap-3">
-		<div class="min-w-0 flex-1">
-			<div class="flex items-center gap-1.5">
-				{@render askedDot()}
-				<label for={switchId} class="text-fg-default cursor-pointer text-sm font-medium">
-					{label}
-				</label>
-			</div>
-			{#if sync.enabled && waitingFor === null}
-				<div class="text-3xs text-fg-tertiary mt-1 flex h-4 max-w-80 items-center gap-2">
-					<PlanSyncStatus {sync} />
-				</div>
-			{/if}
-			<p class="text-2xs text-fg-tertiary mt-1">
-				{@render wholeNames(sync.enabled ? whatOffDoes : whatOnDoes)}
-			</p>
-		</div>
-		<Switch id={switchId} size="sm" checked={sync.enabled} class="mt-0.5" {onchange} />
-	</div>
 {/if}

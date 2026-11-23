@@ -55,7 +55,9 @@ A finished initiative leaves the rail once its day has passed.
 
 ## Share internally
 
-A plan lives on your Mac until you turn on **Share internally**, in the plan's header or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
+A plan lives on your Mac until you turn on **Share internally**, in the repository page's top bar or the [Plan widget](/malini/docs/widgets.md#the-plan-widget).
+Hover it to see where the plan goes and who sees it.
+Once it is shared, the top bar shows the people who edited the plan beside the switch.
 Sharing is per repository and off until you turn it on.
 
 A shared plan never goes into the repository itself.

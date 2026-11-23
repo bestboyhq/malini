@@ -181,7 +181,8 @@ test('a shared plan lands as one file in its private plan repository and says wh
 		const checkout = initiatives.getByRole('checkbox', { name: CHECKOUT });
 		await expect(checkout).not.toBeChecked();
 
-		const sync = main.getByRole('switch', { name: 'Share internally' });
+		const bar = page.getByTestId('repository-bar');
+		const sync = bar.getByRole('switch', { name: 'Share internally' });
 		await expect(sync).not.toBeChecked();
 		await sync.click();
 		await expect(sync).toBeChecked();
@@ -193,7 +194,8 @@ test('a shared plan lands as one file in its private plan repository and says wh
 					dependencies: [expect.objectContaining({ title: CHECKOUT, done: false })],
 				}),
 			]);
-		await expect(main.getByText(/^Shared /u)).toBeVisible();
+		await bar.getByText('Share internally').hover();
+		await expect(page.getByRole('tooltip').getByText(/^Shared /u)).toBeVisible();
 
 		github.editPlan(
 			(plan) => ({
@@ -239,10 +241,17 @@ test('a plan in a public repository syncs only to a private plan repository its 
 		await expect(
 			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
 		).toBeFocused();
-		await expect(main.getByText(`Private repo ${PLAN_REPOSITORY}`)).toBeVisible();
-		await expect(main.getByText('Only collaborators of e2e/hutch see it')).toBeVisible();
+		const bar = page.getByTestId('repository-bar');
+		const tooltip = page.getByRole('tooltip');
+		await bar.getByText('Share internally').hover();
+		await expect(
+			tooltip.getByText(`Private repo ${PLAN_REPOSITORY}, as one plain file`, { exact: true }),
+		).toBeVisible();
+		await expect(
+			tooltip.getByText('Only collaborators of e2e/hutch see it', { exact: true }),
+		).toBeVisible();
 
-		const sync = main.getByRole('switch', { name: 'Share internally' });
+		const sync = bar.getByRole('switch', { name: 'Share internally' });
 		await sync.click();
 		await expect(sync).toBeChecked();
 		await expect
@@ -252,8 +261,10 @@ test('a plan in a public repository syncs only to a private plan repository its 
 			private: true,
 			invited: { robin: 'push' },
 		});
+		await main.hover();
+		await bar.getByText('Share internally').hover();
 		await expect(
-			main.getByText(`Private repo ${PLAN_REPOSITORY}. Only collaborators`),
+			tooltip.getByText(`Private repo ${PLAN_REPOSITORY}`, { exact: true }),
 		).toBeVisible();
 		await captureFlow(app, 'initiatives-public-plan-repository');
 		expectCleanConsole(app);

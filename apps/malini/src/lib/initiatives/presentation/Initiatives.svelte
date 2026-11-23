@@ -22,7 +22,6 @@
 	import { describeFailure } from '$shared/errors/failure-copy';
 	import { repositoryWebUrl, type Repository } from '$shared/repositories/repositories.api';
 	import InitiativeItem from './InitiativeItem.svelte';
-	import PlanSyncSwitch from './PlanSyncSwitch.svelte';
 	import QuietField from './QuietField.svelte';
 	import RailDay from './RailDay.svelte';
 	import { dayName } from './rail-labels';
@@ -134,9 +133,6 @@
 	/>
 {/snippet}
 
-{#if onGithub && loaded && failure === null}
-	<PlanSyncSwitch repositoryFullName={repository.fullName} compact={false} />
-{/if}
 <section aria-label="Initiatives" class="pb-20">
 	{#if failure}
 		<StateBlock

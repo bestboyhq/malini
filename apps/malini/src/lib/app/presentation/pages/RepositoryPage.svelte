@@ -7,7 +7,7 @@
 	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
 	import { startWorkstreamFromNoteCommand } from '$lib/app/application/commands/start-workstream-from-note.command';
 	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
-	import { InitiativeNotes, Initiatives } from '$lib/initiatives/initiatives.api';
+	import { InitiativeNotes, Initiatives, PlanSyncSwitch } from '$lib/initiatives/initiatives.api';
 	import { Scratchpad, ScratchpadEditor } from '$lib/scratchpad/scratchpad.api';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
@@ -84,6 +84,11 @@
 					<SavedForLater repositoryId={repo.id} />
 					{#if owner}
 						<OwnPullRequests repositoryId={repo.id} />
+					{/if}
+					{#if webUrl}
+						<div class="text-fg-secondary text-2xs flex h-6 min-w-0 items-center px-2.5">
+							<PlanSyncSwitch repositoryFullName={repo.fullName} withPeople />
+						</div>
 					{/if}
 				</div>
 			</header>
