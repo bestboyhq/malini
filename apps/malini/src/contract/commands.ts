@@ -115,11 +115,11 @@ import type {
 	PinPlanWidgetArgs,
 	PlaceWidgetArgs,
 	ResizeWidgetArgs,
+	ShareWidgetArgs,
 	WatchWidgetsArgs,
 	WidgetArgs,
 	WidgetBoard,
 	WidgetBoardArgs,
-	WidgetReading,
 } from './widgets';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
@@ -717,8 +717,7 @@ export interface ContractCommands {
 	'widgets.place': { args: PlaceWidgetArgs; result: WidgetBoard };
 	'widgets.resize': { args: ResizeWidgetArgs; result: WidgetBoard };
 	'widgets.remove': { args: WidgetArgs; result: WidgetBoard };
-	'widgets.hide': { args: WidgetArgs; result: WidgetBoard };
-	'widgets.refresh': { args: WidgetArgs; result: WidgetReading };
+	'widgets.share': { args: ShareWidgetArgs; result: void };
 	'widgets.watch': { args: WatchWidgetsArgs; result: void };
 	'widgets.pin-plan': { args: PinPlanWidgetArgs; result: void };
 	'brain.status': { args: undefined; result: BrainStatus };
@@ -1071,8 +1070,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'widgets.place',
 	'widgets.resize',
 	'widgets.remove',
-	'widgets.hide',
-	'widgets.refresh',
+	'widgets.share',
 	'widgets.watch',
 	'widgets.pin-plan',
 	'brain.status',

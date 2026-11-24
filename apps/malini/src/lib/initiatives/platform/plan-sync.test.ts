@@ -52,6 +52,7 @@ type FileOutcome = {
 	id: string;
 	title: string;
 	dueOn: string | null;
+	done?: boolean;
 	note: unknown;
 	createdAt: string;
 	dependencies: FileDependency[];
@@ -447,6 +448,7 @@ describe('a plan shared as one file in a private plan repository', () => {
 						id: billing.id,
 						title: 'Ship billing',
 						dueOn: '2026-12-01',
+						done: false,
 						note: null,
 						createdAt: expect.stringMatching(/^2\d{3}-/u),
 						dependencies: [
@@ -540,6 +542,32 @@ describe('a plan shared as one file in a private plan repository', () => {
 		await call.sync();
 		expect(fileOutcome(remotePlan(), 'Ship billing v3').id).toBe(billing.id);
 		expect(synced).toHaveLength(1);
+	});
+
+	it('carries the tick of an outcome both ways, and says who reopened it', async () => {
+		const billing = await sharedPlan();
+		await context.commands.call('initiatives.update', { id: billing.id, done: true });
+		await call.sync();
+		expect(fileOutcome(remotePlan(), 'Ship billing').done).toBe(true);
+		expect(remoteSubject()).toMatch(/^Close Ship billing /u);
+
+		teammateEdits((plan) => {
+			fileOutcome(plan, 'Ship billing').done = false;
+		});
+		expect(outcome(await call.sync(), 'Ship billing').done).toBe(false);
+		expect(synced).toEqual([
+			{
+				repositoryFullName: REPOSITORY,
+				changes: [{ actor: 'robin', kind: 'reopened', title: 'Ship billing' }],
+			},
+		]);
+
+		await context.commands.call('initiatives.update', { id: billing.id, done: true });
+		await call.sync();
+		teammateEdits((plan) => {
+			delete fileOutcome(plan, 'Ship billing').done;
+		});
+		expect(outcome(await call.sync(), 'Ship billing').done).toBe(false);
 	});
 
 	it('drops what a teammate removed, and removes there what you removed here', async () => {

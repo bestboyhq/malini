@@ -515,14 +515,6 @@ describe('malini MCP server', () => {
 				refresh: {
 					properties: { every: { type: 'integer', minimum: 15 }, on: { type: 'array' } },
 				},
-				size: { enum: ['small', 'medium', 'large'] },
-				sample: {
-					properties: {
-						percent: { minimum: 0, maximum: 100 },
-						state: { enum: ['success', 'failure', 'running', 'idle'] },
-						rows: { type: 'array', items: { required: ['label'] } },
-					},
-				},
 			},
 			required: ['title', 'source'],
 		});
@@ -598,7 +590,7 @@ describe('malini MCP server', () => {
 	it('sends a widget with a github or a command source to malini and refuses a mix of both', async () => {
 		const { call, platformCalls } = await connect(
 			async () => ({ ok: true }),
-			async () => ({ ok: true, text: '{"path":".malini/widgets/deploys.json"}' }),
+			async () => ({ ok: true, text: '{"widget":{"id":"deploys"}}' }),
 		);
 		const save = (args: Record<string, unknown>) =>
 			call('tools/call', { name: 'widgets_save', arguments: { title: 'Deploys', ...args } });
@@ -606,15 +598,14 @@ describe('malini MCP server', () => {
 			github: 'repos/{owner}/{repo}/actions/runs?per_page=12',
 			select: '{value: .total_count}',
 		};
-		const sample = { value: 3, unit: 'rooms', history: ['success', 'failure'] };
 
 		const saved = await save({ source: github, refresh: { every: 120 } });
-		await save({ id: 'rooms', source: { command: 'node scripts/rooms.mjs' }, sample });
-		const mixed = await save({ source: { ...github, command: 'node scripts/rooms.mjs' } });
+		await save({ id: 'rooms', source: { command: 'node .malini/widgets/rooms.mjs' } });
+		const mixed = await save({ source: { ...github, command: 'node .malini/widgets/rooms.mjs' } });
 		const tooOften = await save({ source: github, refresh: { every: 5 } });
 
 		expect(saved).toMatchObject({
-			result: { content: [{ type: 'text', text: '{"path":".malini/widgets/deploys.json"}' }] },
+			result: { content: [{ type: 'text', text: '{"widget":{"id":"deploys"}}' }] },
 		});
 		expect(mixed).toMatchObject({ result: { isError: true } });
 		expect(tooOften).toMatchObject({ result: { isError: true } });
@@ -628,8 +619,7 @@ describe('malini MCP server', () => {
 				input: {
 					id: 'rooms',
 					title: 'Deploys',
-					source: { command: 'node scripts/rooms.mjs' },
-					sample,
+					source: { command: 'node .malini/widgets/rooms.mjs' },
 				},
 			},
 		]);

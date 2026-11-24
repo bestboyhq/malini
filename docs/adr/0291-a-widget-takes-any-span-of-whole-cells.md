@@ -1,6 +1,6 @@
 # 0291 - A widget takes any span of whole cells
 
-Status: accepted
+Status: superseded by 0298
 
 ## Context
 

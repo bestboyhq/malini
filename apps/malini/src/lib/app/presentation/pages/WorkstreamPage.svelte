@@ -10,10 +10,11 @@
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
+	import { makeWidgetDefaultCommand } from '$lib/app/application/commands/make-widget-default.command';
 	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
+	import { startWidgetWorkstreamCommand } from '$lib/app/application/commands/start-widget-workstream.command';
 	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
 	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
-	import { fillWorkstreamComposerCommand } from '$lib/chat/application/commands/fill-workstream-composer.command';
 	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
@@ -21,7 +22,6 @@
 	import { contextMediaCountQuery } from '$lib/chat/application/queries/context-media-count.query.svelte';
 	import { MediaGallery, WorkstreamChatBridge } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
-	import { openRequestedFileCommand } from '$lib/extensions/application/commands/open-requested-file.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
 	import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/extension-runtime-ready.query.svelte';
 	import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
@@ -205,8 +205,12 @@
 	<WidgetBoard
 		{workstreamId}
 		onopen={(url) => openBrowserUrlCommand(workstreamId, url)}
-		onask={(prompt) => fillWorkstreamComposerCommand(workstreamId, prompt)}
-		onopenfile={(path) => openRequestedFileCommand({ workstreamId, path, line: null })}
+		onnew={repositoryContext
+			? (prompt) => startWidgetWorkstreamCommand(repositoryContext.repo, prompt)
+			: undefined}
+		onshare={repositoryContext && remotePullRequestsSupported
+			? (widget) => makeWidgetDefaultCommand(repositoryContext.repo, workstreamId, widget)
+			: undefined}
 		plan={repositoryContext ? planHere : undefined}
 		planHeader={repositoryContext ? planSyncHere : undefined}
 		planHref={repositoryContext ? repositoryHref(repositoryContext.repo.id) : undefined}

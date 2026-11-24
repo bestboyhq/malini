@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import type { WidgetBoard } from '../../src/contract/widgets';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -245,7 +246,7 @@ test('an agent adds an MCP server once the user always allows it, shows env name
 	}
 });
 
-test('an agent saves a widget with a command source and its sample without asking, the file lands in the worktree with its author, and Activity names it', async () => {
+test('an agent saves a widget with a command source without asking, it lands on the board with its author, and Activity names it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -266,8 +267,6 @@ test('an agent saves a widget with a command source and its sample without askin
 				icon: 'users',
 				source,
 				refresh: { every: 60 },
-				size: 'medium',
-				sample: { value: 3, unit: 'rooms', caption: 'open now', history: ['success', 'failure'] },
 			},
 		});
 
@@ -282,14 +281,12 @@ test('an agent saves a widget with a command source and its sample without askin
 		await expect(decision(page)).toHaveCount(0);
 		const [output = ''] = await saved();
 		expect(JSON.parse(output)).toMatchObject({
-			path: '.malini/widgets/rooms.json',
-			widget: { id: 'rooms', title: 'Rooms', author: 'e2e-user' },
-			reading: null,
-			note: expect.stringContaining('only once the user pins the widget'),
+			widget: { id: 'rooms', title: 'Rooms', author: 'e2e-user', origin: 'mine' },
+			reading: { widgetId: 'rooms' },
 		});
-		expect(
-			JSON.parse(readFileSync(join(worktree, '.malini', 'widgets', 'rooms.json'), 'utf8')),
-		).toMatchObject({ title: 'Rooms', source, author: 'e2e-user' });
+		const board = await invoke<WidgetBoard>(page, 'widgets.board', { workstreamId });
+		expect(board.placements[0]).toEqual({ widgetId: 'rooms', span: { columns: 2, rows: 1 } });
+		expect(existsSync(join(worktree, '.malini'))).toBe(false);
 		await captureFlow(app, 'agent-widget-saved');
 
 		await openAutomations(page, '#/automations/activity');

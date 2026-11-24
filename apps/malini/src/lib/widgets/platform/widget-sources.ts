@@ -18,21 +18,24 @@ export type SourceDeps = Readonly<{
 
 export type SourceOutcome = Readonly<{ data: WidgetData }> | Readonly<{ error: string }>;
 
+export type SourcePlace = Readonly<{ checkout: string; home: string | null }>;
+
 export async function readWidgetSource(
 	source: WidgetSource,
-	checkout: string,
+	place: SourcePlace,
 	deps: SourceDeps,
 ): Promise<SourceOutcome> {
 	try {
-		return widgetData(await sourceOutput(source, checkout, deps));
+		return widgetData(await sourceOutput(source, place, deps));
 	} catch (error) {
 		return { error: describeError(error).trim().slice(0, ERROR_MAX_LENGTH) };
 	}
 }
 
-function sourceOutput(source: WidgetSource, checkout: string, deps: SourceDeps): Promise<string> {
-	if (source.kind === 'github') return githubOutput(source.path, source.select, checkout, deps);
-	if (source.kind === 'command') return commandOutput(source.run, checkout, deps);
+function sourceOutput(source: WidgetSource, place: SourcePlace, deps: SourceDeps): Promise<string> {
+	if (source.kind === 'github')
+		return githubOutput(source.path, source.select, place.checkout, deps);
+	if (source.kind === 'command') return commandOutput(source.run, place, deps);
 	throw failed('Malini draws the plan itself.');
 }
 
@@ -52,8 +55,8 @@ async function githubOutput(
 	return result.stdout;
 }
 
-async function commandOutput(run: string, checkout: string, deps: SourceDeps): Promise<string> {
-	const env = deps.environment();
+async function commandOutput(run: string, place: SourcePlace, deps: SourceDeps): Promise<string> {
+	const env = { ...deps.environment(), MALINI_CHECKOUT: place.checkout };
 	let stdout = '';
 	let stderr = '';
 	let bytes = 0;
@@ -66,7 +69,7 @@ async function commandOutput(run: string, checkout: string, deps: SourceDeps): P
 		} catch {}
 	};
 	const handle = deps.runner.spawn(preferredShell(env) ?? '/bin/sh', ['-c', run], {
-		cwd: checkout,
+		cwd: place.home ?? place.checkout,
 		env,
 		onStdout: (text) => {
 			bytes += Buffer.byteLength(text);

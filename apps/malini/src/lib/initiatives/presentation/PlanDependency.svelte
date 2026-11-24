@@ -15,7 +15,7 @@
 	} from '$lib/initiatives/domain/initiative';
 	import StatusIcon from './StatusIcon.svelte';
 	import TitleEditor from './TitleEditor.svelte';
-	import { caretAt } from './title-caret';
+	import { caretAt, stepTitle } from './title-caret';
 
 	interface Props {
 		dependency: InitiativeDependency;
@@ -99,7 +99,9 @@
 				'focus-visible:ring-border-default/50 flex min-w-0 cursor-text items-center rounded-sm text-left outline-none focus-visible:ring-2',
 				isFinished(status) ? 'text-fg-quaternary line-through' : 'text-fg-default',
 			]}
+			data-plan-title=""
 			onclick={(event) => rename(caretAt(event, dependency.title))}
+			onkeydown={stepTitle}
 			{@attach regrab ? grab : null}
 		>
 			<span class="min-w-0 truncate"><SensitiveText text={dependency.title} /></span>

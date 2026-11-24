@@ -23,6 +23,7 @@ type OutcomeRow = {
 	id: string;
 	title: string;
 	due_on: string | null;
+	done: number;
 	note: string | null;
 	created_at: string;
 };
@@ -247,6 +248,7 @@ export function localPlan(db: MaliniDatabase, repositoryFullName: string): Share
 		id: row.id,
 		title: row.title,
 		dueOn: row.due_on,
+		done: intToBool(row.done),
 		note: canonicalNote(row.note),
 		createdAt: row.created_at,
 		dependencies: (dependencies.get(row.id) ?? []).map(sharedDependency),
@@ -266,12 +268,13 @@ export function applyPlan(db: MaliniDatabase, repositoryFullName: string, plan: 
 		if (current === undefined) {
 			const inserted = run(
 				db,
-				`INSERT OR IGNORE INTO initiatives (id, repository_full_name, title, due_on, note,
-				 created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT OR IGNORE INTO initiatives (id, repository_full_name, title, due_on, done, note,
+				 created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 				outcome.id,
 				repositoryFullName,
 				outcome.title,
 				outcome.dueOn,
+				outcome.done,
 				outcome.note,
 				outcome.createdAt,
 				now,
@@ -283,13 +286,15 @@ export function applyPlan(db: MaliniDatabase, repositoryFullName: string, plan: 
 		if (
 			current.title !== outcome.title ||
 			current.due_on !== outcome.dueOn ||
+			intToBool(current.done) !== outcome.done ||
 			canonicalNote(current.note) !== outcome.note
 		) {
 			run(
 				db,
-				'UPDATE initiatives SET title = ?, due_on = ?, note = ?, updated_at = ? WHERE id = ?',
+				'UPDATE initiatives SET title = ?, due_on = ?, done = ?, note = ?, updated_at = ? WHERE id = ?',
 				outcome.title,
 				outcome.dueOn,
+				outcome.done,
 				outcome.note,
 				now,
 				outcome.id,
@@ -377,7 +382,7 @@ function sharedDependency(row: DependencyRow): SharedDependency {
 function outcomeRows(db: MaliniDatabase, repositoryFullName: string): OutcomeRow[] {
 	return all<OutcomeRow>(
 		db,
-		`SELECT id, title, due_on, note, created_at FROM initiatives
+		`SELECT id, title, due_on, done, note, created_at FROM initiatives
 		 WHERE repository_full_name = ? COLLATE NOCASE ORDER BY created_at, rowid`,
 		repositoryFullName,
 	);

@@ -1,8 +1,8 @@
 import { isEventChannel } from '$contract/events';
 import {
 	PLAN_WIDGET_ID,
-	WIDGETS_FOLDER,
-	WIDGET_SIZE_SPANS,
+	PLAN_WIDGET_SPAN,
+	WIDGET_DEFAULT_SPAN,
 	type WidgetBoard,
 	type WidgetDefinition,
 	type WidgetPlacement,
@@ -14,6 +14,7 @@ import { describeError } from '$main/errors';
 import { isRecord } from '$main/db/rows';
 import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
+	getProject,
 	getWorkstream,
 	githubFullNameFromRemote,
 	readOrigin,
@@ -29,13 +30,22 @@ import {
 	parseWidgetFile,
 	readWidgetFiles,
 	widgetPath,
-	writeWidgetFile,
 } from './widget-files';
 import { readWidgetSource, type SourceDeps } from './widget-sources';
 import {
+	copyWidgetFiles,
+	deleteMine,
+	materializeShared,
+	mineHome,
+	readMine,
+	sharedTree,
+	storeRoot,
+	writeMine,
+	type SharedBase,
+} from './widget-store';
+import {
+	forgetReading,
 	getReading,
-	hideWidget,
-	listHidden,
 	listPlacements,
 	placeWidget,
 	recordFailedRead,
@@ -43,10 +53,11 @@ import {
 	removePlacement,
 	resizePlacement,
 	startBoard,
-	type StoredPlacement,
 } from './widgets.repository';
 
 export const EVENT_DEBOUNCE_MS = 2_000;
+export const SHARED_CHECK_MS = 60_000;
+const CREATED_WAIT_MS = 10 * 60_000;
 const LOGIN_FRESH_MS = 10 * 60_000;
 
 export type WidgetsDeps = Readonly<{
@@ -57,50 +68,55 @@ export type WidgetsDeps = Readonly<{
 	secrets: Pick<SecretsPlatform, 'valuesReaching'>;
 	log: (line: string) => void;
 	eventDebounceMs?: number;
+	sharedCheckMs?: number;
 }>;
 
-export type SavedWidget = Readonly<{
-	widget: WidgetDefinition;
-	path: string;
-	reading: WidgetReading | null;
-}>;
+export type SavedWidget = Readonly<{ widget: WidgetDefinition; reading: WidgetReading }>;
 
 type Location = Readonly<{ board: string; repository: string | null; github: boolean }>;
 
 type Opened = Location &
-	Readonly<{ workstreamId: string; checkout: string; widgets: readonly WidgetDefinition[] }>;
+	Readonly<{
+		workstreamId: string;
+		checkout: string;
+		root: string;
+		base: SharedBase | null;
+		tree: string | null;
+		widgets: readonly WidgetDefinition[];
+		homes: ReadonlyMap<string, string>;
+	}>;
 
 type Watch = {
 	readonly workstreamId: string;
 	board: string | null;
+	tree: string | null;
+	stale: boolean;
 	generation: number;
 	readonly timers: NodeJS.Timeout[];
 	readonly soon: Map<string, NodeJS.Timeout>;
 	readonly unsubscribes: Array<() => void>;
 };
 
-type WidgetsContext = Pick<MainContext, 'db' | 'events' | 'commands'>;
+type Created = Readonly<{ checkout: Promise<string>; cancel: () => void }>;
+
+type WidgetsContext = Pick<MainContext, 'db' | 'events' | 'commands' | 'appDataRoot'>;
 
 export class WidgetBoards {
 	readonly #context: WidgetsContext;
 	readonly #deps: WidgetsDeps;
 	readonly #locations = new Map<string, Promise<Location>>();
 	readonly #reads = new Map<string, Promise<WidgetReading>>();
+	readonly #shared = new Map<string, Promise<string>>();
 	readonly #watches = new Map<string, Watch>();
 	readonly #skipped = new Set<string>();
 	readonly #unsubscribes: Array<() => void>;
+	#writes: Promise<unknown> = Promise.resolve();
 	#me: Readonly<{ login: Promise<string | null>; at: number }> | null = null;
 
 	constructor(context: WidgetsContext, deps: WidgetsDeps) {
 		this.#context = context;
 		this.#deps = deps;
 		this.#unsubscribes = [
-			context.events.subscribe('repositories:workstream-files-changed', (changed) => {
-				const watch = this.#watches.get(changed.workstreamId);
-				if (watch && (changed.paths === null || changed.paths.some(touchesWidgets))) {
-					void this.#replanFiles(watch);
-				}
-			}),
 			context.events.subscribe('repositories:workstream-removed', ({ workstreamId }) => {
 				this.watch(workstreamId, false);
 				this.#locations.delete(workstreamId);
@@ -112,12 +128,7 @@ export class WidgetBoards {
 		return this.#snapshot(await this.#open(workstreamId));
 	}
 
-	async place(
-		workstreamId: string,
-		widgetId: string,
-		index: number | null,
-		span: WidgetSpan | null,
-	): Promise<WidgetBoard> {
+	async place(workstreamId: string, widgetId: string, index: number): Promise<WidgetBoard> {
 		const opened = await this.#open(workstreamId);
 		const widget = this.#widget(opened, widgetId);
 		const placements = this.#placements(opened);
@@ -125,9 +136,8 @@ export class WidgetBoards {
 		const current = placements.find((placement) => placement.widgetId === widgetId);
 		placeWidget(this.#context.db, opened.board, {
 			widgetId,
-			before: index === null ? null : (others[index]?.widgetId ?? null),
-			span: span ?? current?.span ?? WIDGET_SIZE_SPANS[widget.size],
-			approvedFingerprint: widget.fingerprint,
+			before: others[index]?.widgetId ?? null,
+			span: current?.span ?? firstSpan(widget),
 		});
 		return this.#changed(opened);
 	}
@@ -149,32 +159,35 @@ export class WidgetBoards {
 		placeWidget(db, repositoryFullName, {
 			widgetId: PLAN_WIDGET_ID,
 			before: placed[0]?.widgetId ?? null,
-			span: WIDGET_SIZE_SPANS.large,
-			approvedFingerprint: PLAN_WIDGET.fingerprint,
+			span: PLAN_WIDGET_SPAN,
 		});
 		this.#replan(repositoryFullName);
 	}
 
 	async remove(workstreamId: string, widgetId: string): Promise<WidgetBoard> {
 		const opened = await this.#open(workstreamId);
-		removePlacement(this.#context.db, opened.board, widgetId);
-		return this.#changed(opened);
+		const { db } = this.#context;
+		removePlacement(db, opened.board, widgetId);
+		if (!opened.widgets.some(({ id, origin }) => id === widgetId && origin === 'mine')) {
+			return this.#changed(opened);
+		}
+		await this.#write(() => deleteMine(opened.root, widgetId));
+		forgetReading(db, opened.board, widgetId);
+		return this.#changed(await this.#open(workstreamId));
 	}
 
-	async hide(workstreamId: string, widgetId: string): Promise<WidgetBoard> {
-		const opened = await this.#open(workstreamId);
-		hideWidget(this.#context.db, opened.board, widgetId);
-		return this.#changed(opened);
-	}
-
-	async refresh(workstreamId: string, widgetId: string): Promise<WidgetReading> {
-		const opened = await this.#open(workstreamId);
-		const widget = this.#widget(opened, widgetId);
-		const placement = listPlacements(this.#context.db, opened.board).find(
-			(placed) => placed.widgetId === widgetId,
-		);
-		if (!runnable(widget, placement ?? null)) return this.#reading(opened.board, widget);
-		return this.#read(opened, widget);
+	async share(workstreamId: string, widgetId: string, into: string): Promise<void> {
+		const created = this.#created(into);
+		try {
+			const opened = await this.#open(workstreamId);
+			const home = opened.homes.get(widgetId);
+			if (this.#widget(opened, widgetId).origin !== 'mine' || home === undefined) {
+				throw new WidgetError('shared-widget', `\`${widgetId}\` is already in this repository.`);
+			}
+			await copyWidgetFiles(home, await created.checkout);
+		} finally {
+			created.cancel();
+		}
 	}
 
 	watch(workstreamId: string, watching: boolean): void {
@@ -190,6 +203,8 @@ export class WidgetBoards {
 		const started: Watch = {
 			workstreamId,
 			board: null,
+			tree: null,
+			stale: false,
 			generation: 0,
 			timers: [],
 			soon: new Map(),
@@ -201,11 +216,17 @@ export class WidgetBoards {
 
 	async save(workstreamId: string, input: unknown): Promise<SavedWidget> {
 		if (!isRecord(input)) throw new WidgetError('bad-widget', 'A widget is one JSON object.');
-		const checkout = await this.#deps.checkouts.resolveCheckout(workstreamId);
-		const id = input['id'] ?? freeWidgetId(checkout, input['title']);
+		const opened = await this.#open(workstreamId);
+		const taken = new Set(opened.widgets.map((widget) => widget.id));
+		const id = input['id'] ?? freeWidgetId(taken, input['title']);
 		if (typeof id !== 'string') throw new WidgetError('bad-widget', '`id` must be kebab-case.');
-		const author = await this.#login();
-		const widget = parseWidgetFile(id, widgetPath(id), { ...input, author });
+		if (opened.widgets.some((widget) => widget.id === id && widget.origin === 'shared')) {
+			throw new WidgetError(
+				'shared-widget',
+				`\`${id}\` is shared from the default branch. Change \`${widgetPath(id)}\` in this checkout and open a pull request, or save it under another id.`,
+			);
+		}
+		const widget = parseWidgetFile(id, { ...input, author: await this.#login() }, 'mine');
 		const unknown = unknownChannels(input['refresh'], widget);
 		if (unknown.length > 0) {
 			throw new WidgetError(
@@ -213,12 +234,20 @@ export class WidgetBoards {
 				`\`refresh.on\` names channels Malini does not emit: ${unknown.join(', ')}`,
 			);
 		}
-		const path = await writeWidgetFile(checkout, widget);
-		const opened = await this.#open(workstreamId);
-		this.#replan(opened.board);
-		const saved = this.#widget(opened, widget.id);
-		const reading = saved.source.kind === 'github' ? await this.#read(opened, saved) : null;
-		return { widget: saved, path, reading };
+		await this.#write(() => writeMine(opened.root, widget, opened.checkout));
+		const { db } = this.#context;
+		const placed = listPlacements(db, opened.board);
+		if (!placed.some((placement) => placement.widgetId === id)) {
+			placeWidget(db, opened.board, {
+				widgetId: id,
+				before: placed[0]?.widgetId ?? null,
+				span: WIDGET_DEFAULT_SPAN,
+			});
+		}
+		const saved = await this.#open(workstreamId);
+		this.#replan(saved.board);
+		const reading = await this.#read(saved, this.#widget(saved, id));
+		return { widget: this.#widget(saved, id), reading };
 	}
 
 	dispose(): void {
@@ -227,28 +256,117 @@ export class WidgetBoards {
 	}
 
 	async #open(workstreamId: string): Promise<Opened> {
-		if (getWorkstream(this.#context.db, workstreamId) === null) {
+		const { db } = this.#context;
+		const workstream = getWorkstream(db, workstreamId);
+		if (workstream === null) {
 			throw new WidgetError('workstream-gone', `The workstream \`${workstreamId}\` is gone.`);
 		}
 		const checkout = await this.#deps.checkouts.resolveCheckout(workstreamId);
 		const location = await this.#locate(workstreamId, checkout);
-		const files = await readWidgetFiles(checkout, (path, problem) =>
-			this.#skip(checkout, path, problem),
-		);
-		if (startBoard(this.#context.db, location.board) && location.github) {
-			placeWidget(this.#context.db, location.board, {
+		if (startBoard(db, location.board) && location.github) {
+			placeWidget(db, location.board, {
 				widgetId: PLAN_WIDGET_ID,
 				before: null,
-				span: WIDGET_SIZE_SPANS.large,
-				approvedFingerprint: PLAN_WIDGET.fingerprint,
+				span: PLAN_WIDGET_SPAN,
 			});
 		}
+		const root = storeRoot(this.#context.appDataRoot, location.board);
+		const project = getProject(db, workstream.projectId);
+		const base = project ? { repoPath: project.repoPath, branch: project.defaultBranch } : null;
+		const tree = base === null ? null : await sharedTree(base);
+		const home = base === null || tree === null ? null : await this.#materialize(root, base, tree);
+		const skip = (path: string, problem: string): void => this.#skip(path, problem);
+		const shared = home === null ? [] : await readWidgetFiles(home, 'shared', skip);
+		const sharedIds = new Set(shared.map(({ id }) => id));
+		let mine = await readMine(root, skip);
+		if (await this.#adopt(location.board, root, checkout, [...shared, ...mine])) {
+			mine = await readMine(root, skip);
+		}
+		const own = mine.filter(({ id }) => !sharedIds.has(id));
+		const homes = new Map(own.map(({ id }) => [id, mineHome(root, id)]));
+		if (home !== null) for (const { id } of shared) homes.set(id, home);
 		return {
 			...location,
 			workstreamId,
 			checkout,
-			widgets: location.github ? [PLAN_WIDGET, ...files] : files,
+			root,
+			base,
+			tree,
+			widgets: [...(location.github ? [PLAN_WIDGET] : []), ...shared, ...own],
+			homes,
 		};
+	}
+
+	async #adopt(
+		board: string,
+		root: string,
+		checkout: string,
+		known: readonly WidgetDefinition[],
+	): Promise<boolean> {
+		const ids = new Set([PLAN_WIDGET_ID, ...known.map(({ id }) => id)]);
+		const missing = new Set(
+			listPlacements(this.#context.db, board)
+				.map(({ widgetId }) => widgetId)
+				.filter((id) => !ids.has(id)),
+		);
+		if (missing.size === 0) return false;
+		const files = await readWidgetFiles(checkout, 'mine', () => undefined);
+		const found = files.filter(({ id }) => missing.has(id));
+		for (const widget of found) await this.#write(() => writeMine(root, widget, checkout));
+		return found.length > 0;
+	}
+
+	#materialize(root: string, base: SharedBase, tree: string): Promise<string> {
+		const key = `${root}\n${tree}`;
+		const running = this.#shared.get(key);
+		if (running) return running;
+		const materializing = materializeShared(root, base, tree).finally(() =>
+			this.#shared.delete(key),
+		);
+		this.#shared.set(key, materializing);
+		return materializing;
+	}
+
+	#write(change: () => Promise<void>): Promise<void> {
+		const before = this.#writes;
+		const written = (async () => {
+			await before;
+			await change();
+		})();
+		this.#writes = written.catch(() => undefined);
+		return written;
+	}
+
+	#created(workstreamId: string): Created {
+		let stop = (): void => undefined;
+		const started = new Promise<void>((resolve, reject) => {
+			if (getWorkstream(this.#context.db, workstreamId) !== null) {
+				resolve();
+				return;
+			}
+			const timer = setTimeout(() => {
+				stop();
+				reject(new WidgetError('workstream-gone', `\`${workstreamId}\` did not start.`));
+			}, CREATED_WAIT_MS);
+			const unsubscribe = this.#context.events.subscribe(
+				'repositories:workstream-created',
+				(created) => {
+					if (created.workstreamId !== workstreamId) return;
+					stop();
+					resolve();
+				},
+			);
+			stop = () => {
+				clearTimeout(timer);
+				unsubscribe();
+			};
+		});
+		const checkout = (async () => {
+			await started;
+			return this.#deps.checkouts.resolveCheckout(workstreamId);
+		})();
+		checkout.catch(() => undefined);
+		return { checkout, cancel: () => stop() };
 	}
 
 	#locate(workstreamId: string, checkout: string): Promise<Location> {
@@ -272,35 +390,26 @@ export class WidgetBoards {
 		};
 	}
 
-	async #replanFiles(watch: Watch): Promise<void> {
-		await this.#plan(watch);
-		this.#announce(watch.board);
-	}
-
-	#skip(checkout: string, path: string, problem: string): void {
-		const key = `${checkout}\n${path}\n${problem}`;
+	#skip(path: string, problem: string): void {
+		const key = `${path}\n${problem}`;
 		if (this.#skipped.has(key)) return;
 		this.#skipped.add(key);
-		this.#deps.log(`widgets: skipped \`${path}\` in \`${checkout}\`: ${problem}`);
+		this.#deps.log(`widgets: skipped \`${path}\`: ${problem}`);
 	}
 
 	#widget(opened: Opened, widgetId: string): WidgetDefinition {
 		const widget = opened.widgets.find((candidate) => candidate.id === widgetId);
 		if (!widget) {
-			throw new WidgetError('not-found', `No widget \`${widgetId}\` in this workstream.`);
+			throw new WidgetError('not-found', `No widget \`${widgetId}\` on this board.`);
 		}
 		return widget;
 	}
 
 	#placements(opened: Opened): WidgetPlacement[] {
-		const byId = new Map(opened.widgets.map((widget) => [widget.id, widget]));
-		return listPlacements(this.#context.db, opened.board).flatMap((placement) => {
-			const widget = byId.get(placement.widgetId);
-			if (!widget) return [];
-			const approved =
-				widget.source.kind !== 'command' || placement.approvedFingerprint === widget.fingerprint;
-			return [{ widgetId: widget.id, span: placement.span, approved }];
-		});
+		const ids = new Set(opened.widgets.map(({ id }) => id));
+		return listPlacements(this.#context.db, opened.board).filter(({ widgetId }) =>
+			ids.has(widgetId),
+		);
 	}
 
 	async #snapshot(opened: Opened): Promise<WidgetBoard> {
@@ -309,8 +418,8 @@ export class WidgetBoards {
 			board: opened.board,
 			workstreamId: opened.workstreamId,
 			widgets: opened.widgets,
+			repository: opened.repository,
 			placements: this.#placements(opened),
-			hidden: listHidden(this.#context.db, opened.board),
 			readings: opened.widgets.flatMap((widget) => {
 				const reading = this.#reading(opened.board, widget);
 				return reading.attemptedAt === null && !reading.reading ? [] : [reading];
@@ -325,14 +434,10 @@ export class WidgetBoards {
 	}
 
 	#replan(board: string): void {
-		this.#announce(board);
+		this.#context.events.emit('widgets:board-changed', { board });
 		for (const watch of this.#watches.values()) {
 			if (watch.board?.toLowerCase() === board.toLowerCase()) void this.#plan(watch);
 		}
-	}
-
-	#announce(board: string | null): void {
-		if (board !== null) this.#context.events.emit('widgets:board-changed', { board });
 	}
 
 	#reading(board: string, widget: WidgetDefinition): WidgetReading {
@@ -368,7 +473,8 @@ export class WidgetBoards {
 
 	async #fetch(opened: Opened, widget: WidgetDefinition): Promise<void> {
 		const { db } = this.#context;
-		const outcome = await readWidgetSource(widget.source, opened.checkout, {
+		const place = { checkout: opened.checkout, home: opened.homes.get(widget.id) ?? null };
+		const outcome = await readWidgetSource(widget.source, place, {
 			gh: this.#deps.gh,
 			runner: this.#deps.runner,
 			environment: () => ({
@@ -398,26 +504,20 @@ export class WidgetBoards {
 			return;
 		}
 		if (watch.generation !== generation || this.#watches.get(watch.workstreamId) !== watch) return;
+		const moved = watch.stale || (watch.board !== null && watch.tree !== opened.tree);
+		watch.stale = false;
 		clear(watch);
 		watch.board = opened.board;
-		const placed = new Map(
-			listPlacements(this.#context.db, opened.board).map((placement) => [
-				placement.widgetId,
-				placement,
-			]),
-		);
+		watch.tree = opened.tree;
+		const placed = new Set(this.#placements(opened).map(({ widgetId }) => widgetId));
 		for (const widget of opened.widgets) {
-			const placement = placed.get(widget.id) ?? null;
-			if (!runnable(widget, placement)) continue;
+			if (widget.source.kind === 'plan' || !placed.has(widget.id)) continue;
 			const every = widget.refresh.everySeconds * 1000;
 			const last = this.#reading(opened.board, widget);
 			const attempted =
 				last.fingerprint === widget.fingerprint ? Date.parse(last.attemptedAt ?? '') : Number.NaN;
-			const due = Number.isNaN(attempted) ? 0 : Math.max(0, attempted + every - Date.now());
-			if (placement === null) {
-				if (due === 0) void this.#read(opened, widget);
-				continue;
-			}
+			const fresh = Number.isNaN(attempted) || (moved && widget.origin === 'shared');
+			const due = fresh ? 0 : Math.max(0, attempted + every - Date.now());
 			this.#every(watch, opened, widget, due);
 			for (const channel of widget.refresh.on) {
 				if (!isEventChannel(channel) || isWidgetChannel(channel)) continue;
@@ -426,6 +526,21 @@ export class WidgetBoards {
 				);
 			}
 		}
+		const check = setInterval(
+			() => void this.#checkShared(watch, opened).catch(() => undefined),
+			this.#deps.sharedCheckMs ?? SHARED_CHECK_MS,
+		);
+		check.unref();
+		watch.timers.push(check);
+	}
+
+	async #checkShared(watch: Watch, opened: Opened): Promise<void> {
+		if (opened.base === null) return;
+		const tree = await sharedTree(opened.base);
+		if (tree === watch.tree) return;
+		watch.tree = tree;
+		watch.stale = true;
+		this.#replan(opened.board);
 	}
 
 	#every(watch: Watch, opened: Opened, widget: WidgetDefinition, due: number): void {
@@ -470,10 +585,8 @@ export class WidgetBoards {
 	}
 }
 
-function runnable(widget: WidgetDefinition, placement: StoredPlacement | null): boolean {
-	if (widget.source.kind === 'github') return true;
-	if (widget.source.kind === 'plan') return false;
-	return placement !== null && placement.approvedFingerprint === widget.fingerprint;
+function firstSpan(widget: WidgetDefinition): WidgetSpan {
+	return widget.origin === 'plan' ? PLAN_WIDGET_SPAN : WIDGET_DEFAULT_SPAN;
 }
 
 function clear(watch: Watch): void {
@@ -485,10 +598,6 @@ function clear(watch: Watch): void {
 
 function readKey(board: string, widgetId: string): string {
 	return `${board.toLowerCase()}\n${widgetId}`;
-}
-
-function touchesWidgets(path: string): boolean {
-	return path === '.malini' || path === WIDGETS_FOLDER || path.startsWith(`${WIDGETS_FOLDER}/`);
 }
 
 function unknownChannels(refresh: unknown, widget: WidgetDefinition): string[] {

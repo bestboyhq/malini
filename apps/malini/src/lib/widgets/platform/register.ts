@@ -17,30 +17,25 @@ const GITHUB_REPOSITORY = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/u;
 
 export function registerWidgets(context: MainContext, deps: WidgetsDeps): WidgetsPlatform {
 	const { commands } = context;
-	const boards = new WidgetBoards(context, deps);
+	const sharedCheckMs = context.isDev ? Number(process.env['MALINI_WIDGETS_CHECK_MS']) : Number.NaN;
+	const boards = new WidgetBoards(context, sharedCheckMs > 0 ? { ...deps, sharedCheckMs } : deps);
 
 	commands.define('widgets.board', (args: unknown) => boards.board(workstreamId(args)));
 
 	commands.define('widgets.place', (args: unknown) =>
-		boards.place(workstreamId(args), widgetId(args), index(args), span(args, true)),
+		boards.place(workstreamId(args), widgetId(args), index(args)),
 	);
 
-	commands.define('widgets.resize', (args: unknown) => {
-		const resized = span(args, false);
-		if (resized === null) throw invalid('`span` must be columns and rows');
-		return boards.resize(workstreamId(args), widgetId(args), resized);
-	});
+	commands.define('widgets.resize', (args: unknown) =>
+		boards.resize(workstreamId(args), widgetId(args), span(args)),
+	);
 
 	commands.define('widgets.remove', (args: unknown) =>
 		boards.remove(workstreamId(args), widgetId(args)),
 	);
 
-	commands.define('widgets.hide', (args: unknown) =>
-		boards.hide(workstreamId(args), widgetId(args)),
-	);
-
-	commands.define('widgets.refresh', (args: unknown) =>
-		boards.refresh(workstreamId(args), widgetId(args)),
+	commands.define('widgets.share', (args: unknown) =>
+		boards.share(workstreamId(args), widgetId(args), workstreamId(args, 'into')),
 	);
 
 	commands.define('widgets.pin-plan', (args: unknown) => {
@@ -67,10 +62,10 @@ function field(args: unknown, key: string): unknown {
 	return isRecord(args) ? args[key] : undefined;
 }
 
-function workstreamId(args: unknown): string {
-	const value = field(args, 'workstreamId');
+function workstreamId(args: unknown, key = 'workstreamId'): string {
+	const value = field(args, key);
 	if (typeof value !== 'string' || value.trim() === '' || value.length > WORKSTREAM_ID_MAX_LENGTH) {
-		throw invalid('`workstreamId` must be an id');
+		throw invalid(`\`${key}\` must be an id`);
 	}
 	return value;
 }
@@ -81,18 +76,16 @@ function widgetId(args: unknown): string {
 	return value;
 }
 
-function index(args: unknown): number | null {
+function index(args: unknown): number {
 	const value = field(args, 'index');
-	if (value === null) return null;
 	if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-		throw invalid('`index` must be null or a whole number from 0');
+		throw invalid('`index` must be a whole number from 0');
 	}
 	return value;
 }
 
-function span(args: unknown, nullable: boolean): WidgetSpan | null {
+function span(args: unknown): WidgetSpan {
 	const value = field(args, 'span');
-	if (nullable && value === null) return null;
 	if (!isWidgetSpan(value)) {
 		throw invalid(`\`span\` must be whole \`columns\` and \`rows\` from 1 to ${WIDGET_SPAN_MAX}`);
 	}

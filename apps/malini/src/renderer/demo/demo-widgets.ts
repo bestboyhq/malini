@@ -1,8 +1,10 @@
 import type { Initiative } from '$contract/initiatives';
 import {
 	PLAN_WIDGET_ID,
-	WIDGET_SIZE_SPANS,
+	PLAN_WIDGET_SPAN,
+	WIDGET_DEFAULT_SPAN,
 	type WidgetBoard,
+	type WidgetChart,
 	type WidgetData,
 	type WidgetDefinition,
 	type WidgetPlacement,
@@ -24,7 +26,15 @@ function daysFromNow(days: number): string {
 	return `${day.getFullYear()}-${month}-${String(day.getDate()).padStart(2, '0')}`;
 }
 
-type DemoWidget = Readonly<{ widget: WidgetDefinition; data: WidgetData | null }>;
+function lastDays(count: number): string[] {
+	return Array.from({ length: count }, (_, index) => {
+		const day = new Date();
+		day.setDate(day.getDate() - (count - 1 - index));
+		return day.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+	});
+}
+
+type DemoWidget = Readonly<{ widget: WidgetDefinition; span: WidgetSpan; data: WidgetData | null }>;
 
 const EMPTY: WidgetData = {
 	value: null,
@@ -35,7 +45,32 @@ const EMPTY: WidgetData = {
 	state: null,
 	history: [],
 	rows: [],
+	chart: null,
 	url: null,
+};
+
+const VISITS: WidgetChart = {
+	kind: 'line',
+	labels: lastDays(14),
+	series: [
+		{
+			label: 'Visits',
+			values: [182, 205, 241, 198, 167, 154, 263, 288, 312, 276, 251, 229, 334, 371],
+		},
+		{ label: 'Sign-ups', values: [9, 12, 15, 11, 8, 7, 17, 19, 22, 18, 16, 14, 24, 27] },
+	],
+};
+
+const REGIONS: WidgetChart = {
+	kind: 'bar',
+	labels: ['Europe', 'North America', 'Asia', 'South America', 'Oceania'],
+	series: [{ label: 'Rounds', values: [412, 356, 198, 87, 41] }],
+};
+
+const DEPLOYS: WidgetChart = {
+	kind: 'bar',
+	labels: lastDays(14),
+	series: [{ label: 'Deploys', values: [3, 5, 2, 0, 0, 4, 6, 3, 7, 5, 0, 0, 4, 6] }],
 };
 
 function widget(
@@ -51,29 +86,31 @@ function widget(
 		scope: 'shared',
 		source: { kind: 'github', path: `repos/{owner}/{repo}/${id}`, select: null },
 		refresh: { everySeconds: 300, on: [] },
-		size: 'small',
 		url: null,
 		author: OWNER,
 		fingerprint: id,
-		path: `.malini/widgets/${id}.json`,
+		origin: 'shared',
 		...fields,
 	};
 }
+
+const SMALL: WidgetSpan = { columns: 1, rows: 1 };
 
 const WIDGETS: readonly DemoWidget[] = [
 	{
 		widget: widget(PLAN_WIDGET_ID, 'Plan', 'checklist', {
 			source: { kind: 'plan' },
-			size: 'large',
 			author: null,
-			path: null,
+			origin: 'plan',
 		}),
+		span: PLAN_WIDGET_SPAN,
 		data: null,
 	},
 	{
 		widget: widget('deploy', 'Deploy', 'workflow', {
 			refresh: { everySeconds: 120, on: ['pull-requests:ship-changed'] },
 		}),
+		span: SMALL,
 		data: {
 			...EMPTY,
 			state: 'success',
@@ -82,11 +119,25 @@ const WIDGETS: readonly DemoWidget[] = [
 		},
 	},
 	{
-		widget: widget('reviews', 'Reviews', 'pr-open', { scope: 'own' }),
+		widget: widget('reviews', 'Reviews', 'pr-open', { scope: 'own', origin: 'mine' }),
+		span: SMALL,
 		data: { ...EMPTY, value: 3, unit: 'open', caption: '1 waits on you' },
 	},
 	{
-		widget: widget('release', 'Release', 'layers', { size: 'medium' }),
+		widget: widget('visits', 'Visits', 'trend-up', {}),
+		span: { columns: 2, rows: 2 },
+		data: {
+			...EMPTY,
+			value: 3971,
+			unit: 'visits',
+			delta: '+18%',
+			caption: 'Last 14 days',
+			chart: VISITS,
+		},
+	},
+	{
+		widget: widget('release', 'Release', 'layers', {}),
+		span: WIDGET_DEFAULT_SPAN,
 		data: {
 			...EMPTY,
 			percent: 72,
@@ -99,31 +150,52 @@ const WIDGETS: readonly DemoWidget[] = [
 		},
 	},
 	{
+		widget: widget('regions', 'Rounds by region', 'globe', {}),
+		span: WIDGET_DEFAULT_SPAN,
+		data: { ...EMPTY, chart: REGIONS },
+	},
+	{
+		widget: widget('deploys', 'Deploys', 'workflow', {}),
+		span: WIDGET_DEFAULT_SPAN,
+		data: {
+			...EMPTY,
+			value: 45,
+			unit: 'deploys',
+			delta: '-6%',
+			caption: 'Per day',
+			chart: DEPLOYS,
+		},
+	},
+	{
 		widget: widget('downloads', 'Downloads', 'trend-up', {}),
+		span: SMALL,
 		data: { ...EMPTY, value: 1284, unit: 'this week', delta: '+18%' },
 	},
 ];
 
-const PLACED: readonly WidgetPlacement[] = ['plan', 'deploy', 'reviews', 'release'].map(
-	(widgetId) => ({ widgetId, span: spanOf(widgetId), approved: true }),
-);
+const PLACED: readonly WidgetPlacement[] = [
+	'plan',
+	'deploy',
+	'reviews',
+	'visits',
+	'release',
+	'regions',
+].map((widgetId) => ({ widgetId, span: spanOf(widgetId) }));
 
-const boards = new Map<string, { placements: WidgetPlacement[]; hidden: string[] }>();
+const boards = new Map<string, { placements: WidgetPlacement[] }>();
 
 function spanOf(widgetId: string): WidgetSpan {
-	return WIDGET_SIZE_SPANS[
-		WIDGETS.find(({ widget }) => widget.id === widgetId)?.widget.size ?? 'small'
-	];
+	return WIDGETS.find(({ widget }) => widget.id === widgetId)?.span ?? WIDGET_DEFAULT_SPAN;
 }
 
 function boardKey(workstreamId: string): string {
 	return `${OWNER}/${workstreamOf(workstreamId)?.projectId ?? 'malini'}`;
 }
 
-function layoutOf(board: string): { placements: WidgetPlacement[]; hidden: string[] } {
+function layoutOf(board: string): { placements: WidgetPlacement[] } {
 	const known = boards.get(board);
 	if (known) return known;
-	const fresh = { placements: [...PLACED], hidden: [] };
+	const fresh = { placements: [...PLACED] };
 	boards.set(board, fresh);
 	return fresh;
 }
@@ -143,13 +215,12 @@ function reading(board: string, { widget, data }: DemoWidget): WidgetReading {
 
 function boardOf(workstreamId: string): WidgetBoard {
 	const board = boardKey(workstreamId);
-	const { placements, hidden } = layoutOf(board);
 	return {
 		board,
 		workstreamId,
 		widgets: WIDGETS.map(({ widget }) => widget),
-		placements: [...placements],
-		hidden: [...hidden],
+		repository: board,
+		placements: [...layoutOf(board).placements],
 		readings: WIDGETS.filter(({ data }) => data).map((entry) => reading(board, entry)),
 		me: OWNER,
 	};
@@ -167,6 +238,7 @@ const PLAN: readonly Initiative[] = [
 		repositoryFullName: `${OWNER}/malini`,
 		title: 'Widgets in the right panel',
 		dueOn: daysFromNow(3),
+		done: false,
 		note: null,
 		dependencies: [
 			dependency('demo-board', 'Bento board', true),
@@ -179,6 +251,7 @@ const PLAN: readonly Initiative[] = [
 		repositoryFullName: `${OWNER}/malini`,
 		title: 'Launch on the site',
 		dueOn: daysFromNow(11),
+		done: false,
 		note: null,
 		dependencies: [
 			dependency('demo-docs', 'Widgets docs page', false),
@@ -201,18 +274,13 @@ function dependency(id: string, title: string, done: boolean): Initiative['depen
 export const widgetHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'widgets.board': ({ workstreamId }) => boardOf(workstreamId),
 	'widgets.watch': () => undefined,
-	'widgets.refresh': ({ workstreamId, widgetId }) => {
-		const entry = WIDGETS.find(({ widget }) => widget.id === widgetId) ?? WIDGETS[0];
-		return entry ? reading(boardKey(workstreamId), entry) : Promise.reject(new Error(widgetId));
-	},
-	'widgets.place': ({ workstreamId, widgetId, index, span }) => {
+	'widgets.share': () => undefined,
+	'widgets.place': ({ workstreamId, widgetId, index }) => {
 		const layout = layoutOf(boardKey(workstreamId));
 		const current = layout.placements.find((placement) => placement.widgetId === widgetId);
 		const rest = layout.placements.filter((placement) => placement.widgetId !== widgetId);
-		const placed = { widgetId, span: span ?? current?.span ?? spanOf(widgetId), approved: true };
-		rest.splice(index ?? rest.length, 0, placed);
+		rest.splice(index, 0, { widgetId, span: current?.span ?? spanOf(widgetId) });
 		layout.placements = rest;
-		layout.hidden = layout.hidden.filter((id) => id !== widgetId);
 		return changed(emit, workstreamId);
 	},
 	'widgets.resize': ({ workstreamId, widgetId, span }) => {
@@ -225,11 +293,6 @@ export const widgetHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'widgets.remove': ({ workstreamId, widgetId }) => {
 		const layout = layoutOf(boardKey(workstreamId));
 		layout.placements = layout.placements.filter((placement) => placement.widgetId !== widgetId);
-		return changed(emit, workstreamId);
-	},
-	'widgets.hide': ({ workstreamId, widgetId }) => {
-		const layout = layoutOf(boardKey(workstreamId));
-		layout.hidden = [...layout.hidden.filter((id) => id !== widgetId), widgetId];
 		return changed(emit, workstreamId);
 	},
 	'initiatives.list': () => [...PLAN],

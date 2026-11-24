@@ -171,4 +171,8 @@
 	--color-activity-2: var(--themed-color-activity-2);
 	--color-activity-3: var(--themed-color-activity-3);
 	--color-activity-4: var(--themed-color-activity-4);
+
+	--color-chart-1: var(--themed-color-chart-1);
+	--color-chart-2: var(--themed-color-chart-2);
+	--color-chart-3: var(--themed-color-chart-3);
 }

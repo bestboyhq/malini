@@ -1,25 +1,16 @@
 import {
-	WIDGET_SIZE_SPANS,
+	WIDGET_DEFAULT_SPAN,
 	isWidgetSpan,
 	parseWidgetData,
 	type WidgetData,
 	type WidgetSpan,
 } from '$contract/widgets';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, column, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
+import { all, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 
-export type StoredPlacement = Readonly<{
-	widgetId: string;
-	span: WidgetSpan;
-	approvedFingerprint: string | null;
-}>;
+export type StoredPlacement = Readonly<{ widgetId: string; span: WidgetSpan }>;
 
-export type Placing = Readonly<{
-	widgetId: string;
-	before: string | null;
-	span: WidgetSpan;
-	approvedFingerprint: string;
-}>;
+export type Placing = Readonly<{ widgetId: string; before: string | null; span: WidgetSpan }>;
 
 export type StoredReading = Readonly<{
 	fingerprint: string;
@@ -33,7 +24,6 @@ type PlacementRow = {
 	widget_id: string;
 	span_columns: number;
 	span_rows: number;
-	approved_fingerprint: string | null;
 };
 
 type ReadingRow = {
@@ -58,18 +48,14 @@ export function startBoard(db: MaliniDatabase, board: string): boolean {
 export function listPlacements(db: MaliniDatabase, board: string): StoredPlacement[] {
 	return all<PlacementRow>(
 		db,
-		`SELECT widget_id, span_columns, span_rows, approved_fingerprint FROM widget_placements
+		`SELECT widget_id, span_columns, span_rows FROM widget_placements
 		 WHERE board = ? ORDER BY position, placed_at`,
 		board,
-	).map((row) => ({
-		widgetId: row.widget_id,
-		span: storedSpan(row),
-		approvedFingerprint: row.approved_fingerprint,
-	}));
+	).map((row) => ({ widgetId: row.widget_id, span: storedSpan(row) }));
 }
 
 export function placeWidget(db: MaliniDatabase, board: string, placing: Placing): void {
-	const { widgetId, before, span, approvedFingerprint } = placing;
+	const { widgetId, before, span } = placing;
 	db.transaction(() => {
 		const order = listPlacements(db, board)
 			.map((placement) => placement.widgetId)
@@ -78,19 +64,16 @@ export function placeWidget(db: MaliniDatabase, board: string, placing: Placing)
 		order.splice(at === -1 ? order.length : at, 0, widgetId);
 		run(
 			db,
-			`INSERT INTO widget_placements
-			   (board, widget_id, position, span_columns, span_rows, approved_fingerprint, placed_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO widget_placements (board, widget_id, position, span_columns, span_rows, placed_at)
+			 VALUES (?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(board, widget_id) DO UPDATE SET
 			   span_columns = excluded.span_columns,
-			   span_rows = excluded.span_rows,
-			   approved_fingerprint = excluded.approved_fingerprint`,
+			   span_rows = excluded.span_rows`,
 			board,
 			widgetId,
 			order.length,
 			span.columns,
 			span.rows,
-			approvedFingerprint,
 			nowIso8601(),
 		);
 		order.forEach((id, position) =>
@@ -102,7 +85,6 @@ export function placeWidget(db: MaliniDatabase, board: string, placing: Placing)
 				id,
 			),
 		);
-		run(db, 'DELETE FROM widget_hidden WHERE board = ? AND widget_id = ?', board, widgetId);
 	});
 }
 
@@ -126,32 +108,15 @@ export function resizePlacement(
 
 function storedSpan(row: PlacementRow): WidgetSpan {
 	const span = { columns: row.span_columns, rows: row.span_rows };
-	return isWidgetSpan(span) ? span : WIDGET_SIZE_SPANS.small;
+	return isWidgetSpan(span) ? span : WIDGET_DEFAULT_SPAN;
 }
 
 export function removePlacement(db: MaliniDatabase, board: string, widgetId: string): void {
 	run(db, 'DELETE FROM widget_placements WHERE board = ? AND widget_id = ?', board, widgetId);
 }
 
-export function hideWidget(db: MaliniDatabase, board: string, widgetId: string): void {
-	db.transaction(() => {
-		removePlacement(db, board, widgetId);
-		run(
-			db,
-			'INSERT OR IGNORE INTO widget_hidden (board, widget_id, hidden_at) VALUES (?, ?, ?)',
-			board,
-			widgetId,
-			nowIso8601(),
-		);
-	});
-}
-
-export function listHidden(db: MaliniDatabase, board: string): string[] {
-	return column(
-		db,
-		'SELECT widget_id FROM widget_hidden WHERE board = ? ORDER BY hidden_at, widget_id',
-		board,
-	);
+export function forgetReading(db: MaliniDatabase, board: string, widgetId: string): void {
+	run(db, 'DELETE FROM widget_readings WHERE board = ? AND widget_id = ?', board, widgetId);
 }
 
 export function getReading(

@@ -14,6 +14,7 @@ import {
 import { seedWorkstreamOnFakeGithub, toastSaying } from './fake-github';
 
 const OUTCOME = 'Billing page is live';
+const SECOND = 'Pricing page is live';
 const COPY = 'Pricing copy is written';
 const CHECKOUT = 'Checkout takes a card';
 const COPY_RENAMED = 'Pricing copy is approved';
@@ -49,10 +50,14 @@ test('an initiative shows only on its repository page, keeps its dependencies an
 		const outcome = initiatives.getByRole('button', { name: OUTCOME, exact: true });
 		const row = initiatives.getByRole('group', { name: OUTCOME, exact: true });
 		const fold = initiatives.getByRole('button', { name: `Dependencies of ${OUTCOME}` });
-		await initiatives
-			.getByRole('textbox', { name: `Name an outcome on ${dayLabel(today)}` })
-			.fill(OUTCOME);
+		const todayField = initiatives.getByRole('textbox', {
+			name: `Name an outcome on ${dayLabel(today)}`,
+		});
+		await todayField.fill(OUTCOME);
 		await page.keyboard.press('Enter');
+		await expect(todayField).toBeFocused();
+		await expect(todayField).toHaveValue('');
+		await initiatives.getByRole('button', { name: `Add a dependency to ${OUTCOME}` }).click();
 		const dependency = initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` });
 		await expect(dependency).toBeFocused();
 		await page.keyboard.type(COPY);
@@ -61,6 +66,11 @@ test('an initiative shows only on its repository page, keeps its dependencies an
 		await page.keyboard.type(CHECKOUT);
 		await page.keyboard.press('Enter');
 		await expect(row).toContainText('0 of 2');
+		await expect(todayField).toHaveCount(0);
+		await initiatives.getByRole('button', { name: `Add an outcome on ${dayLabel(today)}` }).click();
+		await expect(todayField).toBeFocused();
+		await page.keyboard.press('Escape');
+		await expect(todayField).toHaveCount(0);
 
 		const copy = initiatives.getByRole('checkbox', { name: COPY });
 		await copy.click();
@@ -158,6 +168,70 @@ test('an initiative shows only on its repository page, keeps its dependencies an
 	}
 });
 
+test('the plan works like a to-do list: Enter names the next outcome, the circle ticks it, + adds dependencies and the arrows move between rows', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const alpha = await createSourceRepo(app.root, 'alpha');
+		await seedWorkstream(page, alpha, 'e2e-plan-todo', 'Alpha work');
+		await page.reload();
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		await sidebar.getByRole('link', { name: 'Open alpha' }).click({ timeout: 20_000 });
+
+		const initiatives = page.getByRole('region', { name: 'Initiatives' });
+		const field = initiatives.getByRole('textbox', {
+			name: `Name an outcome on ${dayLabel(new Date())}`,
+		});
+		await field.fill(OUTCOME);
+		await page.keyboard.press('Enter');
+		await expect(field).toBeFocused();
+		await page.keyboard.type(SECOND);
+		await page.keyboard.press('Enter');
+		await expect(field).toBeFocused();
+		const first = initiatives.getByRole('checkbox', { name: OUTCOME, exact: true });
+		const second = initiatives.getByRole('checkbox', { name: SECOND, exact: true });
+		await expect(first).not.toBeChecked();
+		await expect(second).not.toBeChecked();
+		await expect(initiatives.getByRole('textbox', { name: /^Add a dependency/u })).toHaveCount(0);
+
+		await first.click();
+		await expect(first).toBeChecked();
+		await expect(second).not.toBeChecked();
+		await page.reload();
+		await expect(first).toBeChecked({ timeout: 20_000 });
+		await first.click();
+		await expect(first).not.toBeChecked();
+
+		const firstTitle = initiatives.getByRole('button', { name: OUTCOME, exact: true });
+		await firstTitle.focus();
+		await page.keyboard.press('ArrowDown');
+		await expect(initiatives.getByRole('button', { name: SECOND, exact: true })).toBeFocused();
+		await page.keyboard.press('ArrowUp');
+		await expect(firstTitle).toBeFocused();
+
+		await initiatives.getByRole('button', { name: `Add a dependency to ${OUTCOME}` }).click();
+		const dependency = initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` });
+		await expect(dependency).toBeFocused();
+		await page.keyboard.type(COPY);
+		await page.keyboard.press('Enter');
+		await expect(dependency).toBeFocused();
+		await expect(dependency).toHaveValue('');
+		await page.keyboard.press('Escape');
+		await expect(dependency).toHaveCount(0);
+		await expect(firstTitle).toBeFocused();
+
+		await initiatives.getByRole('checkbox', { name: COPY }).click();
+		const row = initiatives.getByRole('group', { name: OUTCOME, exact: true });
+		await expect(row.getByRole('img', { name: 'Done' })).toBeVisible();
+		await expect(first).toHaveCount(0);
+		await captureFlow(app, 'initiatives-todo');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a shared plan lands as one file in its private plan repository and says what a teammate changed there', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -173,6 +247,7 @@ test('a shared plan lands as one file in its private plan repository and says wh
 		const initiatives = main.getByRole('region', { name: 'Initiatives' });
 		await initiatives.getByRole('textbox', { name: 'Name an outcome with no date' }).fill(OUTCOME);
 		await page.keyboard.press('Enter');
+		await initiatives.getByRole('button', { name: `Add a dependency to ${OUTCOME}` }).click();
 		await expect(
 			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
 		).toBeFocused();
@@ -236,11 +311,10 @@ test('a plan in a public repository syncs only to a private plan repository its 
 		await link.click();
 		const main = page.getByRole('main');
 		const initiatives = main.getByRole('region', { name: 'Initiatives' });
-		await initiatives.getByRole('textbox', { name: 'Name an outcome with no date' }).fill(OUTCOME);
+		const undated = initiatives.getByRole('textbox', { name: 'Name an outcome with no date' });
+		await undated.fill(OUTCOME);
 		await page.keyboard.press('Enter');
-		await expect(
-			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
-		).toBeFocused();
+		await expect(undated).toBeFocused();
 		const bar = page.getByTestId('repository-bar');
 		const tooltip = page.getByRole('tooltip');
 		await bar.getByText('Share internally').hover();
@@ -286,21 +360,19 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 		await link.click();
 		const initiatives = page.getByRole('main').getByRole('region', { name: 'Initiatives' });
 		const today = dayLabel(new Date());
-		await initiatives.getByRole('textbox', { name: `Name an outcome on ${today}` }).fill(OUTCOME);
+		const todayField = initiatives.getByRole('textbox', { name: `Name an outcome on ${today}` });
+		await todayField.fill(OUTCOME);
 		await page.keyboard.press('Enter');
-		await expect(
-			initiatives.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` }),
-		).toBeFocused();
-		await initiatives.getByRole('textbox', { name: 'Name an outcome with no date' }).fill(COPY);
+		await expect(todayField).toBeFocused();
+		const undatedField = initiatives.getByRole('textbox', { name: 'Name an outcome with no date' });
+		await undatedField.fill(COPY);
 		await page.keyboard.press('Enter');
-		await expect(
-			initiatives.getByRole('textbox', { name: `Add a dependency to ${COPY}` }),
-		).toBeFocused();
+		await expect(undatedField).toBeFocused();
 
 		await openWorkstream(page, 'e2e-plan-days');
 		const plan = page
 			.getByRole('region', { name: 'Widgets' })
-			.getByRole('article', { name: 'Plan, Large' });
+			.getByRole('article', { name: /^Plan, /u });
 		const due = plan.getByRole('group', { name: today, exact: true });
 		const undated = plan.getByRole('group', { name: 'No date', exact: true });
 		await expect(due.getByRole('group', { name: OUTCOME, exact: true })).toBeVisible({
@@ -333,6 +405,54 @@ test('the Plan widget lists outcomes under the day they are due, the ones with n
 	}
 });
 
+test('in the Plan widget, Enter names the next outcome, the circle ticks it, and + adds dependencies until Escape', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-todo-widget', null);
+		await openWorkstream(page, 'e2e-plan-todo-widget');
+		const plan = page
+			.getByRole('region', { name: 'Widgets' })
+			.getByRole('article', { name: /^Plan, /u });
+		const field = plan.getByRole('textbox', { name: 'Name an outcome with no date' });
+		await field.fill(OUTCOME, { timeout: 20_000 });
+		await page.keyboard.press('Enter');
+		await expect(field).toBeFocused();
+		await page.keyboard.type(SECOND);
+		await page.keyboard.press('Enter');
+		await expect(field).toBeFocused();
+		const first = plan.getByRole('checkbox', { name: OUTCOME, exact: true });
+		await expect(first).not.toBeChecked();
+		await expect(plan.getByRole('checkbox', { name: SECOND, exact: true })).not.toBeChecked();
+		await expect(plan.getByRole('textbox', { name: /^Add a dependency/u })).toHaveCount(0);
+
+		await first.click();
+		await expect(first).toBeChecked();
+		await first.click();
+		await expect(first).not.toBeChecked();
+
+		await plan.getByRole('button', { name: `Add a dependency to ${OUTCOME}` }).click();
+		const dependency = plan.getByRole('textbox', { name: `Add a dependency to ${OUTCOME}` });
+		await expect(dependency).toBeFocused();
+		await page.keyboard.type(COPY);
+		await page.keyboard.press('Enter');
+		await expect(dependency).toBeFocused();
+		await page.keyboard.type(CHECKOUT);
+		await page.keyboard.press('Enter');
+		await expect(plan.getByRole('checkbox', { name: CHECKOUT })).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(dependency).toHaveCount(0);
+		const title = plan.getByRole('button', { name: `Rename ${OUTCOME}` });
+		await expect(title).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(plan.getByRole('button', { name: `Rename ${COPY}` })).toBeFocused();
+		await captureFlow(app, 'plan-widget-todo');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a teammate asks to share the plan, and Share in the toast makes its private plan repository and pins the Plan', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -340,7 +460,7 @@ test('a teammate asks to share the plan, and Share in the toast makes its privat
 		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-plan-ask', null);
 		await openWorkstream(page, 'e2e-plan-ask');
 		const board = page.getByRole('region', { name: 'Widgets' });
-		const plan = board.getByRole('article', { name: 'Plan, Large' });
+		const plan = board.getByRole('article', { name: /^Plan, /u });
 		await expect(plan).toBeVisible({ timeout: 20_000 });
 		await board.getByRole('button', { name: 'Options for Plan' }).click();
 		await page.getByRole('menu').getByRole('menuitem', { name: 'Remove' }).click();

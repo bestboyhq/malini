@@ -2,15 +2,15 @@
 	interface Props {
 		done: number;
 		total: number;
+		finished: boolean;
 		size?: number;
 	}
 
-	let { done, total, size = 16 }: Props = $props();
+	let { done, total, finished, size = 16 }: Props = $props();
 
 	const PIE_RADIUS = 2.1;
 	const PIE_CIRCUMFERENCE = 2 * Math.PI * PIE_RADIUS;
 
-	const finished = $derived(total > 0 && done === total);
 	const share = $derived(total > 0 ? done / total : 0);
 </script>
 

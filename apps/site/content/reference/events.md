@@ -1737,7 +1737,7 @@ type ExtensionPublishedEvent = Readonly<{
 
 ## `widgets:board-changed`
 
-Fires when a widget board changes: a widget file under `.malini/widgets` is added, changed or removed in a checkout, or you place, resize, remove or hide a widget, with the `board` it belongs to. Malini does not keep it in its event log.
+Fires when a widget board changes: an agent saves a widget, a shared widget changes on the default branch, or you add, move, resize or remove a widget, with the `board` it belongs to. Malini does not keep it in its event log.
 
 An automation sees: `board`
 
@@ -1769,6 +1769,21 @@ type WidgetRow = Readonly<{
 	url: string | null;
 }>;
 
+const WIDGET_CHART_KINDS = ['line', 'bar'] as const;
+
+type WidgetChartKind = (typeof WIDGET_CHART_KINDS)[number];
+
+type WidgetChartSeries = Readonly<{
+	label: string | null;
+	values: readonly (number | null)[];
+}>;
+
+type WidgetChart = Readonly<{
+	kind: WidgetChartKind;
+	labels: readonly string[];
+	series: readonly WidgetChartSeries[];
+}>;
+
 type WidgetData = Readonly<{
 	value: number | string | null;
 	unit: string | null;
@@ -1778,6 +1793,7 @@ type WidgetData = Readonly<{
 	state: WidgetState | null;
 	history: readonly WidgetState[];
 	rows: readonly WidgetRow[];
+	chart: WidgetChart | null;
 	url: string | null;
 }>;
 

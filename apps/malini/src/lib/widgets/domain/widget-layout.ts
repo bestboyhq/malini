@@ -1,12 +1,11 @@
 import {
-	WIDGET_SIZE_SPANS,
+	WIDGET_HISTORY_MAX,
 	type WidgetData,
 	type WidgetRow,
-	type WidgetSize,
 	type WidgetSpan,
 	type WidgetState,
 } from '$contract/widgets';
-import { WIDGET_GAP, spanLook } from './widget-grid';
+import { WIDGET_GAP } from './widget-grid';
 
 export type WidgetHeadline = 'number' | 'ring' | 'status';
 
@@ -18,7 +17,11 @@ export type WidgetLayout = Readonly<{
 	caption: boolean;
 	runs: readonly WidgetState[];
 	rows: WidgetRowsLook | null;
-	rowCount: number;
+	rowColumns: number;
+	chart: boolean;
+	legend: boolean;
+	side: boolean;
+	hero: boolean;
 }>;
 
 export type GalleryFit = Readonly<{ paged: boolean; cell: number }>;
@@ -29,9 +32,7 @@ export const GALLERY_MIN_CELL = 112;
 
 export const GALLERY_MAX_CELL = 140;
 
-const STRIP_RUNS: Readonly<Record<WidgetSize, number>> = { small: 10, medium: 20, large: 30 };
-
-const ROWS_PER_CELL = 6;
+const RUNS_PER_COLUMN = 10;
 
 const EMPTY_LAYOUT: WidgetLayout = {
 	headline: null,
@@ -39,28 +40,39 @@ const EMPTY_LAYOUT: WidgetLayout = {
 	caption: false,
 	runs: [],
 	rows: null,
-	rowCount: 0,
+	rowColumns: 1,
+	chart: false,
+	legend: false,
+	side: false,
+	hero: false,
 };
 
 export function widgetLayout(data: WidgetData | null, span: WidgetSpan): WidgetLayout {
 	if (data === null) return EMPTY_LAYOUT;
-	const size = spanLook(span);
-	const taller = Math.max(0, span.rows - WIDGET_SIZE_SPANS[size].rows) * ROWS_PER_CELL;
+	const single = span.columns === 1 && span.rows === 1;
 	const headline = headlineOf(data);
-	const status = data.state ?? data.history.at(-1) ?? null;
-	const runs = headline === 'status' || size !== 'small' ? runsOf(data, STRIP_RUNS[size]) : [];
-	const rows = data.rows.length === 0 ? null : data.rows.every(isBar) ? 'bars' : 'list';
-	const rowCount =
-		rows === null
-			? 0
-			: Math.min(data.rows.length, rowRoom(size, headline, runs.length > 0) + taller);
+	const chart = data.chart !== null;
+	const runs =
+		headline === 'status' || !single
+			? runsOf(data, Math.min(WIDGET_HISTORY_MAX, span.columns * RUNS_PER_COLUMN))
+			: [];
+	const rows = chart || (single && headline !== null) ? null : rowsLook(data.rows);
+	const side =
+		span.columns > 1 &&
+		span.rows === 1 &&
+		(headline === 'number' || headline === 'ring') &&
+		(chart || rows !== null);
 	return {
 		headline,
-		status,
-		caption: data.caption !== null && (size !== 'medium' || rowCount === 0),
+		status: data.state ?? data.history.at(-1) ?? null,
+		caption: data.caption !== null && !(single && chart),
 		runs,
-		rows: rowCount === 0 ? null : rows,
-		rowCount,
+		rows,
+		rowColumns: rows !== null && !side && span.columns >= 3 ? 2 : 1,
+		chart,
+		legend: (data.chart?.series.length ?? 0) > 1 && span.rows > 1,
+		side,
+		hero: headline === 'number' && !chart && rows === null && runs.length === 0,
 	};
 }
 
@@ -89,12 +101,7 @@ function runsOf(data: WidgetData, most: number): readonly WidgetState[] {
 	return runs.slice(-most);
 }
 
-function rowRoom(size: WidgetSize, headline: WidgetHeadline | null, strip: boolean): number {
-	if (size === 'small') return headline === null ? 3 : 0;
-	if (size === 'medium') return headline === null ? 4 : strip ? 0 : 2;
-	return (headline === null ? 9 : 6) - (strip ? 1 : 0);
-}
-
-function isBar(row: WidgetRow): boolean {
-	return rowShare(row) !== null;
+function rowsLook(rows: readonly WidgetRow[]): WidgetRowsLook | null {
+	if (rows.length === 0) return null;
+	return rows.every((row) => rowShare(row) !== null) ? 'bars' : 'list';
 }

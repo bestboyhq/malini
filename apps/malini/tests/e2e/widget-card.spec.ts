@@ -15,7 +15,7 @@ import {
 
 const RUN = `echo '{"value":5,"unit":"rooms","caption":"open now"}'`;
 
-test('a widget the agent saves shows in the chat in its three sizes, and Pin puts it on the board at the size you pick, where its command runs', async () => {
+test('a widget the agent saves lands first on the board at two by one, where its command runs, and the chat card removes it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -31,50 +31,28 @@ test('a widget the agent saves shows in the chat in its three sizes, and Pin put
 			join(app.home, 'malini-tool.json'),
 			JSON.stringify({
 				tool: 'widgets_save',
-				input: {
-					id: 'rooms',
-					title: 'Rooms',
-					icon: 'users',
-					source: { command: RUN },
-					size: 'medium',
-					sample: { value: 3, unit: 'rooms', caption: 'open now' },
-				},
+				input: { id: 'rooms', title: 'Rooms', icon: 'users', source: { command: RUN } },
 			}),
 		);
 
 		await sendPrompt(page, 'MALINI_TOOL');
 		const card = page.getByRole('region', { name: 'Rooms widget' });
-		const pin = card.getByRole('button', { name: 'Pin to my panel' });
-		await expect(pin).toBeEnabled({ timeout: 20_000 });
-		const sizes = card.getByRole('radiogroup', { name: 'Size' });
-		await expect(sizes.getByRole('radio')).toHaveText(['Small', 'Medium', 'Large']);
-		await expect(sizes.getByRole('radio', { name: 'Medium' })).toBeChecked();
-		await expect(card.getByRole('article', { name: 'Rooms, Medium' })).toContainText('3');
-		await expect(card).toContainText(`Malini runs ${RUN} once you pin it`);
-		await captureFlow(app, 'widget-card-gallery');
-
-		await sizes.getByRole('radio', { name: 'Large' }).click();
-		await expect(sizes.getByRole('radio', { name: 'Large' })).toBeChecked();
-		await expect(card.getByRole('article', { name: 'Rooms, Large' })).toBeVisible();
-		await pin.click();
-
-		await expect(card.getByText('On your panel')).toBeVisible();
+		await expect(card.getByText('On your board')).toBeVisible({ timeout: 20_000 });
+		await expect(card.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('5');
+		await expect(card).toContainText(`Runs ${RUN}`);
 		const board = page.getByRole('region', { name: 'Widgets' });
-		await expect(board.getByRole('article', { name: 'Rooms, Large' })).toContainText('5', {
+		await expect(board.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('5', {
 			timeout: 20_000,
 		});
 		const placements = async () =>
 			(await invoke<WidgetBoard>(page, 'widgets.board', { workstreamId })).placements;
-		expect(await placements()).toContainEqual({
-			widgetId: 'rooms',
-			span: { columns: 12, rows: 2 },
-			approved: true,
-		});
-		await captureFlow(app, 'widget-card-pinned');
+		expect(await placements()).toEqual([{ widgetId: 'rooms', span: { columns: 2, rows: 1 } }]);
+		await captureFlow(app, 'widget-card-on-board');
 
 		await card.getByRole('button', { name: 'Remove' }).click();
-		await expect(pin).toBeEnabled();
-		expect((await placements()).map(({ widgetId }) => widgetId)).not.toContain('rooms');
+		await expect(card.getByText('Removed from your board')).toBeVisible();
+		await expect(board.getByRole('article', { name: /^Rooms, / })).toHaveCount(0);
+		expect(await placements()).toEqual([]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

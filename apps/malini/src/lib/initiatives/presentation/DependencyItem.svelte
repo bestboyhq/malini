@@ -19,7 +19,7 @@
 	import StatusIcon from './StatusIcon.svelte';
 	import TitleEditor from './TitleEditor.svelte';
 	import WorkstreamLine from './WorkstreamLine.svelte';
-	import { caretAt } from './title-caret';
+	import { caretAt, stepTitle } from './title-caret';
 
 	interface Props {
 		dependency: InitiativeDependency;
@@ -99,7 +99,10 @@
 					ariaChecked={ticked}
 					ariaLabel={dependency.title}
 					class="-m-[3px]"
-					onclick={() => updateInitiativeDependencyCommand(dependency.id, { done: !ticked })}
+					onclick={(event) => {
+						event.stopPropagation();
+						updateInitiativeDependencyCommand(dependency.id, { done: !ticked });
+					}}
 				>
 					<StatusIcon {status} size={14} />
 				</IconButton>
@@ -123,7 +126,9 @@
 					'focus-visible:ring-border-default/50 flex min-h-8 min-w-0 cursor-text items-center rounded-md text-left outline-none focus-visible:ring-2',
 					isFinished(status) ? 'text-fg-quaternary line-through' : 'text-fg-default',
 				]}
+				data-plan-title=""
 				onclick={(event) => rename(caretAt(event, dependency.title))}
+				onkeydown={stepTitle}
 				{@attach regrab ? grab : null}
 			>
 				<span class="min-w-0 truncate"><SensitiveText text={dependency.title} /></span>

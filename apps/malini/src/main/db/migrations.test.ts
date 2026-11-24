@@ -70,7 +70,6 @@ const ALL_TABLES = [
 	'shell_runs',
 	'skill_choices',
 	'widget_boards',
-	'widget_hidden',
 	'widget_placements',
 	'widget_readings',
 	'workstream_commit_runs',
@@ -1485,19 +1484,14 @@ describe('migrate', () => {
 		expect(
 			all(
 				db,
-				'SELECT widget_id, position, span_columns, span_rows, approved_fingerprint FROM widget_placements ORDER BY position',
+				'SELECT widget_id, position, span_columns, span_rows FROM widget_placements ORDER BY position',
 			),
 		).toEqual([
-			{
-				widget_id: 'plan',
-				position: 0,
-				span_columns: 12,
-				span_rows: 2,
-				approved_fingerprint: null,
-			},
-			{ widget_id: 'rooms', position: 1, span_columns: 2, span_rows: 1, approved_fingerprint: 'f' },
-			{ widget_id: 'ci', position: 2, span_columns: 1, span_rows: 1, approved_fingerprint: null },
+			{ widget_id: 'plan', position: 0, span_columns: 12, span_rows: 2 },
+			{ widget_id: 'rooms', position: 1, span_columns: 2, span_rows: 1 },
+			{ widget_id: 'ci', position: 2, span_columns: 1, span_rows: 1 },
 		]);
+		expect(tableNames(db)).not.toContain('widget_hidden');
 		expect(() =>
 			db.exec(`INSERT INTO widget_placements
 				(board, widget_id, position, span_columns, span_rows, placed_at)
@@ -1536,6 +1530,7 @@ describe('migrate', () => {
 				created_at: at,
 				updated_at: at,
 				note: null,
+				done: 0,
 			},
 		]);
 		expect(all(db, 'SELECT id, done, assignee FROM initiative_dependencies')).toEqual([

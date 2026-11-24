@@ -18,6 +18,7 @@ export type SharedOutcome = Readonly<{
 	id: string;
 	title: string;
 	dueOn: string | null;
+	done: boolean;
 	note: string | null;
 	createdAt: string;
 	dependencies: readonly SharedDependency[];
@@ -50,6 +51,7 @@ export function planFileText(plan: SharedPlan): string {
 		id: outcome.id,
 		title: outcome.title,
 		dueOn: outcome.dueOn,
+		done: outcome.done,
 		note: noteValue(outcome.note),
 		createdAt: outcome.createdAt,
 		dependencies: outcome.dependencies.map((dependency) => ({
@@ -95,6 +97,7 @@ export function mergePlan(
 		id: ours.id,
 		title: pick(was?.title, theirs.title, ours.title),
 		dueOn: pick(was?.dueOn, theirs.dueOn, ours.dueOn),
+		done: pick(was?.done, theirs.done, ours.done),
 		note: pick(was?.note, theirs.note, ours.note),
 		createdAt: theirs.createdAt,
 		dependencies: mergeById(
@@ -119,21 +122,24 @@ export function planChanges(before: SharedPlan, after: SharedPlan): PlanChange[]
 			['dueOn', 'dated'],
 			['note', 'noted'],
 		]),
+		...doneChange(was, now),
 		...changesById(was.dependencies, now.dependencies, (wasDependency, nowDependency) => [
 			...fieldChanges(wasDependency, nowDependency, [
 				['title', 'renamed'],
 				['note', 'noted'],
 			]),
-			...(wasDependency.done === nowDependency.done
-				? []
-				: [
-						{
-							kind: nowDependency.done ? 'closed' : 'reopened',
-							title: nowDependency.title,
-						} as const,
-					]),
+			...doneChange(wasDependency, nowDependency),
 		]),
 	]);
+}
+
+function doneChange(
+	was: Readonly<{ done: boolean }>,
+	now: Readonly<{ done: boolean; title: string }>,
+): PlanChange[] {
+	return was.done === now.done
+		? []
+		: [{ kind: now.done ? 'closed' : 'reopened', title: now.title }];
 }
 
 export function commitMessage(changes: readonly PlanChange[]): string {
@@ -156,6 +162,7 @@ function sharedOutcome(item: unknown, seen: Set<string>): SharedOutcome | null {
 		id,
 		title,
 		dueOn: typeof due === 'string' && isDay(due) ? due : null,
+		done: item['done'] === true,
 		note: noteOf(item['note']),
 		createdAt: typeof created === 'string' && INSTANT.test(created) ? created : UNKNOWN_INSTANT,
 		dependencies: dependencies.flatMap((dependency) => {

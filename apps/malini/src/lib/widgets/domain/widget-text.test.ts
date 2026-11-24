@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WIDGET_SIZE_SPANS, type WidgetDefinition, type WidgetSource } from '$contract/widgets';
-import { runsLabel, sourceLine, tileName, updatedLabel, widgetValue } from './widget-text';
+import type { WidgetDefinition, WidgetSource } from '$contract/widgets';
+import { deltaOf, runsLabel, sourceLine, tileName, updatedLabel, widgetValue } from './widget-text';
 
 const NOW = new Date('2026-11-22T12:00:00Z');
 
@@ -12,11 +12,10 @@ function widget(source: WidgetSource): WidgetDefinition {
 		scope: 'shared',
 		source,
 		refresh: { everySeconds: 300, on: [] },
-		size: 'medium',
 		url: null,
 		author: null,
 		fingerprint: '',
-		path: null,
+		origin: 'mine',
 	};
 }
 
@@ -48,8 +47,8 @@ describe('sourceLine', () => {
 });
 
 describe('tile text', () => {
-	it('names the tile with its preset, or with its cells when it fits no preset', () => {
-		expect(tileName(widget({ kind: 'plan' }), WIDGET_SIZE_SPANS.large, 4)).toBe('CI, Large');
+	it('names the tile with the cells it shows', () => {
+		expect(tileName(widget({ kind: 'plan' }), { columns: 12, rows: 2 }, 4)).toBe('CI, 4 by 2');
 		expect(tileName(widget({ kind: 'plan' }), { columns: 3, rows: 2 }, 4)).toBe('CI, 3 by 2');
 		expect(tileName(widget({ kind: 'plan' }), { columns: 3, rows: 3 }, 2)).toBe('CI, 2 by 3');
 	});
@@ -62,5 +61,14 @@ describe('tile text', () => {
 	it('counts failed runs', () => {
 		expect(runsLabel(['success'])).toBe('1 run. None failed');
 		expect(runsLabel(['success', 'failure', 'failure'])).toBe('3 runs. 2 failed');
+	});
+});
+
+describe('deltaOf', () => {
+	it('reads the direction from a leading sign', () => {
+		expect(deltaOf('+18%')).toEqual({ direction: 'up', text: '18%' });
+		expect(deltaOf('-4 today')).toEqual({ direction: 'down', text: '4 today' });
+		expect(deltaOf('−2.5%')).toEqual({ direction: 'down', text: '2.5%' });
+		expect(deltaOf('flat')).toEqual({ direction: null, text: 'flat' });
 	});
 });

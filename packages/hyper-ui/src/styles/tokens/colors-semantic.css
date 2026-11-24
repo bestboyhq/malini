@@ -160,4 +160,11 @@
 	--color-activity-3-dark: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
 	--color-activity-4-light: var(--color-custom-primary);
 	--color-activity-4-dark: var(--color-custom-primary);
+
+	--color-chart-1-light: #2f62d6;
+	--color-chart-1-dark: #4377f0;
+	--color-chart-2-light: #c04f06;
+	--color-chart-2-dark: #e15f0a;
+	--color-chart-3-light: #0f8062;
+	--color-chart-3-dark: #199d78;
 }

@@ -219,36 +219,47 @@ function note(value: unknown): string | null {
 function initiativeChange(args: unknown): InitiativeChange {
 	const newTitle = field(args, 'title');
 	const newDueOn = field(args, 'dueOn');
+	const newDone = field(args, 'done');
 	const newNote = field(args, 'note');
-	if (newTitle === undefined && newDueOn === undefined && newNote === undefined) {
+	if (
+		newTitle === undefined &&
+		newDueOn === undefined &&
+		newDone === undefined &&
+		newNote === undefined
+	) {
 		throw new InitiativeError(
 			'invalid-argument',
-			'invalid args: give a `title`, a `dueOn` or a `note` to change',
+			'invalid args: give a `title`, a `dueOn`, `done` or a `note` to change',
 		);
 	}
 	return {
 		...(newTitle === undefined ? {} : { title: title(newTitle) }),
 		...(newDueOn === undefined ? {} : { dueOn: dueOn(newDueOn) }),
+		...(newDone === undefined ? {} : { done: done(newDone) }),
 		...(newNote === undefined ? {} : { note: note(newNote) }),
 	};
 }
 
 function dependencyChange(args: unknown): DependencyChange {
 	const newTitle = field(args, 'title');
-	const done = field(args, 'done');
+	const newDone = field(args, 'done');
 	const newNote = field(args, 'note');
-	if (newTitle === undefined && done === undefined && newNote === undefined) {
+	if (newTitle === undefined && newDone === undefined && newNote === undefined) {
 		throw new InitiativeError(
 			'invalid-argument',
 			'invalid args: give a `title`, `done` or a `note` to change',
 		);
 	}
-	if (done !== undefined && typeof done !== 'boolean') {
-		throw new InitiativeError('invalid-argument', 'invalid args: `done` must be true or false');
-	}
 	return {
 		...(newTitle === undefined ? {} : { title: title(newTitle) }),
-		...(done === undefined ? {} : { done }),
+		...(newDone === undefined ? {} : { done: done(newDone) }),
 		...(newNote === undefined ? {} : { note: note(newNote) }),
 	};
+}
+
+function done(value: unknown): boolean {
+	if (typeof value !== 'boolean') {
+		throw new InitiativeError('invalid-argument', 'invalid args: `done` must be true or false');
+	}
+	return value;
 }

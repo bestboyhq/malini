@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
 	addDays,
+	dependenciesFinished,
 	dependencyState,
+	initiativeFinished,
 	initiativeProgress,
 	isDay,
 	noteTarget,
@@ -47,12 +49,14 @@ function dependency(workstreamIds: readonly string[], done = false): InitiativeD
 function initiative(
 	dueOn: string | null,
 	dependencies: readonly InitiativeDependency[],
+	done = false,
 ): Initiative {
 	return {
 		id: `i-${dueOn}`,
 		repositoryFullName: 'bestboyhq/grip',
 		title: 'Outcome',
 		dueOn,
+		done,
 		note: null,
 		dependencies,
 	};
@@ -87,6 +91,19 @@ describe('progress', () => {
 	});
 });
 
+describe('initiativeFinished', () => {
+	it('is finished by its own tick, or once it has dependencies and all of them are done', () => {
+		expect(initiativeFinished(initiative(null, []), standingOf)).toBe(false);
+		expect(initiativeFinished(initiative(null, [], true), standingOf)).toBe(true);
+		expect(initiativeFinished(initiative(null, [dependency([])], true), standingOf)).toBe(true);
+		expect(initiativeFinished(initiative(null, [dependency(['running'])]), standingOf)).toBe(false);
+		const merged = initiative(null, [dependency(['merged']), dependency([], true)]);
+		expect(initiativeFinished(merged, standingOf)).toBe(true);
+		expect(dependenciesFinished(merged, standingOf)).toBe(true);
+		expect(dependenciesFinished(initiative(null, [], true), standingOf)).toBe(false);
+	});
+});
+
 describe('rail', () => {
 	it('runs from today through two more weeks, and labels each Monday', () => {
 		const { earlier, weeks } = rail('2026-11-20', [], standingOf);
@@ -103,6 +120,7 @@ describe('rail', () => {
 				initiative('2026-12-24', []),
 				initiative('2026-11-10', [dependency(['running'])]),
 				initiative('2026-11-12', [dependency(['merged'])]),
+				{ ...initiative('2026-11-14', []), done: true },
 			],
 			standingOf,
 		);

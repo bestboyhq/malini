@@ -1,11 +1,5 @@
-import type { WidgetDefinition, WidgetSize, WidgetSpan, WidgetState } from '$contract/widgets';
-import { presetOf, shownSpan } from './widget-grid';
-
-export const WIDGET_SIZE_NAMES: Readonly<Record<WidgetSize, string>> = {
-	small: 'Small',
-	medium: 'Medium',
-	large: 'Large',
-};
+import type { WidgetDefinition, WidgetSpan, WidgetState } from '$contract/widgets';
+import { shownSpan } from './widget-grid';
 
 export const WIDGET_STATE_NAMES: Readonly<Record<WidgetState, string>> = {
 	success: 'Passed',
@@ -46,14 +40,20 @@ export function sourceLine({ source }: WidgetDefinition): string {
 }
 
 export function tileName(widget: WidgetDefinition, span: WidgetSpan, columns: number): string {
-	const preset = presetOf(span, columns);
 	const shown = shownSpan(span, columns);
-	const size = preset === null ? `${shown.columns} by ${shown.rows}` : WIDGET_SIZE_NAMES[preset];
-	return `${widget.title}, ${size}`;
+	return `${widget.title}, ${shown.columns} by ${shown.rows}`;
 }
 
 export function widgetValue(value: number | string): string {
 	return typeof value === 'number' ? NUMBER.format(value) : value;
+}
+
+export type WidgetDelta = Readonly<{ direction: 'up' | 'down' | null; text: string }>;
+
+export function deltaOf(delta: string): WidgetDelta {
+	const sign = delta.match(/^\s*([+\-−])\s*/u);
+	if (sign === null) return { direction: null, text: delta };
+	return { direction: sign[1] === '+' ? 'up' : 'down', text: delta.slice(sign[0].length) };
 }
 
 export function runsLabel(runs: readonly WidgetState[]): string {
