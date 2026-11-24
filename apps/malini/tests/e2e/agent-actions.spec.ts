@@ -246,7 +246,7 @@ test('an agent adds an MCP server once the user always allows it, shows env name
 	}
 });
 
-test('an agent saves a widget with a command source without asking, it lands on the board with its author, and Activity names it', async () => {
+test('an agent saves a widget with an MCP source without asking, it lands on the board with its author, and Activity names it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -258,7 +258,7 @@ test('an agent saves a widget with a command source without asking, it lands on 
 			'Widget chores',
 		);
 		await openWorkstream(page, workstreamId);
-		const source = { command: 'node scripts/rooms.mjs' };
+		const source = { mcp: { server: 'posthog', tool: 'trend', arguments: { days: 7 } } };
 		agentCalls(app, {
 			tool: 'widgets_save',
 			input: {

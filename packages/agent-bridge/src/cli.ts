@@ -13,6 +13,7 @@ import {
 	bridgeMcpServerFrame,
 	bridgeMcpServersFrame,
 	bridgeMcpSwitchedFrame,
+	bridgeMcpToolResultFrame,
 	bridgePlatformRequestFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
@@ -23,6 +24,7 @@ import {
 	type AgentSkill,
 	type AnswerCommand,
 	type BridgeControlFrame,
+	type CallMcpToolCommand,
 	type CancelMcpAuthorizationCommand,
 	type ChooseCommand,
 	type ListSkillsCommand,
@@ -56,7 +58,7 @@ import { SessionManager, UnknownSessionError } from './session-manager.js';
 import { defaultProviderRegistry } from './providers/registry.js';
 import type { ProviderContext, ProviderHandle } from './providers/types.js';
 import { ProviderInteractionError } from './provider-interactions.js';
-import type { AgentEvent, McpServerReport } from './types.js';
+import type { AgentEvent, McpServerReport, McpToolOutcome } from './types.js';
 
 export interface OutputSink {
 	write(chunk: string): boolean;
@@ -211,6 +213,10 @@ function sanitizeControlFrameErrors(frame: BridgeControlFrame): BridgeControlFra
 				servers: frame.servers.map(sanitizeMcpServer),
 				...(frame.error === undefined ? {} : { error: sanitizePublicError(frame.error) }),
 			};
+		case 'bridge.mcp_tool_result':
+			return frame.outcome.kind === 'failed'
+				? { ...frame, outcome: { kind: 'failed', error: sanitizePublicError(frame.outcome.error) } }
+				: frame;
 		default:
 			return frame;
 	}
@@ -318,6 +324,10 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		}
 		if (cmd.cmd === 'cancel_mcp_authorization') {
 			cancelSignIn(cmd);
+			return;
+		}
+		if (cmd.cmd === 'call_mcp_tool') {
+			trackInFlight(answerMcpTool(cmd));
 			return;
 		}
 		switch (cmd.cmd) {
@@ -731,6 +741,14 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `MCP_SERVER_FAILED: ${errorMessage(err)}`));
 		}
+	}
+
+	async function answerMcpTool(cmd: CallMcpToolCommand): Promise<void> {
+		const outcome = await mcpServers
+			.callTool(cmd.cwd, cmd.serverName, cmd.tool, cmd.arguments, cmd.plugins ?? [])
+			.catch((err: unknown): McpToolOutcome => ({ kind: 'failed', error: errorMessage(err) }));
+		emitControl(bridgeMcpToolResultFrame(cmd.id, outcome));
+		emitControl(bridgeCommandAckFrame(cmd.id));
 	}
 
 	function cancelSignIn(cmd: CancelMcpAuthorizationCommand): void {

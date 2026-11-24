@@ -1,4 +1,5 @@
 import { isEventChannel } from '$contract/events';
+import type { McpServerReport } from '$contract/mcp-servers';
 import {
 	PLAN_WIDGET_ID,
 	PLAN_WIDGET_SPAN,
@@ -12,7 +13,6 @@ import {
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
 import { isRecord } from '$main/db/rows';
-import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	getProject,
 	getWorkstream,
@@ -31,9 +31,9 @@ import {
 	readWidgetFiles,
 	widgetPath,
 } from './widget-files';
-import { readWidgetSource, type SourceDeps } from './widget-sources';
+import { readWidgetSource, type McpToolCaller, type SourceDeps } from './widget-sources';
 import {
-	copyWidgetFiles,
+	copyWidgetFile,
 	deleteMine,
 	materializeShared,
 	mineHome,
@@ -65,7 +65,7 @@ export type WidgetsDeps = Readonly<{
 	gh: RepositoriesPlatform['gh'];
 	runner: SourceDeps['runner'];
 	environment: () => Readonly<Record<string, string>>;
-	secrets: Pick<SecretsPlatform, 'valuesReaching'>;
+	mcp: McpToolCaller;
 	log: (line: string) => void;
 	eventDebounceMs?: number;
 	sharedCheckMs?: number;
@@ -184,7 +184,7 @@ export class WidgetBoards {
 			if (this.#widget(opened, widgetId).origin !== 'mine' || home === undefined) {
 				throw new WidgetError('shared-widget', `\`${widgetId}\` is already in this repository.`);
 			}
-			await copyWidgetFiles(home, await created.checkout);
+			await copyWidgetFile(home, widgetId, await created.checkout);
 		} finally {
 			created.cancel();
 		}
@@ -227,6 +227,12 @@ export class WidgetBoards {
 			);
 		}
 		const widget = parseWidgetFile(id, { ...input, author: await this.#login() }, 'mine');
+		if (widget.source.kind === 'command') {
+			throw new WidgetError(
+				'bad-widget',
+				'Widgets read MCP servers, not scripts. Give `source.mcp` with the `server`, `tool` and `arguments` of a read-only tool, or `source.github`.',
+			);
+		}
 		const unknown = unknownChannels(input['refresh'], widget);
 		if (unknown.length > 0) {
 			throw new WidgetError(
@@ -234,7 +240,7 @@ export class WidgetBoards {
 				`\`refresh.on\` names channels Malini does not emit: ${unknown.join(', ')}`,
 			);
 		}
-		await this.#write(() => writeMine(opened.root, widget, opened.checkout));
+		await this.#write(() => writeMine(opened.root, widget));
 		const { db } = this.#context;
 		const placed = listPlacements(db, opened.board);
 		if (!placed.some((placement) => placement.widgetId === id)) {
@@ -284,7 +290,6 @@ export class WidgetBoards {
 		}
 		const own = mine.filter(({ id }) => !sharedIds.has(id));
 		const homes = new Map(own.map(({ id }) => [id, mineHome(root, id)]));
-		if (home !== null) for (const { id } of shared) homes.set(id, home);
 		return {
 			...location,
 			workstreamId,
@@ -312,7 +317,7 @@ export class WidgetBoards {
 		if (missing.size === 0) return false;
 		const files = await readWidgetFiles(checkout, 'mine', () => undefined);
 		const found = files.filter(({ id }) => missing.has(id));
-		for (const widget of found) await this.#write(() => writeMine(root, widget, checkout));
+		for (const widget of found) await this.#write(() => writeMine(root, widget));
 		return found.length > 0;
 	}
 
@@ -449,6 +454,7 @@ export class WidgetBoards {
 			data: stored?.data ?? null,
 			readAt: stored?.readAt ?? null,
 			error: stored?.error ?? null,
+			need: stored?.need ?? null,
 			attemptedAt: stored?.attemptedAt ?? null,
 			reading: this.#reads.has(readKey(board, widget.id)),
 		};
@@ -473,18 +479,19 @@ export class WidgetBoards {
 
 	async #fetch(opened: Opened, widget: WidgetDefinition): Promise<void> {
 		const { db } = this.#context;
-		const place = { checkout: opened.checkout, home: opened.homes.get(widget.id) ?? null };
-		const outcome = await readWidgetSource(widget.source, place, {
-			gh: this.#deps.gh,
-			runner: this.#deps.runner,
-			environment: () => ({
-				...this.#deps.environment(),
-				...this.#deps.secrets.valuesReaching(opened.repository),
-			}),
+		const { gh, runner, environment, mcp } = this.#deps;
+		const outcome = await readWidgetSource(widget.source, opened.checkout, {
+			gh,
+			runner,
+			environment,
+			mcp,
 		});
-		if ('data' in outcome)
+		if ('data' in outcome) {
 			recordRead(db, opened.board, widget.id, widget.fingerprint, outcome.data);
-		else recordFailedRead(db, opened.board, widget.id, widget.fingerprint, outcome.error);
+			return;
+		}
+		if (widget.source.kind === 'command') forgetReading(db, opened.board, widget.id);
+		recordFailedRead(db, opened.board, widget.id, widget.fingerprint, outcome);
 	}
 
 	#emitReading(board: string, widget: WidgetDefinition): WidgetReading {
@@ -516,7 +523,10 @@ export class WidgetBoards {
 			const last = this.#reading(opened.board, widget);
 			const attempted =
 				last.fingerprint === widget.fingerprint ? Date.parse(last.attemptedAt ?? '') : Number.NaN;
-			const fresh = Number.isNaN(attempted) || (moved && widget.origin === 'shared');
+			const fresh =
+				Number.isNaN(attempted) ||
+				(moved && widget.origin === 'shared') ||
+				widget.source.kind === 'command';
 			const due = fresh ? 0 : Math.max(0, attempted + every - Date.now());
 			this.#every(watch, opened, widget, due);
 			for (const channel of widget.refresh.on) {
@@ -525,6 +535,8 @@ export class WidgetBoards {
 					this.#context.events.subscribe(channel, () => this.#soon(watch, opened, widget)),
 				);
 			}
+			if (widget.source.kind === 'mcp')
+				this.#onServerBack(watch, opened, widget, widget.source.server);
 		}
 		const check = setInterval(
 			() => void this.#checkShared(watch, opened).catch(() => undefined),
@@ -553,6 +565,18 @@ export class WidgetBoards {
 		}, due);
 		first.unref();
 		watch.timers.push(first);
+	}
+
+	#onServerBack(watch: Watch, opened: Opened, widget: WidgetDefinition, server: string): void {
+		const back = (servers: readonly McpServerReport[]): void => {
+			if (this.#reading(opened.board, widget).need === null) return;
+			if (!servers.some(({ name, status }) => name === server && status === 'connected')) return;
+			this.#soon(watch, opened, widget);
+		};
+		watch.unsubscribes.push(
+			this.#context.events.subscribe('chat:mcp-server-changed', (changed) => back([changed])),
+			this.#context.events.subscribe('chat:mcp-servers-listed', ({ servers }) => back(servers)),
+		);
 	}
 
 	#soon(watch: Watch, opened: Opened, widget: WidgetDefinition): void {

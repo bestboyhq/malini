@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandName } from '$contract/commands';
-import type { WidgetBoard } from '$contract/widgets';
+import { parseWidgetData, type WidgetBoard } from '$contract/widgets';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { canonicalJson } from '$main/db/rows';
@@ -20,8 +20,9 @@ import {
 	upsertWorkstream,
 } from '$shared/repositories/repositories.platform';
 import { registerWidgets, type WidgetsPlatform } from './register';
+import type { McpToolOutcome } from './widget-sources';
 import { mineHome, storeRoot } from './widget-store';
-import { placeWidget } from './widgets.repository';
+import { placeWidget, recordRead } from './widgets.repository';
 
 const NOW = '2026-11-22T00:00:00.000Z';
 const WORKSTREAM = 'ws-1';
@@ -37,6 +38,11 @@ let widgets: WidgetsPlatform;
 let ghAnswer: (args: readonly string[]) => GhResult;
 const gh = vi.fn(async (args: readonly string[], _options?: { cwd?: string; timeoutMs?: number }) =>
 	ghAnswer(args),
+);
+let mcpAnswer: (server: string) => McpToolOutcome;
+const mcp = vi.fn(
+	async (_cwd: string, server: string, _tool: string, _args: Readonly<Record<string, unknown>>) =>
+		mcpAnswer(server),
 );
 const log = vi.fn((_line: string) => undefined);
 
@@ -64,7 +70,9 @@ beforeEach(() => {
 	});
 	startWorkstream(WORKSTREAM, checkout);
 	ghAnswer = () => ({ stdout: JSON.stringify({ value: 7, caption: 'runs' }), stderr: '', code: 0 });
+	mcpAnswer = () => ({ kind: 'output', text: JSON.stringify({ rooms: 4, region: 'eu' }) });
 	gh.mockClear();
+	mcp.mockClear();
 	log.mockClear();
 	widgets = register();
 });
@@ -116,7 +124,7 @@ function register(deps: Readonly<{ sharedCheckMs?: number }> = {}): WidgetsPlatf
 		gh,
 		runner: createNodeProcessRunner(),
 		environment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin', SHELL: '/bin/sh' }),
-		secrets: { valuesReaching: () => ({ ROOMS_TOKEN: 'sekret' }) },
+		mcp,
 		log,
 		eventDebounceMs: 10,
 		...deps,
@@ -195,14 +203,6 @@ async function order(): Promise<Array<[string, string]>> {
 	]);
 }
 
-function runs(): number {
-	try {
-		return readFileSync(join(checkout, 'runs.log'), 'utf8').split('\n').length - 1;
-	} catch {
-		return 0;
-	}
-}
-
 const DEPLOY = {
 	title: 'Deploy',
 	icon: 'route',
@@ -221,8 +221,8 @@ const DEPLOY_SAVED = {
 const ROOMS = {
 	title: 'Rooms',
 	source: {
-		command:
-			'echo ran >> "$MALINI_CHECKOUT/runs.log"; printf \'{"value": %s, "caption": "%s", "unit": "%s"}\' "$(sh .malini/widgets/rooms.sh)" "$ROOMS_TOKEN" "$(basename "$PWD")"',
+		mcp: { server: 'posthog', tool: 'trend', arguments: { days: 7 } },
+		select: '{value: .rooms, caption: .region}',
 	},
 };
 
@@ -269,30 +269,73 @@ describe('saving a widget', () => {
 		expect((await board()).widgets.find(({ id }) => id === 'deploy-runs')?.title).toBe('Deploys');
 	});
 
-	it('runs a command in its own folder with its helper files, your checkout and your secrets', async () => {
-		checkoutFile('rooms.sh', 'printf 4');
-		const saved = await widgets.save(WORKSTREAM, ROOMS);
-		expect(saved.reading.data).toMatchObject({ value: 4, caption: 'sekret', unit: 'rooms' });
-		expect(runs()).toBe(1);
+	it('calls an MCP tool in your checkout and turns its answer into data with jq', async () => {
+		const source = {
+			...ROOMS.source,
+			mcp: { ...ROOMS.source.mcp, url: 'https://mcp.posthog.com/mcp' },
+		};
+		const saved = await widgets.save(WORKSTREAM, { ...ROOMS, source });
+		expect(saved.reading).toMatchObject({ data: { value: 4, caption: 'eu' }, need: null });
+		expect(saved.widget.source).toMatchObject({ kind: 'mcp', url: 'https://mcp.posthog.com/mcp' });
+		expect(mcp).toHaveBeenCalledWith(checkout, 'posthog', 'trend', { days: 7 });
+		expect(
+			JSON.parse(readFileSync(join(home('rooms'), '.malini/widgets/rooms.json'), 'utf8')),
+		).toMatchObject({ source });
 
-		checkoutFile('rooms.sh', 'printf 5');
-		expect((await widgets.save(WORKSTREAM, { ...ROOMS, id: 'rooms' })).reading.data).toMatchObject({
-			value: 5,
-		});
-		expect(readFileSync(join(home('rooms'), '.malini/widgets/rooms.sh'), 'utf8')).toBe('printf 5');
+		mcpAnswer = () => ({ kind: 'output', text: '{"value": 5}' });
+		const bare = { ...ROOMS, id: 'rooms', source: { mcp: ROOMS.source.mcp } };
+		expect((await widgets.save(WORKSTREAM, bare)).reading.data).toMatchObject({ value: 5 });
+
+		const broken = { ...ROOMS, id: 'rooms', source: { ...ROOMS.source, select: '{value: .[' } };
+		expect((await widgets.save(WORKSTREAM, broken)).reading.error).toMatch(/^jq: /u);
 	});
 
-	it('stops a command that prints too much', async () => {
-		const flood = await widgets.save(WORKSTREAM, {
-			title: 'Flood',
-			source: { command: 'yes | head -c 300000' },
+	it('names what a missing, signed-out or turned-off server needs, and refuses a tool that writes', async () => {
+		const outcomes: ReadonlyArray<[McpToolOutcome, string, string | null]> = [
+			[{ kind: 'missing' }, 'posthog is not one of your MCP servers.', 'add'],
+			[{ kind: 'needs-auth' }, 'posthog needs you to sign in.', 'sign-in'],
+			[{ kind: 'off' }, 'posthog is turned off.', 'turn-on'],
+			[{ kind: 'no-tool' }, 'posthog has no tool `trend`.', null],
+			[{ kind: 'not-read-only' }, '`trend` can change data, so a widget cannot run it.', null],
+			[{ kind: 'failed', error: 'HTTP 502' }, 'HTTP 502', null],
+		];
+		for (const [outcome, error, need] of outcomes) {
+			mcpAnswer = () => outcome;
+			const { reading } = await widgets.save(WORKSTREAM, { ...ROOMS, id: 'rooms' });
+			expect(reading).toMatchObject({ data: null, error, need });
+		}
+		mcpAnswer = () => ({ kind: 'output', text: JSON.stringify({ rooms: 4 }) });
+		expect((await widgets.save(WORKSTREAM, { ...ROOMS, id: 'rooms' })).reading).toMatchObject({
+			error: null,
+			need: null,
 		});
-		expect(flood.reading.error).toBe('The command printed more than 256 KB.');
+	});
+
+	it('refuses a script, and shows a script widget from the default branch as a failed read', async () => {
+		await expect(
+			widgets.save(WORKSTREAM, { title: 'Flood', source: { command: 'yes' } }),
+		).rejects.toThrow('not scripts');
+		publish({ 'rooms.json': { title: 'Rooms', source: { command: 'node rooms.mjs' } } });
+		await place('rooms');
+		const placed = await board();
+		const fingerprint = placed.widgets.find(({ id }) => id === 'rooms')?.fingerprint ?? '';
+		const old = parseWidgetData({ value: 82 });
+		if (old === null) throw new Error('no data');
+		recordRead(context.db, placed.board, 'rooms', fingerprint, old);
+		await watch(true);
+		await vi.waitFor(async () =>
+			expect((await board()).readings[0]).toMatchObject({
+				widgetId: 'rooms',
+				data: null,
+				error: 'Widgets read MCP servers now, not scripts. Ask the agent to move this one.',
+			}),
+		);
+		await watch(false);
 	});
 
 	it('refuses a bad id, a missing title, an unknown channel and an id shared from the default branch', async () => {
 		publish({ 'deploy.json': DEPLOY });
-		const source = { command: 'true' };
+		const { source } = ROOMS;
 		await expect(widgets.save(WORKSTREAM, { id: 'Bad', title: 'Bad', source })).rejects.toThrow(
 			'kebab-case',
 		);
@@ -310,7 +353,7 @@ describe('saving a widget', () => {
 			['plan', 'plan'],
 			['deploy', 'shared'],
 		]);
-		expect(runs()).toBe(0);
+		expect(mcp).not.toHaveBeenCalled();
 	});
 });
 
@@ -391,7 +434,6 @@ describe('the board', () => {
 
 	it('places, moves and resizes widgets, and refuses bad arguments', async () => {
 		publish({ 'deploy.json': DEPLOY });
-		checkoutFile('rooms.sh', 'printf 1');
 		await widgets.save(WORKSTREAM, ROOMS);
 		await place('deploy', 0);
 		expect(await order()).toEqual([
@@ -455,7 +497,6 @@ describe('the board', () => {
 
 	it('takes a shared widget off the board, and deletes your own with its reading', async () => {
 		publish({ 'deploy.json': DEPLOY });
-		checkoutFile('rooms.sh', 'printf 1');
 		await widgets.save(WORKSTREAM, ROOMS);
 		await place('deploy');
 
@@ -492,7 +533,6 @@ describe('the board', () => {
 	it('updates a shared widget for everyone once the default branch changes', async () => {
 		restart('szymeo', { sharedCheckMs: 20 });
 		publish({ 'deploy.json': DEPLOY });
-		checkoutFile('rooms.sh', 'printf 1');
 		await widgets.save(WORKSTREAM, ROOMS);
 		await place('deploy');
 		const changed = vi.fn();
@@ -500,7 +540,11 @@ describe('the board', () => {
 		await watch(true);
 		await vi.waitFor(() => expect(gh).toHaveBeenCalledTimes(1), SLOW);
 
-		const rooms = { ...ROOMS, title: 'Rooms on main' };
+		const rooms = {
+			...ROOMS,
+			title: 'Rooms on main',
+			source: { ...ROOMS.source, select: '{value: 9}' },
+		};
 		publish({
 			'deploy.json': {
 				...DEPLOY,
@@ -508,7 +552,6 @@ describe('the board', () => {
 				source: { ...DEPLOY.source, select: '{value: 2}' },
 			},
 			'rooms.json': rooms,
-			'rooms.sh': 'printf 9',
 		});
 		await vi.waitFor(() => expect(changed).toHaveBeenCalledWith({ board: BOARD }), SLOW);
 		await vi.waitFor(() => expect(gh).toHaveBeenCalledTimes(2), SLOW);
@@ -540,8 +583,7 @@ describe('the board', () => {
 });
 
 describe('making a widget a default', () => {
-	it('copies your widget and its helpers into the new workstream once it starts', async () => {
-		checkoutFile('rooms.sh', 'printf 1');
+	it('copies your widget into the new workstream once it starts', async () => {
 		await widgets.save(WORKSTREAM, ROOMS);
 		const second = repository('second');
 
@@ -563,11 +605,11 @@ describe('making a widget a default', () => {
 		});
 		await shared;
 
-		expect(readFileSync(join(second, '.malini/widgets/rooms.sh'), 'utf8')).toBe('printf 1');
 		expect(
 			JSON.parse(readFileSync(join(second, '.malini/widgets/rooms.json'), 'utf8')),
 		).toMatchObject({
 			title: 'Rooms',
+			source: ROOMS.source,
 			author: 'szymeo',
 		});
 	});
@@ -644,6 +686,33 @@ describe('watching', () => {
 		context.events.emit('repositories:changed', {});
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(paths()).toHaveLength(2);
+	});
+
+	it('reads an MCP widget again once the server it needs connects', async () => {
+		mcpAnswer = () => ({ kind: 'needs-auth' });
+		await widgets.save(WORKSTREAM, ROOMS);
+		await watch(true);
+		const connected = (name: string) =>
+			context.events.emit('chat:mcp-server-changed', { name, status: 'connected' });
+
+		connected('logdash');
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(mcp).toHaveBeenCalledTimes(1);
+
+		mcpAnswer = () => ({ kind: 'output', text: JSON.stringify({ rooms: 6 }) });
+		connected('posthog');
+		await vi.waitFor(async () =>
+			expect((await board()).readings[0]).toMatchObject({ data: { value: 6 }, need: null }),
+		);
+		connected('posthog');
+		context.events.emit('chat:mcp-servers-listed', {
+			workstreamId: WORKSTREAM,
+			servers: [{ name: 'posthog', status: 'connected' }],
+			settled: true,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(mcp).toHaveBeenCalledTimes(2);
+		await watch(false);
 	});
 
 	it('answers a workstream that is gone as expected, and watches it without a log line', async () => {

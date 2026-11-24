@@ -21,7 +21,7 @@ import {
 import type { AgentQuestionAnswer, ApprovalDecision, ApprovalScope } from './interaction-types.js';
 import type { SandboxGrant } from './sandbox.js';
 import { isOneOf, isRecord } from './type-guards.js';
-import type { McpServerListing, McpServerReport } from './types.js';
+import type { McpServerListing, McpServerReport, McpToolOutcome } from './types.js';
 
 export type AgentCommand =
 	| StartSessionCommand
@@ -36,6 +36,7 @@ export type AgentCommand =
 	| WatchMcpServersCommand
 	| SwitchMcpServerCommand
 	| CancelMcpAuthorizationCommand
+	| CallMcpToolCommand
 	| StopTaskCommand
 	| SuggestTitleCommand
 	| ChooseCommand
@@ -185,6 +186,16 @@ export interface CancelMcpAuthorizationCommand {
 	readonly cmd: 'cancel_mcp_authorization';
 	readonly id: string;
 	readonly serverName: string;
+}
+
+export interface CallMcpToolCommand {
+	readonly cmd: 'call_mcp_tool';
+	readonly id: string;
+	readonly cwd: string;
+	readonly serverName: string;
+	readonly tool: string;
+	readonly arguments: Readonly<Record<string, unknown>>;
+	readonly plugins?: readonly string[];
 }
 
 export interface StopTaskCommand {
@@ -468,6 +479,13 @@ export interface BridgeMcpSwitchedFrame {
 	readonly folders: readonly string[];
 }
 
+export interface BridgeMcpToolResultFrame {
+	readonly type: 'bridge.mcp_tool_result';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly outcome: McpToolOutcome;
+}
+
 export interface BridgeMcpServerFrame {
 	readonly type: 'bridge.mcp_server';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -509,6 +527,7 @@ export type BridgeControlFrame =
 	| BridgeMcpServersFrame
 	| BridgeMcpServerFrame
 	| BridgeMcpSwitchedFrame
+	| BridgeMcpToolResultFrame
 	| BridgeBrowserRequestFrame
 	| BridgePlatformRequestFrame
 	| BridgeHistoryRequestFrame;
@@ -588,6 +607,13 @@ export function bridgeMcpSwitchedFrame(
 	folders: readonly string[],
 ): BridgeMcpSwitchedFrame {
 	return { type: 'bridge.mcp_switched', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, folders };
+}
+
+export function bridgeMcpToolResultFrame(
+	id: string,
+	outcome: McpToolOutcome,
+): BridgeMcpToolResultFrame {
+	return { type: 'bridge.mcp_tool_result', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, outcome };
 }
 
 export function bridgeMcpServerFrame(server: McpServerReport): BridgeMcpServerFrame {
@@ -731,6 +757,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateSwitchMcpServer(obj);
 		case 'cancel_mcp_authorization':
 			return validateCancelMcpAuthorization(obj);
+		case 'call_mcp_tool':
+			return validateCallMcpTool(obj);
 		case 'stop_task':
 			return validateStopTask(obj);
 		case 'suggest_title':
@@ -1367,6 +1395,39 @@ function validateCancelMcpAuthorization(obj: Record<string, unknown>): ParseResu
 		);
 	}
 	return { ok: true, command: { cmd: 'cancel_mcp_authorization', id: id.value, serverName } };
+}
+
+function validateCallMcpTool(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'call_mcp_tool');
+	if (!id.ok) return id;
+	const { cwd, serverName, tool, arguments: args, plugins } = obj;
+	if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
+		return err('INVALID_PAYLOAD', 'call_mcp_tool: cwd required (absolute path)', obj);
+	}
+	if (typeof serverName !== 'string' || serverName.length === 0) {
+		return err('INVALID_PAYLOAD', 'call_mcp_tool: serverName required (non-empty string)', obj);
+	}
+	if (typeof tool !== 'string' || tool.length === 0) {
+		return err('INVALID_PAYLOAD', 'call_mcp_tool: tool required (non-empty string)', obj);
+	}
+	if (!isRecord(args)) {
+		return err('INVALID_PAYLOAD', 'call_mcp_tool: arguments required (an object)', obj);
+	}
+	if (plugins !== undefined && !isPluginList(plugins)) {
+		return err('INVALID_PAYLOAD', `call_mcp_tool: ${PLUGINS_SHAPE}`, obj);
+	}
+	return {
+		ok: true,
+		command: {
+			cmd: 'call_mcp_tool',
+			id: id.value,
+			cwd,
+			serverName,
+			tool,
+			arguments: args,
+			...(plugins !== undefined ? { plugins } : {}),
+		},
+	};
 }
 
 function validateStopTask(obj: Record<string, unknown>): ParseResult {

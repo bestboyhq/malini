@@ -142,7 +142,7 @@ export async function registerModules(
 		gh: repositories.gh,
 		runner: processRunner,
 		environment: () => buildSpawnEnvironment(),
-		secrets,
+		mcp: (cwd, server, tool, args) => chat.callMcpTool(cwd, server, tool, args),
 		log,
 	});
 

@@ -2118,6 +2118,9 @@ ALTER TABLE initiatives ADD COLUMN done INTEGER NOT NULL DEFAULT 0 CHECK (done I
 DROP TABLE widget_hidden;
 ALTER TABLE widget_placements DROP COLUMN approved_fingerprint;
 `,
+	`
+ALTER TABLE widget_readings ADD COLUMN need TEXT CHECK (need IN ('add', 'sign-in', 'turn-on'));
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -287,7 +287,7 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 		),
 		tool(
 			'widgets_save',
-			'Save a widget: a tile on the user\'s widget board that keeps numbers in view, such as deploys, open pull requests or test coverage. Use it whenever the user asks for a widget or for numbers to keep an eye on, never an HTML page: a widget names where its data comes from, and Malini draws it. Malini keeps it in the user\'s own widgets, not in this worktree, puts it first on their board at two columns by one row and reads it at once; the user drags and resizes it there. Its source prints WidgetData JSON, and Malini picks the drawing from its fields: `value` with `unit`, `caption` and `delta` is a big number, `percent` a ring, `state` and `history` a status mark and a run strip, `rows` bars or a list, and `chart` a line or bar chart, `{"kind": "line" or "bar", "labels": [...], "series": [{"label": ..., "values": [...]}]}` with at most 3 series of 120 points. A trend gets a `chart` with the latest `value` beside it; a number that only matters now gets `value` alone. A `github` source is a `gh api` GET path with an optional jq `select`. A `command` source runs in the widget\'s own folder with the repository\'s secrets in its environment and `$MALINI_CHECKOUT` set to this checkout, so it reads repository files through `$MALINI_CHECKOUT`. Put a helper script in `.malini/widgets/` of this checkout and run it as `node .malini/widgets/<file>`: Malini copies it when you save, so save again after you change it. An id the repository shares from its default branch is refused: change that file in this checkout and open a pull request instead. The user makes a widget a default for the repository from its menu. It needs no approval. Returns the saved widget and its first reading.',
+			'Save a widget: a tile on the user\'s widget board that keeps numbers in view, such as deploys, open pull requests or test coverage. Use it whenever the user asks for a widget or for numbers to keep an eye on, never an HTML page: a widget names where its data comes from, and Malini draws it. Malini keeps it in the user\'s own widgets, not in this worktree, puts it first on their board at two columns by one row and reads it at once; the user drags and resizes it there. Its source prints WidgetData JSON, and Malini picks the drawing from its fields: `value` with `unit`, `caption` and `delta` is a big number, `percent` a ring, `state` and `history` a status mark and a run strip, `rows` bars or a list, and `chart` a line or bar chart, `{"kind": "line" or "bar", "labels": [...], "series": [{"label": ..., "values": [...]}]}` with at most 3 series of 120 points. A trend gets a `chart` with the latest `value` beside it; a number that only matters now gets `value` alone. An `mcp` source calls a read-only tool of one of the user\'s MCP servers with fixed `arguments`, the way you call it, and its optional jq `select` turns the tool\'s answer into WidgetData; call the tool once yourself first to see that answer. A tool that can change data is refused. A server the user lacks, or must sign in to, shows on the tile with a button for it, so a teammate gets the same server in one click; give the `url` of a remote server for that. A `github` source is a `gh api` GET path with an optional jq `select`. Widgets run no scripts. An id the repository shares from its default branch is refused: change that file in this checkout and open a pull request instead. The user makes a widget a default for the repository from its menu. It needs no approval. Returns the saved widget and its first reading.',
 			{
 				id: z
 					.string()
@@ -314,6 +314,39 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 				source: z
 					.union([
 						z.strictObject({
+							mcp: z
+								.strictObject({
+									server: z
+										.string()
+										.min(1)
+										.max(100)
+										.describe('The MCP server, as /mcp lists it, for example logdash'),
+									tool: z
+										.string()
+										.regex(/^[A-Za-z0-9_.-]{1,128}$/u)
+										.describe(
+											'A read-only tool of that server, without the mcp__ prefix, for example trend',
+										),
+									arguments: z
+										.record(z.string(), z.unknown())
+										.describe('The arguments the tool gets on every read'),
+									url: z
+										.url()
+										.optional()
+										.describe(
+											"The remote server's URL, so a teammate who lacks the server can add it from the tile",
+										),
+								})
+								.describe('The tool that gives the data'),
+							select: z
+								.string()
+								.min(1)
+								.optional()
+								.describe(
+									"A jq expression, as `jq -c` takes it, that turns the tool's answer into WidgetData",
+								),
+						}),
+						z.strictObject({
 							github: z
 								.string()
 								.min(1)
@@ -328,16 +361,10 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 									'A jq expression, as `gh api --jq` takes it, that turns the response into WidgetData',
 								),
 						}),
-						z.strictObject({
-							command: z
-								.string()
-								.min(1)
-								.describe(
-									"A shell command that prints WidgetData JSON, run in the widget's own folder, for example node .malini/widgets/rooms.mjs",
-								),
-						}),
 					])
-					.describe('Where the data comes from: `github` with `select`, or `command`'),
+					.describe(
+						'Where the data comes from: an `mcp` tool or a `github` path, each with `select`',
+					),
 				refresh: z
 					.object({
 						every: z

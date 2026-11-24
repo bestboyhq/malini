@@ -43,7 +43,17 @@ async function centre(locator: Locator): Promise<{ x: number; y: number }> {
 
 test('shared widgets wait under the board, Add puts one first, drag and Alt+Arrow move it, the corner resizes it, Remove puts it back, and a change on main reaches it', async () => {
 	test.setTimeout(150_000);
-	const app = await launchMalini({ env: { MALINI_WIDGETS_CHECK_MS: '1000' } });
+	const app = await launchMalini({
+		env: {
+			MALINI_WIDGETS_CHECK_MS: '1000',
+			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify([
+				{ name: 'calendar', status: 'connected', source: 'user', toolCount: 1 },
+			]),
+			FAKE_BRIDGE_MCP_TOOLS: JSON.stringify({
+				calendar: [{ name: 'countdown', readOnly: true, output: '{"days":12}' }],
+			}),
+		},
+	});
 	try {
 		const source = join(app.root, 'hutch');
 		writeWidget(source, 'reviews', {
@@ -55,7 +65,10 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 		writeWidget(source, 'launch', {
 			title: 'Launch',
 			icon: 'checklist',
-			source: { command: `printf '{"value":12,"unit":"days"}'` },
+			source: {
+				mcp: { server: 'calendar', tool: 'countdown', arguments: { event: 'launch' } },
+				select: '{value: .days, unit: "days"}',
+			},
 		});
 		let basePath = '';
 		const { page, github } = await seedWorkstreamOnFakeGithub(

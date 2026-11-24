@@ -34,8 +34,20 @@ export const WIDGET_HISTORY_MAX = 30;
 
 export type WidgetSource =
 	| Readonly<{ kind: 'github'; path: string; select: string | null }>
+	| Readonly<{
+			kind: 'mcp';
+			server: string;
+			tool: string;
+			arguments: Readonly<Record<string, unknown>>;
+			select: string | null;
+			url: string | null;
+	  }>
 	| Readonly<{ kind: 'command'; run: string }>
 	| Readonly<{ kind: 'plan' }>;
+
+export const WIDGET_NEEDS = ['add', 'sign-in', 'turn-on'] as const;
+
+export type WidgetNeed = (typeof WIDGET_NEEDS)[number];
 
 export type WidgetRefresh = Readonly<{ everySeconds: number; on: readonly string[] }>;
 
@@ -100,6 +112,7 @@ export type WidgetReading = Readonly<{
 	data: WidgetData | null;
 	readAt: string | null;
 	error: string | null;
+	need: WidgetNeed | null;
 	attemptedAt: string | null;
 	reading: boolean;
 }>;

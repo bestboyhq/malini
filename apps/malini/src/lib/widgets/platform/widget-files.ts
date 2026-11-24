@@ -46,6 +46,9 @@ const WIDGET_ID_MAX_LENGTH = 64;
 const DERIVED_ID_MAX_LENGTH = 48;
 const TITLE_MAX_LENGTH = 80;
 const SOURCE_MAX_LENGTH = 2_000;
+const MCP_NAME_MAX_LENGTH = 100;
+const MCP_TOOL = /^[A-Za-z0-9_.-]{1,128}$/u;
+const ARGUMENTS_MAX_LENGTH = 16 * 1024;
 const FILE_MAX_BYTES = 64 * 1024;
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u;
 const LINE_BREAK = /[\n\r\u2028\u2029]/u;
@@ -170,17 +173,24 @@ function widgetFileText(widget: WidgetDefinition): string {
 		title: widget.title,
 		...(widget.icon === null ? {} : { icon: widget.icon }),
 		scope: widget.scope,
-		source:
-			source.kind === 'github'
-				? { github: source.path, ...(source.select === null ? {} : { select: source.select }) }
-				: source.kind === 'command'
-					? { command: source.run }
-					: {},
+		source: sourceFile(source),
 		refresh: { every: widget.refresh.everySeconds, on: widget.refresh.on },
 		...(widget.url === null ? {} : { url: widget.url }),
 		...(widget.author === null ? {} : { author: widget.author }),
 	};
 	return `${JSON.stringify(file, null, '\t')}\n`;
+}
+
+function sourceFile(source: WidgetSource): Readonly<Record<string, unknown>> {
+	const select = 'select' in source && source.select !== null ? { select: source.select } : {};
+	if (source.kind === 'github') return { github: source.path, ...select };
+	if (source.kind === 'command') return { command: source.run };
+	if (source.kind === 'plan') return {};
+	const { server, tool, url } = source;
+	return {
+		mcp: { server, tool, arguments: source.arguments, ...(url === null ? {} : { url }) },
+		...select,
+	};
 }
 
 async function readJson(home: string, path: string): Promise<unknown> {
@@ -195,19 +205,38 @@ async function readJson(home: string, path: string): Promise<unknown> {
 }
 
 function widgetSource(value: unknown): WidgetSource {
-	if (!isRecord(value)) throw bad('`source` must be an object with `github` or `command`');
-	const { github, command, select } = value;
-	if (github !== undefined && command !== undefined) {
-		throw bad('`source` names `github` or `command`, not both');
+	if (!isRecord(value)) throw bad('`source` must be an object with `mcp` or `github`');
+	const { github, mcp, command, select } = value;
+	if ([github, mcp, command].filter((each) => each !== undefined).length > 1) {
+		throw bad('`source` names one of `mcp` or `github`');
 	}
+	if (mcp !== undefined) return { ...mcpTool(mcp), select: optional(select, jq) };
 	if (github !== undefined) {
 		return { kind: 'github', path: githubPath(github), select: optional(select, jq) };
 	}
-	if (select !== undefined) throw bad('`source.select` goes with a `github` source');
-	if (typeof command !== 'string' || command.trim() === '' || command.length > SOURCE_MAX_LENGTH) {
-		throw bad('`source` must name a `github` API path or a shell `command`');
+	if (typeof command === 'string' && command.trim() !== '') {
+		return { kind: 'command', run: command.trim().slice(0, SOURCE_MAX_LENGTH) };
 	}
-	return { kind: 'command', run: command.trim() };
+	throw bad('`source` must name an `mcp` tool or a `github` API path');
+}
+
+function mcpTool(value: unknown): Omit<Extract<WidgetSource, { kind: 'mcp' }>, 'select'> {
+	if (!isRecord(value)) {
+		throw bad('`source.mcp` must be an object with `server`, `tool` and `arguments`');
+	}
+	const server = typeof value['server'] === 'string' ? value['server'].trim() : '';
+	if (server === '' || server.length > MCP_NAME_MAX_LENGTH || LINE_BREAK.test(server)) {
+		throw bad('`source.mcp.server` must be the name of one of your MCP servers');
+	}
+	const tool = value['tool'];
+	if (typeof tool !== 'string' || !MCP_TOOL.test(tool)) {
+		throw bad("`source.mcp.tool` must be the name of one of that server's tools");
+	}
+	const args = value['arguments'] ?? {};
+	if (!isRecord(args) || JSON.stringify(args).length > ARGUMENTS_MAX_LENGTH) {
+		throw bad("`source.mcp.arguments` must be an object of the tool's arguments, under 16 KB");
+	}
+	return { kind: 'mcp', server, tool, arguments: args, url: optional(value['url'], webUrl) };
 }
 
 function githubPath(value: unknown): string {

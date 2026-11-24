@@ -146,9 +146,9 @@ The agent makes a [widget](/malini/docs/widgets.md) for your board when you ask 
 | -------------- | -------------------------------------------------------------------------------------------------------- |
 | `widgets_save` | Saves a widget in your own widgets, puts it first on your board, two cells by one, and reads it at once. |
 
-- The widget names a `github` source, a `gh api` path with an optional jq `select`, or a `command` that prints JSON.
-- A `command` runs in the widget's own folder, with the repository's secrets and `$MALINI_CHECKOUT` set to the checkout.
-  A helper script in the checkout's `.malini/widgets/` is copied in when the agent saves.
+- The widget names an `mcp` source, a read-only tool of one of your MCP servers with its `arguments`, or a `github` source, a `gh api` path, each with an optional jq `select`.
+- A tool that can change data is refused, and so is a `command`: widgets run no scripts.
+- The agent calls the tool once itself first, so its `select` fits the answer.
 - The agent gets back the widget and its first reading.
 - An id the repository already shares from its default branch is refused, since that widget changes through a pull request.
 - The chat shows the widget as a card with the live tile, **On your board** and **Remove**.

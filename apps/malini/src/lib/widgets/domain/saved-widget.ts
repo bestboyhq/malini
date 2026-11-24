@@ -1,5 +1,6 @@
 import {
 	parseWidgetData,
+	WIDGET_NEEDS,
 	type WidgetDefinition,
 	type WidgetReading,
 	type WidgetSource,
@@ -51,9 +52,19 @@ function sourceOf(value: unknown): WidgetSource | null {
 	if (!isFields(value)) return null;
 	const path = text(value['github']) ?? (value['kind'] === 'github' ? text(value['path']) : null);
 	if (path !== null) return { kind: 'github', path, select: text(value['select']) };
+	const mcp = mcpOf(isFields(value['mcp']) ? value['mcp'] : value);
+	if (mcp !== null) return { ...mcp, select: text(value['select']) };
 	const run = text(value['command']) ?? (value['kind'] === 'command' ? text(value['run']) : null);
 	if (run !== null) return { kind: 'command', run };
 	return value['kind'] === 'plan' ? { kind: 'plan' } : null;
+}
+
+function mcpOf(value: Fields): Omit<Extract<WidgetSource, { kind: 'mcp' }>, 'select'> | null {
+	const server = text(value['server']);
+	const tool = text(value['tool']);
+	if (server === null || tool === null) return null;
+	const args = isFields(value['arguments']) ? value['arguments'] : {};
+	return { kind: 'mcp', server, tool, arguments: args, url: text(value['url']) };
 }
 
 function readingOf(value: unknown, widgetId: string): WidgetReading | null {
@@ -65,6 +76,7 @@ function readingOf(value: unknown, widgetId: string): WidgetReading | null {
 		data: parseWidgetData(value['data']),
 		readAt: text(value['readAt']),
 		error: text(value['error']),
+		need: WIDGET_NEEDS.find((need) => need === value['need']) ?? null,
 		attemptedAt: text(value['attemptedAt']),
 		reading: value['reading'] === true,
 	};
