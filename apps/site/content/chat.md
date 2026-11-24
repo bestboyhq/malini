@@ -35,6 +35,7 @@ Each is a [workstream](/malini/docs/workstreams.md) with one repository and one 
 - Steering or stopping keeps what the agent already wrote, marked **Run cancelled**.
 
 A run stays open while its background commands and subagents run, and you can stop each one.
+A background command runs as long as the agent's timeout for it, at most 12 hours, so a dev server lasts the working day; then Claude Code stops it and tells the agent.
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 A turn that ends with its report while only background commands run, such as a dev server, shows that report at once and ships its commit.
 Its chat, tab, top bar and sidebar row then read as done, not running, while the commands go on.
