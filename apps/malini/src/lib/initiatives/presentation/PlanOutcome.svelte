@@ -7,17 +7,17 @@
 	import { addInitiativeDependencyCommand } from '$lib/initiatives/application/commands/add-initiative-dependency.command';
 	import { updateInitiativeCommand } from '$lib/initiatives/application/commands/update-initiative.command';
 	import {
-		initiativeProgress,
+		initiativeFinished,
 		type Initiative,
 		type InitiativeDependency,
 		type StandingOf,
 	} from '$lib/initiatives/domain/initiative';
 	import { dueLabel, servesWorkstream } from '$lib/initiatives/domain/plan';
+	import OutcomeCheck from './OutcomeCheck.svelte';
 	import PlanDependency from './PlanDependency.svelte';
-	import ProgressRing from './ProgressRing.svelte';
 	import QuietField from './QuietField.svelte';
 	import TitleEditor from './TitleEditor.svelte';
-	import { caretAt } from './title-caret';
+	import { caretAt, stepTitle } from './title-caret';
 
 	interface Props {
 		initiative: Initiative;
@@ -47,12 +47,8 @@
 	let caret: number | null = $state(null);
 	let regrab: boolean = $state(false);
 
-	const progress = $derived(initiativeProgress(initiative, standingOf));
-	const finished = $derived(progress.total > 0 && progress.done === progress.total);
+	const finished = $derived(initiativeFinished(initiative, standingOf));
 	const due = $derived(dueLabel(initiative.dueOn, today, finished));
-	const hint = $derived(
-		progress.total > 0 ? `${progress.done} of ${progress.total} done` : 'No dependencies yet',
-	);
 
 	function grab(title: HTMLElement): void {
 		title.focus();
@@ -75,9 +71,7 @@
 	role="group"
 	aria-label={initiative.title}
 >
-	<Tooltip content={hint} placement="top" class="flex shrink-0">
-		<ProgressRing done={progress.done} total={progress.total} size={14} />
-	</Tooltip>
+	<OutcomeCheck {initiative} {standingOf} size={14} class="-m-[3px]" />
 	{#if renaming}
 		<TitleEditor
 			title={initiative.title}
@@ -92,8 +86,13 @@
 		<Button
 			bare
 			ariaLabel={`Rename ${initiative.title}`}
-			class="focus-visible:ring-border-default/50 text-fg-default flex min-w-0 cursor-text items-center rounded-sm text-left font-medium outline-none focus-visible:ring-2"
+			class={[
+				'focus-visible:ring-border-default/50 flex min-w-0 cursor-text items-center rounded-sm text-left font-medium outline-none focus-visible:ring-2',
+				finished ? 'text-fg-quaternary line-through' : 'text-fg-default',
+			]}
+			data-plan-title=""
 			onclick={(event) => rename(caretAt(event, initiative.title))}
+			onkeydown={stepTitle}
 			{@attach regrab ? grab : null}
 		>
 			<span class="min-w-0 truncate"><SensitiveText text={initiative.title} /></span>
@@ -125,25 +124,27 @@
 						<Icon name="plus" size={12} />
 					</IconButton>
 				</Tooltip>
-				<Tooltip content={open ? 'Hide dependencies' : 'Show dependencies'} placement="top">
-					<IconButton
-						variant="ghost"
-						size="xs"
-						ariaLabel={`Dependencies of ${initiative.title}`}
-						ariaExpanded={open}
-						class="text-fg-tertiary"
-						onclick={ontoggle}
-					>
-						<Icon
-							name="chevron-down"
-							size={12}
-							class={[
-								'transition-transform duration-150 motion-reduce:transition-none',
-								!open && '-rotate-90',
-							]}
-						/>
-					</IconButton>
-				</Tooltip>
+				{#if initiative.dependencies.length > 0}
+					<Tooltip content={open ? 'Hide dependencies' : 'Show dependencies'} placement="top">
+						<IconButton
+							variant="ghost"
+							size="xs"
+							ariaLabel={`Dependencies of ${initiative.title}`}
+							ariaExpanded={open}
+							class="text-fg-tertiary"
+							onclick={ontoggle}
+						>
+							<Icon
+								name="chevron-down"
+								size={12}
+								class={[
+									'transition-transform duration-150 motion-reduce:transition-none',
+									!open && '-rotate-90',
+								]}
+							/>
+						</IconButton>
+					</Tooltip>
+				{/if}
 			</span>
 		</span>
 	{/if}
@@ -169,6 +170,7 @@
 				onblur={(text) => {
 					if (text.trim() === '') onadding(false);
 				}}
+				onescape={() => (regrab = true)}
 				onsubmit={(title) => {
 					addInitiativeDependencyCommand(initiative.id, title);
 					return true;

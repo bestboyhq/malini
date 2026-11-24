@@ -1,7 +1,5 @@
 import {
-	isWidgetSize,
 	parseWidgetData,
-	type WidgetData,
 	type WidgetDefinition,
 	type WidgetReading,
 	type WidgetSource,
@@ -10,9 +8,6 @@ import {
 export type SavedWidget = Readonly<{
 	widget: WidgetDefinition | null;
 	reading: WidgetReading | null;
-	sample: WidgetData | null;
-	path: string | null;
-	note: string | null;
 }>;
 
 type Fields = Readonly<Record<string, unknown>>;
@@ -25,9 +20,6 @@ export function savedWidget(input: Fields, output: string | null): SavedWidget {
 	return {
 		widget,
 		reading: widget === null ? null : readingOf(result['reading'], widget.id),
-		sample: parseWidgetData(input['sample']),
-		path: text(result['path']),
-		note: text(result['note']),
 	};
 }
 
@@ -48,11 +40,10 @@ function definitionOf(value: unknown): WidgetDefinition | null {
 				count(refresh['everySeconds']) ?? count(refresh['every']) ?? DEFAULT_EVERY_SECONDS,
 			on: Array.isArray(refresh['on']) ? refresh['on'].filter(isText) : [],
 		},
-		size: isWidgetSize(value['size']) ? value['size'] : 'medium',
 		url: text(value['url']),
 		author: text(value['author']),
 		fingerprint: text(value['fingerprint']) ?? '',
-		path: text(value['path']),
+		origin: value['origin'] === 'shared' ? 'shared' : 'mine',
 	};
 }
 

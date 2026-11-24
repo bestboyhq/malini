@@ -77,10 +77,7 @@
 	}
 
 	async function name(title: string): Promise<boolean> {
-		const id = await createInitiativeCommand(repository.fullName, title, null);
-		if (id === null) return false;
-		adding = id;
-		return true;
+		return (await createInitiativeCommand(repository.fullName, title, null)) !== null;
 	}
 </script>
 
@@ -139,7 +136,12 @@
 					<SensitiveText text={next.title} />
 				</span>
 				<span class="text-3xs text-fg-tertiary mt-2 flex items-center gap-1.5">
-					<ProgressRing done={progress.done} total={progress.total} size={12} />
+					<ProgressRing
+						done={progress.done}
+						total={progress.total}
+						finished={initiativeFinished(next, standingOf)}
+						size={12}
+					/>
 					{progress.total > 0 ? `${progress.done} of ${progress.total}` : 'No dependencies'}
 				</span>
 			{:else}
@@ -156,7 +158,12 @@
 				{@const progress = initiativeProgress(initiative, standingOf)}
 				{@const due = dueLabel(initiative.dueOn, today, false)}
 				<span class="flex h-7 w-full items-center gap-2 px-2 text-xs">
-					<ProgressRing done={progress.done} total={progress.total} size={14} />
+					<ProgressRing
+						done={progress.done}
+						total={progress.total}
+						finished={initiativeFinished(initiative, standingOf)}
+						size={14}
+					/>
 					<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
 						<SensitiveText text={initiative.title} />
 					</span>

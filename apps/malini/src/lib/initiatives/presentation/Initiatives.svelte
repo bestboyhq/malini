@@ -36,7 +36,7 @@
 
 	let { repository, standingOf, selected, onselect, onstart }: Props = $props();
 
-	type FocusRequest = Readonly<{ id: string; dueOn: string | null; target: 'row' | 'field' }>;
+	type FocusRequest = Readonly<{ id: string; dueOn: string | null }>;
 
 	const SECTION_LABEL =
 		'text-3xs text-fg-quaternary border-surface-50-border mt-3.5 border-t-[0.5px] pt-4 pb-2 font-medium tracking-wider uppercase first:mt-0 first:border-t-0 first:pt-0';
@@ -47,6 +47,7 @@
 
 	let today: string = $state(localDay(new Date()));
 	let focus: FocusRequest | null = $state(null);
+	let adding: string | null = $state(null);
 	let dragged: string | null = $state(null);
 	const folded = new SvelteSet<string>();
 
@@ -88,7 +89,7 @@
 
 	function move(initiative: Initiative, days: -1 | 1): void {
 		const dueOn = initiative.dueOn === null ? today : addDays(initiative.dueOn, days);
-		focus = { id: initiative.id, dueOn, target: 'row' };
+		focus = { id: initiative.id, dueOn };
 		updateInitiativeCommand(initiative.id, { dueOn });
 	}
 
@@ -101,15 +102,11 @@
 	}
 
 	async function name(dueOn: string | null, title: string): Promise<boolean> {
-		const id = await createInitiativeCommand(repository.fullName, title, dueOn);
-		if (id === null) return false;
-		focus = { id, dueOn, target: 'field' };
-		return true;
+		return (await createInitiativeCommand(repository.fullName, title, dueOn)) !== null;
 	}
 
-	function focusOf(initiative: Initiative): FocusRequest['target'] | null {
-		if (focus?.id !== initiative.id || focus.dueOn !== initiative.dueOn) return null;
-		return focus.target;
+	function focused(initiative: Initiative): boolean {
+		return focus?.id === initiative.id && focus.dueOn === initiative.dueOn;
 	}
 </script>
 
@@ -123,7 +120,7 @@
 		open={!folded.has(initiative.id)}
 		{selected}
 		{onselect}
-		focus={focusOf(initiative)}
+		focused={focused(initiative)}
 		ontoggle={() => toggle(initiative.id)}
 		onmove={(days) => move(initiative, days)}
 		ondragstart={() => (dragged = initiative.id)}
@@ -183,18 +180,30 @@
 				<h2 class={SECTION_LABEL}>{label}</h2>
 			{/if}
 			{#each week.days as day (day)}
-				<RailDay {day} {today} dragging={dragged !== null} ondrop={() => dropOn(day)}>
-					{#each initiativesOn(initiatives, day) as initiative (initiative.id)}
+				<RailDay
+					{day}
+					{today}
+					dragging={dragged !== null}
+					ondrop={() => dropOn(day)}
+					onadd={() => (adding = day)}
+				>
+					{@const outcomes = initiativesOn(initiatives, day)}
+					{#each outcomes as initiative (initiative.id)}
 						{@render item(initiative)}
-					{:else}
+					{/each}
+					{#if outcomes.length === 0 || adding === day}
 						<QuietField
 							label={`Name an outcome on ${dayName(day)}`}
 							placeholder="Name an outcome"
-							shown={initiatives.length === 0 && day === today}
+							shown={(initiatives.length === 0 && day === today) || adding === day}
+							focused={adding === day}
 							class="text-base"
+							onfocused={() => (adding = day)}
+							onblur={(text) => text.trim() === '' && adding === day && (adding = null)}
+							onescape={() => (adding = null)}
 							onsubmit={(title) => name(day, title)}
 						/>
-					{/each}
+					{/if}
 				</RailDay>
 			{/each}
 		{/each}

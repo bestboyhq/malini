@@ -8,26 +8,25 @@
 	import { deleteInitiativeCommand } from '$lib/initiatives/application/commands/delete-initiative.command';
 	import { updateInitiativeCommand } from '$lib/initiatives/application/commands/update-initiative.command';
 	import {
+		initiativeFinished,
 		initiativeProgress,
 		type Initiative,
 		type InitiativeDependency,
 		type StandingOf,
 	} from '$lib/initiatives/domain/initiative';
 	import DependencyItem from './DependencyItem.svelte';
-	import ProgressRing from './ProgressRing.svelte';
+	import OutcomeCheck from './OutcomeCheck.svelte';
 	import QuietField from './QuietField.svelte';
 	import RowMenu from './RowMenu.svelte';
 	import TitleEditor from './TitleEditor.svelte';
-	import { caretAt } from './title-caret';
-
-	type Focus = 'row' | 'field';
+	import { caretAt, stepTitle } from './title-caret';
 
 	interface Props {
 		initiative: Initiative;
 		standingOf: StandingOf;
 		open: boolean;
 		selected: string | null;
-		focus: Focus | null;
+		focused: boolean;
 		ontoggle: () => void;
 		onselect: (id: string) => void;
 		onmove: (days: -1 | 1) => void;
@@ -42,7 +41,7 @@
 		standingOf,
 		open,
 		selected,
-		focus,
+		focused,
 		ontoggle,
 		onselect,
 		onmove,
@@ -59,8 +58,10 @@
 	let renaming: boolean = $state(false);
 	let caret: number | null = $state(null);
 	let regrab: boolean = $state(false);
+	let adding: boolean = $state(false);
 
 	const progress = $derived(initiativeProgress(initiative, standingOf));
+	const finished = $derived(initiativeFinished(initiative, standingOf));
 	const needsYou = $derived(
 		progress.needsYou === 0
 			? null
@@ -80,7 +81,7 @@
 	function grab(row: HTMLElement): void {
 		row.focus();
 		regrab = false;
-		if (focus === 'row') onfocused();
+		if (focused) onfocused();
 	}
 
 	function rename(at: number | null): void {
@@ -94,10 +95,20 @@
 	}
 
 	function onrowkeydown(event: KeyboardEvent): void {
-		if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+		if (!event.altKey) {
+			stepTitle(event);
+			return;
+		}
+		if (event.metaKey || event.ctrlKey || event.shiftKey) return;
 		if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
 		event.preventDefault();
 		onmove(event.key === 'ArrowUp' ? -1 : 1);
+	}
+
+	function addDependency(event: MouseEvent): void {
+		event.stopPropagation();
+		if (!open) ontoggle();
+		adding = true;
 	}
 
 	function onrowdragstart(event: DragEvent): void {
@@ -121,7 +132,7 @@
 	{ondragend}
 	onclick={() => onselect(initiative.id)}
 >
-	<ProgressRing done={progress.done} total={progress.total} />
+	<OutcomeCheck {initiative} {standingOf} size={16} class="-m-0.5" />
 	{#if renaming}
 		<TitleEditor
 			title={initiative.title}
@@ -137,10 +148,14 @@
 			ariaLabel={initiative.title}
 			ariaDescribedby={hintId}
 			ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-			class="focus-visible:ring-border-default/50 text-fg-default flex min-h-8 min-w-0 cursor-text items-center rounded-md text-left text-base font-medium outline-none focus-visible:ring-2"
+			class={[
+				'focus-visible:ring-border-default/50 flex min-h-8 min-w-0 cursor-text items-center rounded-md text-left text-base font-medium outline-none focus-visible:ring-2',
+				finished ? 'text-fg-quaternary line-through' : 'text-fg-default',
+			]}
+			data-plan-title=""
 			onclick={(event) => rename(caretAt(event, initiative.title))}
 			onkeydown={onrowkeydown}
-			{@attach focus === 'row' || regrab ? grab : null}
+			{@attach focused || regrab ? grab : null}
 		>
 			<span class="min-w-0 truncate"><SensitiveText text={initiative.title} /></span>
 		</Button>
@@ -157,31 +172,44 @@
 			{/if}
 		</span>
 		<span class="flex shrink-0 items-center">
-			<Tooltip content={open ? 'Hide dependencies' : 'Show dependencies'} placement="top">
+			<Tooltip content="Add a dependency" placement="top">
 				<IconButton
 					variant="ghost"
 					size="sm"
-					ariaLabel={`Dependencies of ${initiative.title}`}
-					ariaExpanded={open}
-					class={[
-						'text-fg-tertiary',
-						open && 'opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100',
-					]}
-					onclick={(event) => {
-						event.stopPropagation();
-						ontoggle();
-					}}
+					ariaLabel={`Add a dependency to ${initiative.title}`}
+					class="text-fg-tertiary opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100"
+					onclick={addDependency}
 				>
-					<Icon
-						name="chevron-down"
-						size={14}
-						class={[
-							'transition-transform duration-150 motion-reduce:transition-none',
-							!open && '-rotate-90',
-						]}
-					/>
+					<Icon name="plus" size={14} />
 				</IconButton>
 			</Tooltip>
+			{#if initiative.dependencies.length > 0}
+				<Tooltip content={open ? 'Hide dependencies' : 'Show dependencies'} placement="top">
+					<IconButton
+						variant="ghost"
+						size="sm"
+						ariaLabel={`Dependencies of ${initiative.title}`}
+						ariaExpanded={open}
+						class={[
+							'text-fg-tertiary',
+							open && 'opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100',
+						]}
+						onclick={(event) => {
+							event.stopPropagation();
+							ontoggle();
+						}}
+					>
+						<Icon
+							name="chevron-down"
+							size={14}
+							class={[
+								'transition-transform duration-150 motion-reduce:transition-none',
+								!open && '-rotate-90',
+							]}
+						/>
+					</IconButton>
+				</Tooltip>
+			{/if}
 			<RowMenu
 				name={initiative.title}
 				confirmsDelete={initiative.dependencies.length > 0}
@@ -195,7 +223,7 @@
 	{/if}
 	<span id={hintId} class="sr-only">{hint}</span>
 </div>
-{#if open}
+{#if open && (initiative.dependencies.length > 0 || adding)}
 	<div class="pt-0.5 pb-1 pl-[26px]">
 		{#each initiative.dependencies as dependency (dependency.id)}
 			<DependencyItem
@@ -206,17 +234,22 @@
 				onstart={() => onstart(dependency)}
 			/>
 		{/each}
-		<QuietField
-			label={`Add a dependency to ${initiative.title}`}
-			placeholder="Add a dependency"
-			shown={initiative.dependencies.length === 0}
-			focused={focus === 'field'}
-			class="pl-6 text-sm"
-			{onfocused}
-			onsubmit={(title) => {
-				addInitiativeDependencyCommand(initiative.id, title);
-				return true;
-			}}
-		/>
+		{#if adding}
+			<QuietField
+				label={`Add a dependency to ${initiative.title}`}
+				placeholder="Add a dependency"
+				shown
+				focused
+				class="pl-6 text-sm"
+				onblur={(text) => {
+					if (text.trim() === '') adding = false;
+				}}
+				onescape={() => (regrab = true)}
+				onsubmit={(title) => {
+					addInitiativeDependencyCommand(initiative.id, title);
+					return true;
+				}}
+			/>
+		{/if}
 	</div>
 {/if}

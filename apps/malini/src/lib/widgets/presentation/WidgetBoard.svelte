@@ -1,200 +1,146 @@
 <script lang="ts">
 	import { GitHubUserAvatar } from '$shared/repositories/repositories.api';
-	import type { Snippet } from 'svelte';
+	import { tick, type Snippet } from 'svelte';
 	import { flip } from 'svelte/animate';
 	import { cubicOut } from 'svelte/easing';
-	import {
-		WIDGET_DRAG_TYPE,
-		WIDGET_SIZE_SPANS,
-		type WidgetDefinition,
-		type WidgetPlacement,
-		type WidgetReading,
-		type WidgetSize,
-		type WidgetSpan,
+	import type {
+		WidgetDefinition,
+		WidgetPlacement,
+		WidgetReading,
+		WidgetSize,
+		WidgetSpan,
 	} from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
-	import { hideWidgetCommand } from '$lib/widgets/application/commands/hide-widget.command';
 	import { loadWidgetBoardCommand } from '$lib/widgets/application/commands/load-widget-board.command';
 	import { placeWidgetCommand } from '$lib/widgets/application/commands/place-widget.command';
-	import { refreshWidgetCommand } from '$lib/widgets/application/commands/refresh-widget.command';
 	import { removeWidgetCommand } from '$lib/widgets/application/commands/remove-widget.command';
 	import { resizeWidgetCommand } from '$lib/widgets/application/commands/resize-widget.command';
 	import { watchWidgetsHook } from '$lib/widgets/application/hooks/watch-widgets.hook';
 	import { widgetBoardQuery } from '$lib/widgets/application/queries/widget-board.query.svelte';
+	import { unplaced } from '$lib/widgets/domain/board-arrangement';
 	import {
 		WIDGET_GAP,
-		WIDGET_MIN_COLUMNS,
-		presetOf,
+		dropIndex,
+		inserted,
+		pack,
 		sameSpan,
 		shownSpan,
 		snappedSpan,
 		widgetGrid,
+		type GridPoint,
 	} from '$lib/widgets/domain/widget-grid';
-	import {
-		DRAG_THRESHOLD,
-		slotIndex,
-		withPlaceholder,
-		type Box,
-		type Point,
-	} from './widget-board-gestures';
+	import { showBoardGrid } from './board-grids.svelte';
 	import WidgetMenu, { type WidgetMenuTarget } from './WidgetMenu.svelte';
-	import WidgetSuggestionStack from './WidgetSuggestionStack.svelte';
+	import WidgetShelf from './WidgetShelf.svelte';
 	import WidgetTile from './WidgetTile.svelte';
 
 	interface Props {
 		workstreamId: string;
 		onopen: (url: string) => void;
-		onask: (prompt: string) => void;
-		onopenfile?: ((path: string) => void) | undefined;
+		onnew?: ((prompt: string) => void) | undefined;
+		onshare?: ((widget: WidgetDefinition) => void) | undefined;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
 		planHref?: string | undefined;
 	}
 
-	type Tile = Readonly<{ widget: WidgetDefinition; placement: WidgetPlacement; index: number }>;
+	type Tile = Readonly<{ widget: WidgetDefinition; placement: WidgetPlacement }>;
 
-	type Basis = readonly WidgetPlacement[];
+	type Box = Readonly<{ x: number; y: number; width: number; height: number }>;
 
-	type Lift = Readonly<{
-		kind: 'tile' | 'suggestion' | 'file';
-		widget: WidgetDefinition | null;
-		span: WidgetSpan;
-		from: Box | null;
-		offset: Point;
-		at: number | null;
-		landing: Box | null;
-		basis: Basis | null;
+	type Drag = Readonly<{
+		widgetId: string;
+		from: number;
+		to: number;
+		grab: GridPoint;
+		at: GridPoint;
 	}>;
 
-	type Sizing = Readonly<{ widgetId: string; span: WidgetSpan; basis: Basis | null }>;
+	type Sizing = Readonly<{ widgetId: string; span: WidgetSpan }>;
 
-	let { workstreamId, onopen, onask, onopenfile, plan, planHeader, planHref }: Props = $props();
+	let { workstreamId, onopen, onnew, onshare, plan, planHeader, planHref }: Props = $props();
 
-	const LAND_MS = 200;
-	const SETTLE_MS = 2000;
-	const DROP_MARGIN = 40;
-	const ASK_PROMPT = 'Make me a widget that shows ';
+	const DRAG_THRESHOLD = 4;
+	const SETTLE_MS = 150;
 	const FIELDS = 'input, textarea, select, [contenteditable="true"]';
-	const ORIGIN: Point = { x: 0, y: 0 };
-	const MOVES: Readonly<Record<string, number>> = {
-		ArrowLeft: -1,
-		ArrowUp: -1,
-		ArrowRight: 1,
-		ArrowDown: 1,
-	};
+	const KEY_SHORTCUTS = 'Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown';
+	const ROW_KEYS: Readonly<Record<string, number>> = { ArrowUp: -1, ArrowDown: 1 };
 
 	let width = $state(0);
-	let height = $state(0);
 	let area = $state<HTMLDivElement | null>(null);
-	let lift = $state.raw<Lift | null>(null);
+	let drag = $state.raw<Drag | null>(null);
+	let dropped = $state<string | null>(null);
 	let sizing = $state.raw<Sizing | null>(null);
 	let menu = $state.raw<WidgetMenuTarget | null>(null);
-	let keepFocus: Readonly<{ element: HTMLElement; basis: Basis }> | null = null;
 
 	const board = $derived(widgetBoardQuery.data(workstreamId));
 	const loadError = $derived(widgetBoardQuery.error(workstreamId));
 	const me = $derived(board?.me ?? null);
 	const grid = $derived(widgetGrid(width));
-	const cell = $derived(Math.max(0, grid.cell));
+	const step = $derived(Math.max(0, grid.cell) + WIDGET_GAP);
 	const tiles = $derived(placedTiles());
-	const suggestions = $derived(
-		board?.widgets.filter(
-			({ id }) =>
-				!board.hidden.includes(id) && !board.placements.some(({ widgetId }) => widgetId === id),
-		) ?? [],
+	const order = $derived(shownOrder());
+	const packed = $derived(pack(order.map(spanOf), grid.columns));
+	const boxes = $derived(
+		new Map(order.map((tile, index) => [tile.widget.id, boxOf(index, spanOf(tile))])),
 	);
-	const shownLift = $derived(lift !== null && settled(lift.basis) ? null : lift);
-	const shownSizing = $derived(sizing !== null && settled(sizing.basis) ? null : sizing);
-	const liftedTile = $derived(
-		shownLift?.kind === 'tile'
-			? (tiles.find(({ widget }) => widget.id === shownLift.widget?.id) ?? null)
-			: null,
-	);
-	const entries = $derived(withPlaceholder(tiles, liftedTile, shownLift?.at ?? null));
-	const arranging = $derived(shownLift !== null || shownSizing !== null);
-	const gridCells = $derived(
-		grid.columns * Math.max(1, Math.ceil((height + WIDGET_GAP) / (cell + WIDGET_GAP))),
-	);
+	const landing = $derived(drag === null ? null : (boxes.get(drag.widgetId) ?? null));
+	const arranging = $derived(drag !== null || sizing !== null);
+	const shelf = $derived(board === null ? [] : unplaced(board));
 
 	$effect(() => watchWidgetsHook(workstreamId));
 
 	$effect(() => {
-		const kept = keepFocus;
-		if (kept === null || tiles.length === 0 || board?.placements === kept.basis) return;
-		keepFocus = null;
-		if (kept.element.isConnected && document.activeElement !== kept.element) kept.element.focus();
+		if (width > 0) showBoardGrid(workstreamId, grid);
 	});
 
 	function placedTiles(): readonly Tile[] {
 		if (!board) return [];
-		return board.placements.flatMap((placement, index) => {
+		return board.placements.flatMap((placement) => {
 			const widget = board.widgets.find(({ id }) => id === placement.widgetId);
-			return widget ? [{ widget, placement, index }] : [];
+			return widget ? [{ widget, placement }] : [];
 		});
+	}
+
+	function shownOrder(): readonly Tile[] {
+		const dragged =
+			drag === null ? undefined : tiles.find(({ widget }) => widget.id === drag?.widgetId);
+		if (drag === null || dragged === undefined) return tiles;
+		return inserted(
+			tiles.filter((tile) => tile !== dragged),
+			drag.to,
+			dragged,
+		);
+	}
+
+	function spanOf(tile: Tile): WidgetSpan {
+		return sizing?.widgetId === tile.widget.id ? sizing.span : tile.placement.span;
+	}
+
+	function boxOf(index: number, span: WidgetSpan): Box {
+		const cell = packed.cells[index] ?? { column: 0, row: 0 };
+		const shown = shownSpan(span, grid.columns);
+		return {
+			x: cell.column * step,
+			y: cell.row * step,
+			width: shown.columns * step - WIDGET_GAP,
+			height: shown.rows * step - WIDGET_GAP,
+		};
+	}
+
+	function translate({ x, y }: GridPoint): string {
+		return `translate(${x}px, ${y}px)`;
 	}
 
 	function reading(widgetId: string): WidgetReading | null {
 		return widgetBoardQuery.reading(workstreamId, widgetId);
 	}
 
-	function settled(basis: Basis | null): boolean {
-		return basis !== null && board?.placements !== basis;
-	}
-
-	function spanOf(tile: Tile): WidgetSpan {
-		return shownSizing?.widgetId === tile.widget.id ? shownSizing.span : tile.placement.span;
-	}
-
-	function homeOf(widget: WidgetDefinition | null): number | null {
-		const index = tiles.findIndex((tile) => tile.widget.id === widget?.id);
-		return index === -1 ? null : index;
-	}
-
-	function landMs(): number {
-		return motionOff() ? 0 : LAND_MS;
-	}
-
-	function liftedBox(shown: Lift): Box | null {
-		if (shown.landing) return shown.landing;
-		if (!shown.from) return null;
-		return {
-			left: shown.from.left + shown.offset.x,
-			top: shown.from.top + shown.offset.y,
-			width: shown.from.width,
-			height: shown.from.height,
-		};
-	}
-
-	function otherBoxes(dragged: string | null): readonly Box[] {
-		if (!area) return [];
-		return [...area.querySelectorAll<HTMLElement>('[data-widget-slot]')]
-			.filter((slot) => slot.dataset['widgetSlot'] !== dragged)
-			.map((slot) => slot.getBoundingClientRect());
-	}
-
-	function placeholderBox(): Box | null {
-		return area?.querySelector('[data-widget-placeholder]')?.getBoundingClientRect() ?? null;
-	}
-
-	function dropIndex(point: Point, dragged: string | null): number | null {
-		if (!area) return null;
-		const box = area.getBoundingClientRect();
-		const inside =
-			point.x > box.left - DROP_MARGIN &&
-			point.x < box.right + DROP_MARGIN &&
-			point.y > box.top - DROP_MARGIN &&
-			point.y < box.bottom + DROP_MARGIN;
-		return inside ? slotIndex(point, otherBoxes(dragged)) : null;
-	}
-
-	function settleLater(basis: Basis): void {
-		window.setTimeout(() => {
-			if (lift?.basis === basis) lift = null;
-			if (sizing?.basis === basis) sizing = null;
-		}, SETTLE_MS);
+	function lifted(widgetId: string): boolean {
+		return drag?.widgetId === widgetId;
 	}
 
 	function swallowClick(): void {
@@ -223,6 +169,7 @@
 		const escape = (key: KeyboardEvent): void => {
 			if (key.key !== 'Escape') return;
 			key.preventDefault();
+			key.stopPropagation();
 			finish(true);
 		};
 		function finish(cancelled: boolean): void {
@@ -240,87 +187,79 @@
 		document.addEventListener('selectstart', noSelect);
 	}
 
-	function press(
-		event: PointerEvent,
-		kind: 'tile' | 'suggestion',
-		widget: WidgetDefinition,
-		span: WidgetSpan,
-		node: HTMLElement,
-	): void {
-		if (event.button !== 0 || shownLift !== null || shownSizing !== null) return;
-		const start: Point = { x: event.clientX, y: event.clientY };
-		const dragged = kind === 'tile' ? widget.id : null;
+	function indexOf(tile: Tile): number {
+		return tiles.findIndex(({ widget }) => widget.id === tile.widget.id);
+	}
+
+	function othersThan(tile: Tile): readonly WidgetSpan[] {
+		return tiles
+			.filter(({ widget }) => widget.id !== tile.widget.id)
+			.map(({ placement }) => placement.span);
+	}
+
+	function press(event: PointerEvent, tile: Tile, node: HTMLElement): void {
+		const box = boxes.get(tile.widget.id);
+		const from = indexOf(tile);
+		if (!area || !box || from === -1) return;
+		const start = area.getBoundingClientRect();
+		const grab = { x: event.clientX - start.left - box.x, y: event.clientY - start.top - box.y };
+		const others = othersThan(tile);
 		let live = false;
 		follow(
 			event,
 			(moved) => {
-				const offset: Point = { x: moved.clientX - start.x, y: moved.clientY - start.y };
-				if (!live && Math.hypot(offset.x, offset.y) < DRAG_THRESHOLD) return;
+				if (!area) return;
 				if (!live) {
+					const distance = Math.hypot(moved.clientX - event.clientX, moved.clientY - event.clientY);
+					if (distance < DRAG_THRESHOLD) return;
 					live = true;
 					menu = null;
-					lift = {
-						kind,
-						widget,
-						span,
-						from: node.getBoundingClientRect(),
-						offset,
-						at: homeOf(widget),
-						landing: null,
-						basis: null,
-					};
 				}
-				if (lift) lift = { ...lift, offset, at: dropIndex(moved, dragged) };
+				const now = area.getBoundingClientRect();
+				const at = { x: moved.clientX - now.left - grab.x, y: moved.clientY - now.top - grab.y };
+				const centre = { x: at.x + box.width / 2, y: at.y + box.height / 2 };
+				const to = dropIndex(others, tile.placement.span, grid, centre, drag?.to ?? from);
+				drag = { widgetId: tile.widget.id, from, to, grab, at };
 			},
 			(cancelled) => {
 				if (!live) return;
 				swallowClick();
-				release(cancelled);
+				settle(node, cancelled);
 			},
 		);
 	}
 
-	function release(cancelled: boolean): void {
-		const current = lift;
-		if (current === null || current.from === null) return;
-		const back = cancelled || current.at === null;
-		lift = {
-			...current,
-			at: back ? (current.kind === 'tile' ? homeOf(current.widget) : null) : current.at,
-			landing: back ? current.from : (placeholderBox() ?? current.from),
-		};
-		window.setTimeout(land, landMs());
-	}
-
-	function land(): void {
-		const landed = lift;
-		if (landed === null || landed.widget === null) return;
-		const home = landed.kind === 'tile' ? homeOf(landed.widget) : null;
-		if (landed.at === null || landed.at === home) {
-			lift = null;
-			return;
-		}
-		const basis = board?.placements ?? [];
-		lift = { ...landed, basis };
-		placeWidgetCommand(workstreamId, landed.widget.id, landed.at, null);
-		settleLater(basis);
+	function settle(node: HTMLElement, cancelled: boolean): void {
+		const current = drag;
+		if (current === null) return;
+		const to = cancelled ? current.from : current.to;
+		drag = null;
+		if (to !== current.from) placeWidgetCommand(workstreamId, current.widgetId, to);
+		const rest = boxes.get(current.widgetId);
+		if (rest === undefined || motionOff()) return;
+		dropped = current.widgetId;
+		node.animate([{ transform: translate(current.at) }, { transform: translate(rest) }], {
+			duration: SETTLE_MS,
+			easing: 'cubic-bezier(0.2, 0, 0, 1)',
+		});
+		window.setTimeout(() => {
+			if (dropped === current.widgetId) dropped = null;
+		}, SETTLE_MS);
 	}
 
 	function startResize(event: PointerEvent, tile: Tile, node: HTMLElement): void {
-		if (shownLift !== null || shownSizing !== null) return;
 		event.preventDefault();
 		event.stopPropagation();
-		const start: Point = { x: event.clientX, y: event.clientY };
 		const from = node.getBoundingClientRect();
 		menu = null;
-		sizing = { widgetId: tile.widget.id, span: tile.placement.span, basis: null };
+		sizing = { widgetId: tile.widget.id, span: tile.placement.span };
 		follow(
 			event,
 			(moved) => {
 				if (sizing === null) return;
 				const span = snappedSpan(
-					from.width + moved.clientX - start.x,
-					from.height + moved.clientY - start.y,
+					from.width + moved.clientX - event.clientX,
+					from.height + moved.clientY - event.clientY,
 					grid,
 					tile.placement.span,
 				);
@@ -329,14 +268,9 @@
 			(cancelled) => {
 				swallowClick();
 				const done = sizing;
-				if (done === null || cancelled || sameSpan(done.span, tile.placement.span)) {
-					sizing = null;
-					return;
-				}
-				const basis = board?.placements ?? [];
-				sizing = { ...done, basis };
+				sizing = null;
+				if (done === null || cancelled || sameSpan(done.span, tile.placement.span)) return;
 				resizeWidgetCommand(workstreamId, done.widgetId, done.span);
-				settleLater(basis);
 			},
 		);
 	}
@@ -346,42 +280,46 @@
 		return widget.source.kind !== 'plan' || target.closest('button, a') === null;
 	}
 
-	function openMenu(tile: Tile, anchor: HTMLElement, point: Point | null): void {
+	function openMenu(tile: Tile, anchor: HTMLElement, point: GridPoint | null): void {
 		menu = {
 			widget: tile.widget,
-			span: tile.placement.span,
-			columns: grid.columns,
 			reading: reading(tile.widget.id),
-			approved: tile.placement.approved,
 			anchor,
 			point,
 			openedAt: new Date(),
 		};
 	}
 
-	function openMenuFrom(event: MouseEvent, tile: Tile): void {
-		if (event.currentTarget instanceof HTMLElement) openMenu(tile, event.currentTarget, null);
+	function keyedIndex(event: KeyboardEvent, tile: Tile): number | null {
+		const index = indexOf(tile);
+		const box = boxes.get(tile.widget.id);
+		if (!event.altKey || index === -1 || !box) return null;
+		if (event.key === 'ArrowLeft') return index - 1;
+		if (event.key === 'ArrowRight') return index + 1;
+		const rows = ROW_KEYS[event.key];
+		if (rows === undefined) return null;
+		const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 + rows * step };
+		return dropIndex(othersThan(tile), tile.placement.span, grid, centre, index);
 	}
 
-	function moveByKey(event: KeyboardEvent, tile: Tile): void {
-		const step = MOVES[event.key];
-		if (!event.altKey || step === undefined || !board) return;
+	async function moveByKey(event: KeyboardEvent, tile: Tile): Promise<void> {
+		const to = keyedIndex(event, tile);
+		if (to === null) return;
 		event.preventDefault();
-		const index = tile.index + step;
-		if (index < 0 || index >= tiles.length) return;
-		if (document.activeElement instanceof HTMLElement) {
-			keepFocus = { element: document.activeElement, basis: board.placements };
-		}
-		placeWidgetCommand(workstreamId, tile.widget.id, index, null);
+		if (to < 0 || to >= tiles.length || to === indexOf(tile)) return;
+		const focused = document.activeElement;
+		placeWidgetCommand(workstreamId, tile.widget.id, to);
+		await tick();
+		if (focused instanceof HTMLElement && focused.isConnected) focused.focus();
 	}
 
 	function tileGestures(tile: Tile): (node: HTMLElement) => () => void {
 		return (node) => {
 			const down = (event: PointerEvent): void => {
 				if (!(event.target instanceof Element) || event.button !== 0) return;
+				if (drag !== null || sizing !== null) return;
 				if (event.target.closest('[data-widget-corner]')) startResize(event, tile, node);
-				else if (startsDrag(event.target, tile.widget))
-					press(event, 'tile', tile.widget, tile.placement.span, node);
+				else if (startsDrag(event.target, tile.widget)) press(event, tile, node);
 			};
 			const context = (event: MouseEvent): void => {
 				if (event.target instanceof Element && event.target.closest(FIELDS)) return;
@@ -394,7 +332,7 @@
 				if ((event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) && button) {
 					event.preventDefault();
 					openMenu(tile, button, null);
-				} else moveByKey(event, tile);
+				} else void moveByKey(event, tile);
 			};
 			node.addEventListener('pointerdown', down);
 			node.addEventListener('contextmenu', context);
@@ -407,77 +345,9 @@
 		};
 	}
 
-	function acceptDrops(node: HTMLElement): () => void {
-		const carries = (event: DragEvent): boolean =>
-			event.dataTransfer?.types.includes(WIDGET_DRAG_TYPE) ?? false;
-		const over = (event: DragEvent): void => {
-			if (!carries(event) || !event.dataTransfer) return;
-			event.preventDefault();
-			event.dataTransfer.dropEffect = 'copy';
-			const at = slotIndex(event, otherBoxes(null));
-			if (lift?.kind === 'file' && lift.at === at) return;
-			lift = {
-				kind: 'file',
-				widget: null,
-				span: WIDGET_SIZE_SPANS.medium,
-				from: null,
-				offset: ORIGIN,
-				at,
-				landing: null,
-				basis: null,
-			};
-		};
-		const leave = (event: DragEvent): void => {
-			const box = node.getBoundingClientRect();
-			const inside =
-				event.clientX > box.left &&
-				event.clientX < box.right &&
-				event.clientY > box.top &&
-				event.clientY < box.bottom;
-			if (!inside && lift?.kind === 'file' && lift.basis === null) lift = null;
-		};
-		const drop = (event: DragEvent): void => {
-			const widgetId = event.dataTransfer?.getData(WIDGET_DRAG_TYPE) ?? '';
-			const at = lift?.kind === 'file' ? lift.at : null;
-			if (widgetId === '' || lift === null || at === null) return;
-			event.preventDefault();
-			const home = tiles.findIndex((tile) => tile.widget.id === widgetId);
-			const basis = board?.placements ?? [];
-			lift = { ...lift, basis };
-			placeWidgetCommand(workstreamId, widgetId, home !== -1 && home < at ? at - 1 : at, null);
-			settleLater(basis);
-		};
-		node.addEventListener('dragover', over);
-		node.addEventListener('dragleave', leave);
-		node.addEventListener('drop', drop);
-		return () => {
-			node.removeEventListener('dragover', over);
-			node.removeEventListener('dragleave', leave);
-			node.removeEventListener('drop', drop);
-		};
-	}
-
-	function liftedClass(landing: Box | null | undefined): readonly string[] {
-		return [
-			'shadow-popup pointer-events-none fixed z-100 rounded-2xl motion-reduce:transition-none',
-			landing
-				? 'transition-[left,top,width,height,scale] duration-200 ease-out'
-				: 'scale-[1.03] transition-[scale] duration-150',
-		];
-	}
-
 	function fromMenu(action: () => void): void {
 		menu = null;
 		action();
-	}
-
-	function resizeFromMenu(widget: WidgetDefinition, size: WidgetSize): void {
-		const current = tiles.find((tile) => tile.widget.id === widget.id)?.placement.span;
-		fromMenu(() => {
-			if (current === undefined || presetOf(current, grid.columns) !== size) {
-				resizeWidgetCommand(workstreamId, widget.id, WIDGET_SIZE_SPANS[size]);
-			}
-		});
 	}
 </script>
 
@@ -500,162 +370,106 @@
 			<div
 				bind:this={area}
 				bind:clientWidth={width}
-				bind:clientHeight={height}
-				class="relative"
-				{@attach acceptDrops}
+				class={['relative', arranging && 'select-none']}
+				style:height="{Math.max(0, packed.rows * step - WIDGET_GAP)}px"
 			>
-				<div
-					class={[
-						'pointer-events-none absolute inset-0 grid overflow-hidden transition-opacity duration-250',
-						arranging ? 'opacity-100' : 'opacity-0',
-					]}
-					style:gap="{WIDGET_GAP}px"
-					style:grid-template-columns="repeat({grid.columns}, {cell}px)"
-					style:grid-auto-rows="{cell}px"
-					aria-hidden="true"
-				>
-					{#each { length: gridCells }, index (index)}
-						<span class="border-border-default/60 rounded-2xl border border-dashed"></span>
-					{/each}
-				</div>
-				<div
-					class="relative grid grid-flow-dense"
-					style:gap="{WIDGET_GAP}px"
-					style:grid-template-columns="repeat({grid.columns}, {cell}px)"
-					style:grid-auto-rows="{cell}px"
-				>
-					{#each entries as tile (tile?.widget.id ?? '')}
-						{@const span = tile ? spanOf(tile) : (shownLift?.span ?? WIDGET_SIZE_SPANS.medium)}
-						{@const shown = shownSpan(span, grid.columns)}
-						{@const box = tile && tile === liftedTile && shownLift ? liftedBox(shownLift) : null}
-						<div
-							class={[
-								'group/slot widget-slot rounded-2xl',
-								tile === null && 'border-border-default bg-surface-root border border-dashed',
-								box ? liftedClass(shownLift?.landing) : 'relative',
-								tile !== null &&
-									shownSizing?.widgetId === tile.widget.id &&
-									"after:border-surface-150-border after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border after:content-['']",
-							]}
-							style:grid-column="span {shown.columns}"
-							style:grid-row="span {shown.rows}"
-							style:left={box ? `${box.left}px` : undefined}
-							style:top={box ? `${box.top}px` : undefined}
-							style:width={box ? `${box.width}px` : undefined}
-							style:height={box ? `${box.height}px` : undefined}
-							data-widget-slot={tile?.widget.id}
-							data-widget-placeholder={tile ? undefined : ''}
-							aria-hidden={tile ? undefined : 'true'}
-							animate:flip={{ duration: box || motionOff() ? 0 : 280, easing: cubicOut }}
-							{@attach tile && tileGestures(tile)}
-						>
-							{#if tile}
-								{@const { widget, placement } = tile}
-								{@const madeBy =
-									widget.author !== null && widget.author !== me ? widget.author : null}
-								{#snippet authorMark()}
-									{#if madeBy !== null}
-										<GitHubUserAvatar login={madeBy} label="Made by {madeBy}" size={14} />
-									{/if}
-								{/snippet}
-								{#snippet allow()}
-									<span data-widget-chrome>
-										<Button
-											variant="secondary"
-											size="xs"
-											onclick={() =>
-												placeWidgetCommand(workstreamId, widget.id, tile.index, placement.span)}
-										>
-											Allow
-										</Button>
-									</span>
-								{/snippet}
-								<WidgetTile
-									{widget}
-									reading={reading(widget.id)}
-									{span}
-									columns={grid.columns}
-									approved={placement.approved}
-									{plan}
-									{planHeader}
-									titleHref={widget.source.kind === 'plan' ? planHref : undefined}
-									{onopen}
-									author={madeBy === null ? undefined : authorMark}
-									actions={placement.approved || widget.source.kind !== 'command'
-										? undefined
-										: allow}
-								/>
-								<span
-									class={[
-										'absolute top-[7px] right-2 transition-opacity duration-150 group-focus-within/slot:opacity-100 group-hover/slot:opacity-100',
-										menu?.widget.id === widget.id ? 'opacity-100' : 'opacity-0',
-									]}
-									data-widget-chrome
-								>
-									<Button
-										bare
-										class="bg-surface-elevated hover:bg-surface-150 text-fg-secondary hover:text-fg-default focus-visible:ring-border-default/50 grid size-6 cursor-pointer place-items-center rounded-[7px] outline-0 focus-visible:ring-2"
-										ariaLabel="Options for {widget.title}"
-										ariaHasPopup="menu"
-										ariaExpanded={menu?.widget.id === widget.id}
-										data-widget-menu=""
-										onclick={(event) => openMenuFrom(event, tile)}
-									>
-										<Icon name="more" size={14} />
-									</Button>
-								</span>
-								<span
-									class={[
-										'text-fg-tertiary absolute right-[3px] bottom-[3px] z-[3] size-[18px] cursor-nwse-resize touch-none transition-opacity duration-200 group-hover/slot:opacity-100',
-										"after:absolute after:right-1 after:bottom-1 after:size-[7px] after:rounded-br-[4px] after:border-r-[1.5px] after:border-b-[1.5px] after:border-current after:content-['']",
-										shownSizing?.widgetId === widget.id ? 'opacity-100' : 'opacity-0',
-									]}
-									data-widget-corner
-									aria-hidden="true"
-								></span>
-							{/if}
-						</div>
-					{/each}
-					<WidgetSuggestionStack
-						{suggestions}
-						readingOf={reading}
-						{me}
-						lifted={shownLift?.kind === 'suggestion' ? (shownLift.widget?.id ?? null) : null}
-						{plan}
-						onadd={(widget) => placeWidgetCommand(workstreamId, widget.id)}
-						onhide={(widget) => hideWidgetCommand(workstreamId, widget.id)}
-						onpress={(event, widget, card) =>
-							press(event, 'suggestion', widget, WIDGET_SIZE_SPANS[widget.size], card)}
-					/>
-					<Button
-						bare
-						class="border-border-default/60 hover:border-border-default text-fg-tertiary hover:text-fg-default focus-visible:ring-border-default/50 flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border-[0.5px] border-dashed text-xs outline-0 transition-[border-color,color] duration-200 focus-visible:ring-2"
-						onclick={() => onask(ASK_PROMPT)}
-					>
-						<Icon name="sparkles" size={16} />Ask for a widget
-					</Button>
-				</div>
-			</div>
-			{#if shownLift?.kind === 'suggestion' && shownLift.widget}
-				{@const box = liftedBox(shownLift)}
-				{#if box}
+				{#if drag !== null && landing !== null}
 					<div
-						class={liftedClass(shownLift.landing)}
-						style:left="{box.left}px"
-						style:top="{box.top}px"
+						class="border-border-default bg-surface-root absolute top-0 left-0 rounded-2xl border border-dashed transition-transform duration-150 ease-out motion-reduce:transition-none"
+						style:width="{landing.width}px"
+						style:height="{landing.height}px"
+						style:transform={translate(landing)}
+						aria-hidden="true"
+						data-widget-landing
+					></div>
+				{/if}
+				{#each tiles as tile (tile.widget.id)}
+					{@const { widget } = tile}
+					{@const box = boxes.get(widget.id) ?? { x: 0, y: 0, width: 0, height: 0 }}
+					{@const up = lifted(widget.id)}
+					{@const madeBy = widget.author !== null && widget.author !== me ? widget.author : null}
+					<div
+						class={[
+							'group/slot widget-slot absolute top-0 left-0 rounded-2xl',
+							up
+								? 'shadow-popup z-10 cursor-grabbing transition-[scale] duration-150 ease-out'
+								: arranging &&
+									'transition-transform duration-150 ease-out motion-reduce:transition-none',
+							up && !motionOff() && 'scale-[1.02]',
+							dropped === widget.id && 'z-10',
+							sizing?.widgetId === widget.id &&
+								"after:border-surface-150-border after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl after:border after:content-['']",
+						]}
 						style:width="{box.width}px"
 						style:height="{box.height}px"
+						style:transform={translate(up && drag ? drag.at : box)}
+						data-widget-slot={widget.id}
+						animate:flip={{
+							duration: arranging || dropped === widget.id || motionOff() ? 0 : 200,
+							easing: cubicOut,
+						}}
+						{@attach tileGestures(tile)}
 					>
+						{#snippet authorMark()}
+							{#if madeBy !== null}
+								<GitHubUserAvatar login={madeBy} label="Made by {madeBy}" size={14} />
+							{/if}
+						{/snippet}
 						<WidgetTile
-							widget={shownLift.widget}
-							reading={reading(shownLift.widget.id)}
-							span={WIDGET_SIZE_SPANS.medium}
-							columns={WIDGET_MIN_COLUMNS}
+							{widget}
+							reading={reading(widget.id)}
+							span={spanOf(tile)}
+							columns={grid.columns}
 							{plan}
+							{planHeader}
+							titleHref={widget.source.kind === 'plan' ? planHref : undefined}
+							{onopen}
+							author={madeBy === null ? undefined : authorMark}
 						/>
+						<span
+							class={[
+								'absolute top-[7px] right-2 transition-opacity duration-150 group-focus-within/slot:opacity-100 group-hover/slot:opacity-100',
+								menu?.widget.id === widget.id ? 'opacity-100' : 'opacity-0',
+								arranging && 'invisible',
+							]}
+							data-widget-chrome
+						>
+							<Button
+								bare
+								class="bg-surface-elevated hover:bg-surface-150 text-fg-secondary hover:text-fg-default focus-visible:ring-border-default/50 grid size-6 cursor-pointer place-items-center rounded-[7px] outline-0 focus-visible:ring-2"
+								ariaLabel="Options for {widget.title}"
+								ariaHasPopup="menu"
+								ariaExpanded={menu?.widget.id === widget.id}
+								ariaKeyshortcuts={KEY_SHORTCUTS}
+								data-widget-menu=""
+								onclick={(event) => {
+									if (event.currentTarget instanceof HTMLElement)
+										openMenu(tile, event.currentTarget, null);
+								}}
+							>
+								<Icon name="more" size={14} />
+							</Button>
+						</span>
+						<span
+							class={[
+								'text-fg-tertiary absolute right-[3px] bottom-[3px] z-[3] size-[18px] cursor-nwse-resize touch-none transition-opacity duration-200 group-hover/slot:opacity-100',
+								"after:absolute after:right-1 after:bottom-1 after:size-[7px] after:rounded-br-[4px] after:border-r-[1.5px] after:border-b-[1.5px] after:border-current after:content-['']",
+								sizing?.widgetId === widget.id ? 'opacity-100' : 'opacity-0',
+								drag !== null && 'invisible',
+							]}
+							data-widget-corner
+							aria-hidden="true"
+						></span>
 					</div>
-				{/if}
-			{/if}
+				{/each}
+			</div>
+			<WidgetShelf
+				widgets={shelf}
+				repository={board.repository}
+				{me}
+				{onnew}
+				onadd={(widget) => placeWidgetCommand(workstreamId, widget.id, 0)}
+			/>
 		{/if}
 	</ScrollableDiv>
 </section>
@@ -663,11 +477,7 @@
 <WidgetMenu
 	target={menu}
 	onclose={() => (menu = null)}
-	onresize={resizeFromMenu}
-	onrefresh={(widget) => fromMenu(() => refreshWidgetCommand(workstreamId, widget.id))}
-	onask={(widget, path) =>
-		fromMenu(() => onask(`Change the "${widget.title}" widget in ${path}: `))}
-	onopenfile={(_widget, path) => fromMenu(() => onopenfile?.(path))}
+	onshare={onshare && ((widget) => fromMenu(() => onshare(widget)))}
 	onremove={(widget) => fromMenu(() => removeWidgetCommand(workstreamId, widget.id))}
 />
 

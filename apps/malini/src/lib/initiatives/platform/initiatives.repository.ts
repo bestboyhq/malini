@@ -32,6 +32,7 @@ type InitiativeRow = {
 	repository_full_name: string;
 	title: string;
 	due_on: string | null;
+	done: number;
 	note: string | null;
 };
 type DependencyRow = {
@@ -44,11 +45,12 @@ type DependencyRow = {
 };
 type LinkRow = { dependency_id: string; workstream_id: string };
 
-const INITIATIVE_COLUMNS = 'id, repository_full_name, title, due_on, note';
+const INITIATIVE_COLUMNS = 'id, repository_full_name, title, due_on, done, note';
 
 export type InitiativeChange = Readonly<{
 	title?: string;
 	dueOn?: string | null;
+	done?: boolean;
 	note?: string | null;
 }>;
 export type DependencyChange = Readonly<{ title?: string; done?: boolean; note?: string | null }>;
@@ -94,6 +96,7 @@ export function listInitiatives(db: MaliniDatabase): Initiative[] {
 		repositoryFullName: row.repository_full_name,
 		title: row.title,
 		dueOn: row.due_on,
+		done: intToBool(row.done),
 		note: row.note,
 		dependencies: dependencies.get(row.id) ?? [],
 	}));
@@ -118,9 +121,10 @@ export function updateInitiative(db: MaliniDatabase, id: string, change: Initiat
 	const current = initiativeRow(db, id);
 	run(
 		db,
-		'UPDATE initiatives SET title = ?, due_on = ?, note = ?, updated_at = ? WHERE id = ?',
+		'UPDATE initiatives SET title = ?, due_on = ?, done = ?, note = ?, updated_at = ? WHERE id = ?',
 		change.title ?? current.title,
 		change.dueOn === undefined ? current.due_on : change.dueOn,
+		change.done ?? intToBool(current.done),
 		change.note === undefined ? current.note : change.note,
 		nowIso8601(),
 		id,

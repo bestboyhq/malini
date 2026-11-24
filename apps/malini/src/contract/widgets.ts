@@ -6,11 +6,13 @@ export const WIDGET_SPAN_MAX = 12;
 
 export type WidgetSpan = Readonly<{ columns: number; rows: number }>;
 
-export const WIDGET_SIZE_SPANS: Readonly<Record<WidgetSize, WidgetSpan>> = {
-	small: { columns: 1, rows: 1 },
-	medium: { columns: 2, rows: 1 },
-	large: { columns: WIDGET_SPAN_MAX, rows: 2 },
-};
+export const WIDGET_DEFAULT_SPAN: WidgetSpan = { columns: 2, rows: 1 };
+
+export const PLAN_WIDGET_SPAN: WidgetSpan = { columns: WIDGET_SPAN_MAX, rows: 2 };
+
+export const WIDGET_ORIGINS = ['plan', 'shared', 'mine'] as const;
+
+export type WidgetOrigin = (typeof WIDGET_ORIGINS)[number];
 
 export const WIDGET_SCOPES = ['shared', 'own'] as const;
 
@@ -23,8 +25,6 @@ export type WidgetState = (typeof WIDGET_STATES)[number];
 export const WIDGETS_FOLDER = '.malini/widgets';
 
 export const PLAN_WIDGET_ID = 'plan';
-
-export const WIDGET_DRAG_TYPE = 'application/x-malini-widget';
 
 export const WIDGET_TEXT_MAX_LENGTH = 200;
 
@@ -46,11 +46,10 @@ export type WidgetDefinition = Readonly<{
 	scope: WidgetScope;
 	source: WidgetSource;
 	refresh: WidgetRefresh;
-	size: WidgetSize;
 	url: string | null;
 	author: string | null;
 	fingerprint: string;
-	path: string | null;
+	origin: WidgetOrigin;
 }>;
 
 export type WidgetRow = Readonly<{
@@ -62,6 +61,25 @@ export type WidgetRow = Readonly<{
 	url: string | null;
 }>;
 
+export const WIDGET_CHART_KINDS = ['line', 'bar'] as const;
+
+export type WidgetChartKind = (typeof WIDGET_CHART_KINDS)[number];
+
+export const WIDGET_CHART_SERIES_MAX = 3;
+
+export const WIDGET_CHART_POINTS_MAX = 120;
+
+export type WidgetChartSeries = Readonly<{
+	label: string | null;
+	values: readonly (number | null)[];
+}>;
+
+export type WidgetChart = Readonly<{
+	kind: WidgetChartKind;
+	labels: readonly string[];
+	series: readonly WidgetChartSeries[];
+}>;
+
 export type WidgetData = Readonly<{
 	value: number | string | null;
 	unit: string | null;
@@ -71,6 +89,7 @@ export type WidgetData = Readonly<{
 	state: WidgetState | null;
 	history: readonly WidgetState[];
 	rows: readonly WidgetRow[];
+	chart: WidgetChart | null;
 	url: string | null;
 }>;
 
@@ -88,15 +107,14 @@ export type WidgetReading = Readonly<{
 export type WidgetPlacement = Readonly<{
 	widgetId: string;
 	span: WidgetSpan;
-	approved: boolean;
 }>;
 
 export type WidgetBoard = Readonly<{
 	board: string;
 	workstreamId: string;
 	widgets: readonly WidgetDefinition[];
+	repository: string | null;
 	placements: readonly WidgetPlacement[];
-	hidden: readonly string[];
 	readings: readonly WidgetReading[];
 	me: string | null;
 }>;
@@ -106,8 +124,7 @@ export type WidgetBoardArgs = Readonly<{ workstreamId: string }>;
 export type PlaceWidgetArgs = Readonly<{
 	workstreamId: string;
 	widgetId: string;
-	index: number | null;
-	span: WidgetSpan | null;
+	index: number;
 }>;
 
 export type ResizeWidgetArgs = Readonly<{
@@ -118,15 +135,13 @@ export type ResizeWidgetArgs = Readonly<{
 
 export type WidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
 
+export type ShareWidgetArgs = Readonly<{ workstreamId: string; widgetId: string; into: string }>;
+
 export type WatchWidgetsArgs = Readonly<{ workstreamId: string; watching: boolean }>;
 
 export type PinPlanWidgetArgs = Readonly<{ repositoryFullName: string }>;
 
 export type WidgetBoardChangedEvent = Readonly<{ board: string }>;
-
-export function isWidgetSize(value: unknown): value is WidgetSize {
-	return WIDGET_SIZES.some((size) => size === value);
-}
 
 export function isWidgetSpan(value: unknown): value is WidgetSpan {
 	return isObject(value) && isSpanLength(value['columns']) && isSpanLength(value['rows']);
@@ -155,8 +170,31 @@ export function parseWidgetData(value: unknown): WidgetData | null {
 		rows: Array.isArray(value['rows'])
 			? value['rows'].flatMap((row) => widgetRow(row) ?? []).slice(0, WIDGET_ROWS_MAX)
 			: [],
+		chart: widgetChart(value['chart']),
 		url: webUrl(value['url']),
 	};
+}
+
+function widgetChart(value: unknown): WidgetChart | null {
+	if (!isObject(value) || !Array.isArray(value['series'])) return null;
+	const kind = WIDGET_CHART_KINDS.find((each) => each === value['kind']);
+	if (kind === undefined) return null;
+	const all = value['series']
+		.flatMap((each) => chartSeries(each) ?? [])
+		.slice(0, WIDGET_CHART_SERIES_MAX);
+	const points = Math.max(0, ...all.map(({ values }) => values.length));
+	const from = Math.max(0, points - WIDGET_CHART_POINTS_MAX);
+	const series = all
+		.map((each) => ({ ...each, values: each.values.slice(from) }))
+		.filter(({ values }) => values.length > 0);
+	if (!series.some(({ values }) => values.some((point) => point !== null))) return null;
+	const labels = Array.isArray(value['labels']) ? value['labels'].slice(from, points) : [];
+	return { kind, labels: labels.map((label) => text(label) ?? ''), series };
+}
+
+function chartSeries(value: unknown): WidgetChartSeries | null {
+	if (!isObject(value) || !Array.isArray(value['values'])) return null;
+	return { label: text(value['label']), values: value['values'].map((point) => finite(point)) };
 }
 
 function widgetRow(value: unknown): WidgetRow | null {

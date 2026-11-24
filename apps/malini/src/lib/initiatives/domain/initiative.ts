@@ -61,9 +61,13 @@ export function initiativeProgress(
 	};
 }
 
-export function initiativeFinished(initiative: Initiative, standingOf: StandingOf): boolean {
+export function dependenciesFinished(initiative: Initiative, standingOf: StandingOf): boolean {
 	const { done, total } = initiativeProgress(initiative, standingOf);
 	return total > 0 && done === total;
+}
+
+export function initiativeFinished(initiative: Initiative, standingOf: StandingOf): boolean {
+	return initiative.done || dependenciesFinished(initiative, standingOf);
 }
 
 export function initiativesOn(

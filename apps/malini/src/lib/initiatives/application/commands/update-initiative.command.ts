@@ -18,7 +18,9 @@ function updateInitiativeCommand(id: string, change: Omit<UpdateInitiativeArgs, 
 					? `"${change.title}" not saved`
 					: change.note !== undefined
 						? `Note on "${title}" not saved`
-						: `"${title}" not moved`;
+						: change.done !== undefined
+							? `"${title}" not ${change.done ? 'ticked' : 'unticked'}`
+							: `"${title}" not moved`;
 			toast.error(`${what}${detail ? ` · ${detail}` : ''}.`);
 		}
 	})();

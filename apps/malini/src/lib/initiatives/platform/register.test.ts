@@ -97,6 +97,26 @@ describe('initiatives', () => {
 		expect(rows('initiative_dependency_workstreams')).toBe(0);
 	});
 
+	it('ticks an outcome done and back, keeping the rest of it', async () => {
+		const [created] = await context.commands.call('initiatives.create', {
+			repositoryFullName: 'bestboyhq/grip',
+			title: 'Ship billing',
+			dueOn: '2026-12-01',
+		});
+		expect(created?.done).toBe(false);
+		const id = created?.id ?? '';
+		const [ticked] = await context.commands.call('initiatives.update', { id, done: true });
+		expect(ticked).toMatchObject({ title: 'Ship billing', dueOn: '2026-12-01', done: true });
+		const [renamed] = await context.commands.call('initiatives.update', { id, title: 'Billing' });
+		expect(renamed?.done).toBe(true);
+		const [unticked] = await context.commands.call('initiatives.update', { id, done: false });
+		expect(unticked).toMatchObject({ title: 'Billing', done: false });
+		await expect(
+			context.commands.invoke({ command: 'initiatives.update', args: { id, done: 'yes' } }),
+		).resolves.toMatchObject({ ok: false, error: expect.stringContaining('`done`') });
+		expect((await context.commands.call('initiatives.list', undefined))[0]?.done).toBe(false);
+	});
+
 	it('refuses a missing repository, an empty title, a day that does not exist, an unknown id and an empty update', async () => {
 		const send = (command: CommandName, args: unknown): Promise<unknown> =>
 			context.commands.invoke({ command, args });

@@ -206,4 +206,7 @@
 	--themed-color-activity-2: var(--color-activity-2-dark);
 	--themed-color-activity-3: var(--color-activity-3-dark);
 	--themed-color-activity-4: var(--color-activity-4-dark);
+	--themed-color-chart-1: var(--color-chart-1-dark);
+	--themed-color-chart-2: var(--color-chart-2-dark);
+	--themed-color-chart-3: var(--color-chart-3-dark);
 }

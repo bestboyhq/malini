@@ -41,43 +41,6 @@ const WAKE = z
 const AUTOMATION_TRIGGER_GRAMMAR =
 	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>/<repository>` for a repository, and every schedule names one, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled automation keeps its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
-const WIDGET_STATE = z.enum(['success', 'failure', 'running', 'idle']);
-
-const WIDGET_SCALAR = z.union([z.number(), z.string()]);
-
-const WIDGET_DATA = z
-	.object({
-		value: WIDGET_SCALAR.optional().describe('The big number or word, for example 42 or "v1.8"'),
-		unit: z.string().optional().describe('What value counts, for example "%" or "open"'),
-		caption: z.string().optional().describe('One line under the value, for example "on main"'),
-		delta: z.string().optional().describe('The change beside the value, for example "+18%"'),
-		percent: z.number().min(0).max(100).optional().describe('0 to 100, drawn as a ring'),
-		state: WIDGET_STATE.optional().describe('How it stands now, drawn as a status mark'),
-		history: z
-			.array(WIDGET_STATE)
-			.optional()
-			.describe('The states before it, oldest first, drawn as a run strip'),
-		rows: z
-			.array(
-				z.object({
-					label: z.string().min(1),
-					value: WIDGET_SCALAR.optional(),
-					max: z.number().optional(),
-					detail: z.string().optional(),
-					state: WIDGET_STATE.optional(),
-					url: z.url().optional(),
-				}),
-			)
-			.optional()
-			.describe(
-				'Rows, drawn as bars when each has a numeric value and a max, and as a list otherwise',
-			),
-		url: z.url().optional().describe('The page a click opens, when it changes with the data'),
-	})
-	.describe(
-		'For a command source: what the command printed when you ran it, as WidgetData. The chat shows it until the user pins the widget and Malini runs the command. Leave out for a github source, which Malini reads at once.',
-	);
-
 const WIDGET_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 export function platformTools(request: PlatformToolRequester, addMcpServer: McpServerAdder) {
@@ -324,7 +287,7 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 		),
 		tool(
 			'widgets_save',
-			"Save a widget: a tile on the user's right panel that keeps numbers in view, such as deploys, open pull requests or test coverage. Use it whenever the user asks for a widget or for numbers to keep an eye on, never an HTML page: a widget names where its data comes from, and Malini draws it. Malini writes it to `.malini/widgets/<id>.json` in this worktree, so the team gets it with the pull request. Its source gives WidgetData JSON, the fields of `sample`, and Malini picks the drawing from the fields it has: `value` with `unit`, `caption` and `delta` is a big number, `percent` a ring, `state` and `history` a status mark and a run strip, and `rows` bars or a list. A `github` source is a `gh api` GET path with an optional jq `select`, which Malini reads at once. A `command` source runs in the checkout only once the user pins the widget to their panel, so run the command yourself first and pass what it printed as `sample`; the chat shows that until then. The chat shows the widget as a live tile in each size, with Pin to my panel, and teammates get it as a suggestion on their panel once the branch merges. It needs no approval: it writes one file in this worktree. Returns the path, the saved widget and its first reading, which is null for a command source.",
+			'Save a widget: a tile on the user\'s widget board that keeps numbers in view, such as deploys, open pull requests or test coverage. Use it whenever the user asks for a widget or for numbers to keep an eye on, never an HTML page: a widget names where its data comes from, and Malini draws it. Malini keeps it in the user\'s own widgets, not in this worktree, puts it first on their board at two columns by one row and reads it at once; the user drags and resizes it there. Its source prints WidgetData JSON, and Malini picks the drawing from its fields: `value` with `unit`, `caption` and `delta` is a big number, `percent` a ring, `state` and `history` a status mark and a run strip, `rows` bars or a list, and `chart` a line or bar chart, `{"kind": "line" or "bar", "labels": [...], "series": [{"label": ..., "values": [...]}]}` with at most 3 series of 120 points. A trend gets a `chart` with the latest `value` beside it; a number that only matters now gets `value` alone. A `github` source is a `gh api` GET path with an optional jq `select`. A `command` source runs in the widget\'s own folder with the repository\'s secrets in its environment and `$MALINI_CHECKOUT` set to this checkout, so it reads repository files through `$MALINI_CHECKOUT`. Put a helper script in `.malini/widgets/` of this checkout and run it as `node .malini/widgets/<file>`: Malini copies it when you save, so save again after you change it. An id the repository shares from its default branch is refused: change that file in this checkout and open a pull request instead. The user makes a widget a default for the repository from its menu. It needs no approval. Returns the saved widget and its first reading.',
 			{
 				id: z
 					.string()
@@ -370,7 +333,7 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 								.string()
 								.min(1)
 								.describe(
-									'A shell command that prints WidgetData JSON, run in the checkout, for example node scripts/rooms.mjs',
+									"A shell command that prints WidgetData JSON, run in the widget's own folder, for example node .malini/widgets/rooms.mjs",
 								),
 						}),
 					])
@@ -393,17 +356,12 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 					})
 					.optional()
 					.describe('When Malini reads the source again'),
-				size: z
-					.enum(['small', 'medium', 'large'])
-					.optional()
-					.describe('The size the tile starts at. Defaults to small; the user can pick another.'),
 				url: z
 					.url()
 					.optional()
 					.describe(
 						"The page a click on the tile opens, for example the repository's Actions page",
 					),
-				sample: WIDGET_DATA.optional(),
 			},
 			(input) => call('widgets_save', input),
 		),

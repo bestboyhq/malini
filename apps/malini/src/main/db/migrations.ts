@@ -2111,6 +2111,13 @@ CREATE TABLE initiative_share_requests (
   PRIMARY KEY (repository_full_name, login)
 );
 `,
+	`
+ALTER TABLE initiatives ADD COLUMN done INTEGER NOT NULL DEFAULT 0 CHECK (done IN (0, 1));
+`,
+	`
+DROP TABLE widget_hidden;
+ALTER TABLE widget_placements DROP COLUMN approved_fingerprint;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

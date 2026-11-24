@@ -812,7 +812,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'widgets:board-changed',
 			description:
-				'Fires when a widget board changes: a widget file under `.malini/widgets` is added, changed or removed in a checkout, or you place, resize, remove or hide a widget, with the `board` it belongs to. Malini does not keep it in its event log.',
+				'Fires when a widget board changes: an agent saves a widget, a shared widget changes on the default branch, or you add, move, resize or remove a widget, with the `board` it belongs to. Malini does not keep it in its event log.',
 			facts: ['board'],
 			payloadType: 'WidgetBoardChangedEvent',
 			payload: 'type WidgetBoardChangedEvent = Readonly<{ board: string }>;',
@@ -824,7 +824,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			facts: ['board', 'widgetId', 'readAt', 'error', 'reading'],
 			payloadType: 'WidgetReading',
 			payload:
-				"const WIDGET_STATES = ['success', 'failure', 'running', 'idle'] as const;\n\ntype WidgetState = (typeof WIDGET_STATES)[number];\n\ntype WidgetRow = Readonly<{\n\tlabel: string;\n\tvalue: number | string | null;\n\tmax: number | null;\n\tdetail: string | null;\n\tstate: WidgetState | null;\n\turl: string | null;\n}>;\n\ntype WidgetData = Readonly<{\n\tvalue: number | string | null;\n\tunit: string | null;\n\tcaption: string | null;\n\tdelta: string | null;\n\tpercent: number | null;\n\tstate: WidgetState | null;\n\thistory: readonly WidgetState[];\n\trows: readonly WidgetRow[];\n\turl: string | null;\n}>;\n\ntype WidgetReading = Readonly<{\n\tboard: string;\n\twidgetId: string;\n\tfingerprint: string;\n\tdata: WidgetData | null;\n\treadAt: string | null;\n\terror: string | null;\n\tattemptedAt: string | null;\n\treading: boolean;\n}>;",
+				"const WIDGET_STATES = ['success', 'failure', 'running', 'idle'] as const;\n\ntype WidgetState = (typeof WIDGET_STATES)[number];\n\ntype WidgetRow = Readonly<{\n\tlabel: string;\n\tvalue: number | string | null;\n\tmax: number | null;\n\tdetail: string | null;\n\tstate: WidgetState | null;\n\turl: string | null;\n}>;\n\nconst WIDGET_CHART_KINDS = ['line', 'bar'] as const;\n\ntype WidgetChartKind = (typeof WIDGET_CHART_KINDS)[number];\n\ntype WidgetChartSeries = Readonly<{\n\tlabel: string | null;\n\tvalues: readonly (number | null)[];\n}>;\n\ntype WidgetChart = Readonly<{\n\tkind: WidgetChartKind;\n\tlabels: readonly string[];\n\tseries: readonly WidgetChartSeries[];\n}>;\n\ntype WidgetData = Readonly<{\n\tvalue: number | string | null;\n\tunit: string | null;\n\tcaption: string | null;\n\tdelta: string | null;\n\tpercent: number | null;\n\tstate: WidgetState | null;\n\thistory: readonly WidgetState[];\n\trows: readonly WidgetRow[];\n\tchart: WidgetChart | null;\n\turl: string | null;\n}>;\n\ntype WidgetReading = Readonly<{\n\tboard: string;\n\twidgetId: string;\n\tfingerprint: string;\n\tdata: WidgetData | null;\n\treadAt: string | null;\n\terror: string | null;\n\tattemptedAt: string | null;\n\treading: boolean;\n}>;",
 		},
 		{
 			channel: 'initiatives:synced',

@@ -1,6 +1,7 @@
 import type {
 	PlaceWidgetArgs,
 	ResizeWidgetArgs,
+	ShareWidgetArgs,
 	WidgetArgs,
 	WidgetBoard,
 	WidgetBoardChangedEvent,
@@ -26,12 +27,8 @@ class WidgetsService {
 		return invoke('widgets.remove', args);
 	}
 
-	hide(args: WidgetArgs): Promise<WidgetBoard> {
-		return invoke('widgets.hide', args);
-	}
-
-	refresh(args: WidgetArgs): Promise<WidgetReading> {
-		return invoke('widgets.refresh', args);
+	async share(args: ShareWidgetArgs): Promise<void> {
+		await invoke('widgets.share', args);
 	}
 
 	async pinPlan(repositoryFullName: string): Promise<void> {

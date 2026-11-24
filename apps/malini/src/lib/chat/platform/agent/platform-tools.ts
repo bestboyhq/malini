@@ -284,9 +284,6 @@ async function runPlatformTool(
 	}
 }
 
-const COMMAND_WAITS_FOR_PIN =
-	'Malini runs this command only once the user pins the widget to their panel.';
-
 async function saveWidget(
 	{ db, widgets }: PlatformRequestDeps,
 	request: BridgePlatformRequest,
@@ -294,13 +291,7 @@ async function saveWidget(
 	if (!widgets)
 		throw new PlatformToolError('unsupported', 'Malini cannot save widgets in this build.');
 	const { workstreamId } = requestSession(db, request);
-	const { path, widget, reading } = await widgets.save(workstreamId, request.input);
-	if (widget.source.kind !== 'command') return { path, widget, reading };
-	const note =
-		request.input['sample'] === undefined
-			? `${COMMAND_WAITS_FOR_PIN} You passed no \`sample\`, so the chat has nothing to show until then: run the command yourself and save the widget again with what it printed as \`sample\`.`
-			: `${COMMAND_WAITS_FOR_PIN} Until then the chat shows your \`sample\`.`;
-	return { path, widget, reading, note };
+	return widgets.save(workstreamId, request.input);
 }
 
 async function cloneRepository(

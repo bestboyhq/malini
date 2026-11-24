@@ -12,6 +12,7 @@
 		inputClass?: ClassValue;
 		onfocused?: () => void;
 		onblur?: (text: string) => void;
+		onescape?: () => void;
 		onsubmit: (text: string) => boolean | Promise<boolean>;
 	}
 
@@ -24,6 +25,7 @@
 		inputClass = 'h-8',
 		onfocused,
 		onblur,
+		onescape,
 		onsubmit,
 	}: Props = $props();
 
@@ -32,13 +34,14 @@
 
 	function grab(field: HTMLElement): void {
 		field.focus();
-		onfocused?.();
 	}
 
 	function onkeydown(event: KeyboardEvent): void {
 		if (event.key === 'Escape') {
 			event.preventDefault();
-			if (event.currentTarget instanceof HTMLElement) event.currentTarget.blur();
+			value = '';
+			if (onescape) onescape();
+			else if (event.currentTarget instanceof HTMLElement) event.currentTarget.blur();
 			return;
 		}
 		if (event.key !== 'Enter' || event.isComposing || pending) return;
@@ -72,6 +75,7 @@
 			'placeholder:opacity-0 group-hover/reveal:placeholder:opacity-100 focus:placeholder:opacity-100',
 	]}
 	{onkeydown}
+	onfocus={() => onfocused?.()}
 	onblur={() => onblur?.(value)}
 	{@attach focused ? grab : null}
 />

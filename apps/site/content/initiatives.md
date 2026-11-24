@@ -33,12 +33,14 @@ The weeks after this one read **Next week**, then **Week of 30 Nov**.
 **Earlier** lists the initiatives whose day has passed and that are not finished.
 **No date** lists the ones without a day.
 
-Name an outcome on a day to add an initiative there.
+Name an outcome on a day and press Return to add an initiative there.
+The field stays, so you can type the next outcome right away.
+The **+** at the end of a row adds a dependency to it: Return adds each one, and Escape goes back to the outcome.
 Its dependencies show under it, and the arrow at the end of its row hides them.
 
 ## Dependencies and when they are done
 
-Add dependencies under an initiative.
+Add dependencies with the **+** on an initiative's row.
 A dependency is done by one rule:
 
 - With no linked workstream, you tick it by hand.
@@ -51,7 +53,9 @@ A linked workstream that waits on you shows its last `Needs:` line.
 Malini reads each workstream's state live, the way a chat's **Workstreams** card does, so a merge shows as soon as it lands.
 
 An initiative counts its finished dependencies, and it is finished once all of them are done.
-A finished initiative leaves the rail once its day has passed.
+Tick the circle beside an initiative to finish it yourself, and tick it again to undo it.
+An initiative whose dependencies are all done shows a full circle that no tick undoes.
+A finished initiative is struck through, and it leaves the rail once its day has passed.
 
 ## Share internally
 
@@ -72,6 +76,7 @@ So a private repository that turns public later takes no plan with it.
   Two people who edit different fields both keep their edit, and a deleted row stays deleted.
   Anyone can edit the file by hand, and Malini drops what it cannot read.
 - When a linked workstream's pull request merges, Malini ticks its dependency.
+- The tick on an initiative goes in the file too.
 
 Only collaborators of the code repository see the plan.
 When you can manage the plan repository, Malini keeps its people in step with the code repository: it invites new collaborators with the access they have there, removes people who left, and cancels invitations they no longer need.
@@ -79,7 +84,7 @@ It checks at most every 10 minutes while sharing is on.
 Malini checks that the plan repository is still private before each sync, and turns sharing off once it is public or gone.
 
 Malini syncs every 30 seconds while the plan is on screen, and after each edit.
-A change someone else pushed shows as a line at the bottom of the window, such as who closed which dependency.
+A change someone else pushed shows as a line at the bottom of the window, such as who closed which initiative or dependency.
 The scratchpad stays on your Mac.
 
 Turning sharing off stops it, and the plan repository keeps its file and history.
@@ -119,10 +124,11 @@ Nothing opens, so you can start the next one right away.
 
 Drag an initiative to another day, or press **⌥↑** and **⌥↓**.
 Click a title to edit it in place: Return saves, Escape drops the edit.
+**↑** and **↓** move between titles.
 A row's menu renames it, removes its date, or deletes it.
 Deleting an initiative deletes its dependencies and their links, and keeps the workstreams.
 
 ## Where it lives
 
 Initiatives live in Malini's database on this Mac, each under its repository's full name.
-They are not in git, they do not sync, and nothing about them leaves the Mac.
+Until you turn on **Share internally**, they are not in git, they do not sync, and nothing about them leaves the Mac.

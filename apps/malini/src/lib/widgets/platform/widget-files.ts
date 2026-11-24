@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isEventChannel } from '$contract/events';
@@ -7,11 +6,10 @@ import {
 	PLAN_WIDGET_ID,
 	WIDGET_SCOPES,
 	WIDGETS_FOLDER,
-	isWidgetSize,
 	type WidgetDefinition,
+	type WidgetOrigin,
 	type WidgetRefresh,
 	type WidgetScope,
-	type WidgetSize,
 	type WidgetSource,
 } from '$contract/widgets';
 import { canonicalJson, isRecord } from '$main/db/rows';
@@ -29,6 +27,7 @@ const WIDGET_ERROR_VERDICTS = {
 	'bad-widget': 'expected',
 	'source-failed': 'expected',
 	'workstream-gone': 'expected',
+	'shared-widget': 'expected',
 } as const satisfies ErrorVerdicts;
 
 type WidgetErrorKind = keyof typeof WIDGET_ERROR_VERDICTS;
@@ -58,11 +57,10 @@ export const PLAN_WIDGET: WidgetDefinition = {
 	scope: 'shared',
 	source: { kind: 'plan' },
 	refresh: { everySeconds: REFRESH_DEFAULT_SECONDS, on: [] },
-	size: 'large',
 	url: null,
 	author: null,
 	fingerprint: fingerprintOf({ kind: 'plan' }),
-	path: null,
+	origin: 'plan',
 };
 
 export function isWidgetId(value: unknown): value is string {
@@ -81,7 +79,11 @@ export function fingerprintOf(source: WidgetSource): string {
 	return createHash('sha256').update(canonicalJson(source)).digest('hex');
 }
 
-export function parseWidgetFile(id: string, path: string | null, value: unknown): WidgetDefinition {
+export function parseWidgetFile(
+	id: string,
+	value: unknown,
+	origin: Exclude<WidgetOrigin, 'plan'>,
+): WidgetDefinition {
 	if (!isWidgetId(id)) {
 		throw bad(`the id \`${id}\` must be kebab-case: lowercase letters, digits and single dashes`);
 	}
@@ -95,21 +97,21 @@ export function parseWidgetFile(id: string, path: string | null, value: unknown)
 		scope: optional(value['scope'], scope) ?? 'shared',
 		source,
 		refresh: refresh(value['refresh']),
-		size: optional(value['size'], size) ?? 'small',
 		url: optional(value['url'], webUrl),
 		author: optional(value['author'], author),
 		fingerprint: fingerprintOf(source),
-		path,
+		origin,
 	};
 }
 
 export async function readWidgetFiles(
-	checkout: string,
+	home: string,
+	origin: Exclude<WidgetOrigin, 'plan'>,
 	skip: (path: string, problem: string) => void,
 ): Promise<WidgetDefinition[]> {
 	let names: string[];
 	try {
-		const entries = await readdir(join(checkout, WIDGETS_FOLDER), { withFileTypes: true });
+		const entries = await readdir(join(home, WIDGETS_FOLDER), { withFileTypes: true });
 		names = entries
 			.filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
 			.map((entry) => entry.name);
@@ -119,13 +121,11 @@ export async function readWidgetFiles(
 	}
 	const widgets = await Promise.all(
 		names.map(async (name) => {
-			const path = `${WIDGETS_FOLDER}/${name}`;
+			const id = name.slice(0, -'.json'.length);
 			try {
-				return [
-					parseWidgetFile(name.slice(0, -'.json'.length), path, await readJson(checkout, path)),
-				];
+				return [await readWidgetFile(home, id, origin)];
 			} catch (error) {
-				skip(path, describeError(error));
+				skip(widgetPath(id), describeError(error));
 				return [];
 			}
 		}),
@@ -133,7 +133,15 @@ export async function readWidgetFiles(
 	return widgets.flat().sort((left, right) => left.id.localeCompare(right.id));
 }
 
-export function freeWidgetId(checkout: string, title: unknown): string {
+export async function readWidgetFile(
+	home: string,
+	id: string,
+	origin: Exclude<WidgetOrigin, 'plan'>,
+): Promise<WidgetDefinition> {
+	return parseWidgetFile(id, await readJson(home, widgetPath(id)), origin);
+}
+
+export function freeWidgetId(taken: ReadonlySet<string>, title: unknown): string {
 	const base =
 		(typeof title === 'string' ? title : '')
 			.normalize('NFKD')
@@ -144,18 +152,16 @@ export function freeWidgetId(checkout: string, title: unknown): string {
 			.replace(/^-+|-+$/gu, '') || 'widget';
 	for (let n = 1; ; n += 1) {
 		const id = n === 1 ? base : `${base}-${n}`;
-		if (id !== PLAN_WIDGET_ID && !existsSync(join(checkout, widgetPath(id)))) return id;
+		if (id !== PLAN_WIDGET_ID && !taken.has(id)) return id;
 	}
 }
 
-export async function writeWidgetFile(checkout: string, widget: WidgetDefinition): Promise<string> {
-	const path = widgetPath(widget.id);
-	const target = join(checkout, path);
+export async function writeWidgetFile(home: string, widget: WidgetDefinition): Promise<void> {
+	const target = join(home, widgetPath(widget.id));
 	const staged = `${target}.${process.pid}.tmp`;
-	await mkdir(join(checkout, WIDGETS_FOLDER), { recursive: true });
+	await mkdir(join(home, WIDGETS_FOLDER), { recursive: true });
 	await writeFile(staged, widgetFileText(widget));
 	await rename(staged, target);
-	return path;
 }
 
 function widgetFileText(widget: WidgetDefinition): string {
@@ -171,15 +177,14 @@ function widgetFileText(widget: WidgetDefinition): string {
 					? { command: source.run }
 					: {},
 		refresh: { every: widget.refresh.everySeconds, on: widget.refresh.on },
-		size: widget.size,
 		...(widget.url === null ? {} : { url: widget.url }),
 		...(widget.author === null ? {} : { author: widget.author }),
 	};
 	return `${JSON.stringify(file, null, '\t')}\n`;
 }
 
-async function readJson(checkout: string, path: string): Promise<unknown> {
-	const file = join(checkout, path);
+async function readJson(home: string, path: string): Promise<unknown> {
+	const file = join(home, path);
 	if ((await stat(file)).size > FILE_MAX_BYTES) throw bad('the file is larger than 64 KB');
 	try {
 		const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
@@ -247,11 +252,6 @@ function scope(value: unknown): WidgetScope {
 	const known = WIDGET_SCOPES.find((candidate) => candidate === value);
 	if (known === undefined) throw bad('`scope` must be `shared` or `own`');
 	return known;
-}
-
-function size(value: unknown): WidgetSize {
-	if (!isWidgetSize(value)) throw bad('`size` must be `small`, `medium` or `large`');
-	return value;
 }
 
 function webUrl(value: unknown): string {

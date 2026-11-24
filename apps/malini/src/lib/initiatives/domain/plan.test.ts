@@ -37,6 +37,7 @@ function outcome(
 		repositoryFullName: 'acme/rocket',
 		title: id,
 		dueOn,
+		done: false,
 		note: null,
 		dependencies,
 	};

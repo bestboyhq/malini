@@ -18,24 +18,23 @@
 	import { rowShare, widgetLayout } from '$lib/widgets/domain/widget-layout';
 	import {
 		WIDGET_STATE_NAMES,
+		deltaOf,
 		runsLabel,
 		tileName,
 		widgetValue,
 	} from '$lib/widgets/domain/widget-text';
+	import WidgetChart from './WidgetChart.svelte';
 
 	interface Props {
 		widget: WidgetDefinition;
 		reading: WidgetReading | null;
 		span: WidgetSpan;
 		columns: number;
-		faded?: boolean;
 		sample?: WidgetData | null;
-		approved?: boolean;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
 		titleHref?: string | undefined;
 		author?: Snippet | undefined;
-		actions?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
 	}
 
@@ -44,16 +43,15 @@
 		reading,
 		span,
 		columns,
-		faded = false,
 		sample = null,
-		approved = true,
 		plan,
 		planHeader,
 		titleHref,
 		author,
-		actions,
 		onopen,
 	}: Props = $props();
+
+	type Pointer = Readonly<{ x: number; y: number }>;
 
 	const FALLBACK_ICON: IconName = 'layers';
 
@@ -82,20 +80,33 @@
 		idle: 'bg-surface-150',
 	};
 
+	const DELTA_TONES = {
+		up: 'text-success-content',
+		down: 'text-error-content',
+	} as const;
+
+	const DELTA_ARROWS = { up: '↑', down: '↓' } as const;
+
 	const HOT_SHARE = 85;
+
+	let pointer = $state<Pointer | null>(null);
 
 	const data = $derived(reading?.data ?? sample);
 	const shown = $derived(shownSpan(span, columns));
 	const size = $derived(spanLook(shown));
+	const wide = $derived(shown.columns > 1);
 	const tall = $derived(shown.rows > 1);
 	const layout = $derived(widgetLayout(data, shown));
-	const rows = $derived(data?.rows.slice(0, layout.rowCount) ?? []);
 	const stale = $derived(reading !== null && reading.error !== null && reading.data !== null);
 	const tileUrl = $derived(data?.url ?? widget.url);
 	const scope = $derived(SCOPE_MARKS[widget.scope]);
-	const locked = $derived(!approved && widget.source.kind === 'command');
-	const empty = $derived(layout.headline === null && layout.rows === null && !layout.caption);
-	const smallDelta = $derived(size === 'small' && data !== null && data.delta !== null);
+	const empty = $derived(
+		layout.headline === null && layout.rows === null && !layout.caption && !layout.chart,
+	);
+	const delta = $derived(data?.delta ? deltaOf(data.delta) : null);
+	const barValueChars = $derived(
+		Math.max(0, ...(data?.rows ?? []).map((row) => barValue(row).length)),
+	);
 	const rowColumns = $derived(
 		layout.rows === 'bars'
 			? 'grid-cols-[minmax(0,4.25rem)_minmax(0,1fr)_auto] @max-[11rem]:grid-cols-[minmax(0,1fr)_auto]'
@@ -118,6 +129,24 @@
 		if (row.state === 'failure') return 'bg-error-content';
 		return (rowShare(row) ?? 0) >= HOT_SHARE ? 'bg-warning-content' : 'bg-status-idle';
 	}
+
+	function barValue(row: WidgetRow): string {
+		return `${row.value === null ? '' : widgetValue(row.value)} /${row.max === null ? '' : widgetValue(row.max)}`;
+	}
+
+	function chartLabel(): string {
+		const names = data?.chart?.series.flatMap((series) => series.label ?? []) ?? [];
+		const kind = data?.chart?.kind === 'bar' ? 'Bar chart' : 'Line chart';
+		return names.length === 0 ? kind : `${kind} of ${names.join(', ')}`;
+	}
+
+	function onPointerMove(event: PointerEvent): void {
+		pointer = { x: event.clientX, y: event.clientY };
+	}
+
+	function onPointerLeave(): void {
+		pointer = null;
+	}
 </script>
 
 {#snippet stateMark(state: WidgetState, markSize: number)}
@@ -133,13 +162,114 @@
 	{/if}
 {/snippet}
 
-{#snippet caption(text: string | null)}
-	<p class="text-fg-tertiary text-2xs mt-1.5 line-clamp-2 leading-4">
-		{#if text}{text}{/if}
-		{#if smallDelta && data?.delta}<span class="text-fg-secondary tabular-nums">
-				{data.delta}
-			</span>{/if}
+{#snippet note()}
+	{#if delta || (layout.caption && data?.caption)}
+		<p class="text-fg-tertiary text-2xs mt-1.5 flex min-w-0 items-baseline gap-x-1.5 leading-4">
+			{#if delta}
+				<span
+					class={[
+						'shrink-0 font-medium whitespace-nowrap tabular-nums',
+						delta.direction === null ? 'text-fg-secondary' : DELTA_TONES[delta.direction],
+					]}
+				>
+					{#if delta.direction}{DELTA_ARROWS[delta.direction]}{/if}{delta.text}
+				</span>
+			{/if}
+			{#if layout.caption && data?.caption}
+				<span class={['min-w-0', tall ? 'line-clamp-3' : 'truncate']}>{data.caption}</span>
+			{/if}
+		</p>
+	{/if}
+{/snippet}
+
+{#snippet number(value: number | string)}
+	<p
+		class={[
+			'text-fg-agent-message-strong flex min-w-0 flex-wrap items-baseline gap-x-1 gap-y-1.5 leading-none font-medium tracking-tight tabular-nums',
+			layout.hero
+				? 'text-[clamp(1.75rem,24cqmin,4.5rem)]'
+				: 'text-[clamp(1.375rem,17cqmin,2.25rem)]',
+		]}
+	>
+		<span class="min-w-0 truncate">{widgetValue(value)}</span>
+		{#if data?.unit}
+			<span
+				class="text-fg-tertiary max-w-full truncate text-[max(0.75rem,0.3em)] font-normal tracking-normal"
+			>
+				{data.unit}
+			</span>
+		{/if}
 	</p>
+{/snippet}
+
+{#snippet ring(percent: number, scaled: boolean)}
+	<svg
+		viewBox="0 0 52 52"
+		class={['shrink-0', scaled ? 'size-[clamp(3.25rem,30cqmin,7.5rem)]' : 'size-13']}
+		role="img"
+		aria-label="{Math.round(percent)}%"
+	>
+		<circle cx="26" cy="26" r="22" fill="none" stroke-width="6" class="stroke-surface-100" />
+		<circle
+			cx="26"
+			cy="26"
+			r="22"
+			fill="none"
+			stroke-width="6"
+			stroke-linecap="round"
+			stroke="currentColor"
+			pathLength="100"
+			stroke-dasharray="{percent} 100"
+			transform="rotate(-90 26 26)"
+			class="text-fg-secondary"
+		/>
+		<text
+			x="26"
+			y="26"
+			text-anchor="middle"
+			dominant-baseline="central"
+			class="text-fg-agent-message-strong fill-current font-mono text-[12px] font-medium"
+		>
+			{Math.round(percent)}%
+		</text>
+	</svg>
+{/snippet}
+
+{#snippet headline(source: WidgetData, beside: boolean)}
+	{#if layout.headline === 'number' && source.value !== null}
+		{@render number(source.value)}
+		{@render note()}
+	{:else if layout.headline === 'ring' && source.percent !== null}
+		{#if beside}
+			{@render ring(source.percent, false)}
+			{#if layout.caption}
+				<p class="text-fg-tertiary text-2xs mt-1.5 truncate leading-4">{source.caption}</p>
+			{/if}
+		{:else}
+			<div class={['flex min-w-0', wide ? 'items-center gap-3.5' : 'flex-col items-start gap-2']}>
+				{@render ring(source.percent, true)}
+				{#if layout.caption}
+					<p class="text-fg-tertiary text-2xs line-clamp-2 min-w-0 leading-4">{source.caption}</p>
+				{/if}
+			</div>
+		{/if}
+	{:else if layout.headline === 'status' && layout.status !== null}
+		<div class={['flex min-w-0', wide ? 'items-center gap-2.5' : 'flex-col items-start']}>
+			{@render stateMark(layout.status, tall ? 26 : 22)}
+			{#if layout.caption}
+				<p
+					class={[
+						'text-fg-tertiary text-2xs line-clamp-2 min-w-0 leading-4',
+						wide ? 'text-xs' : 'mt-1.5',
+					]}
+				>
+					{source.caption}
+				</p>
+			{/if}
+		</div>
+	{:else if layout.caption}
+		<p class="text-fg-secondary line-clamp-3 text-xs leading-[18px]">{source.caption}</p>
+	{/if}
 {/snippet}
 
 {#snippet rowBody(row: WidgetRow)}
@@ -153,7 +283,10 @@
 				style:width="{rowShare(row) ?? 0}%"
 			></span>
 		</span>
-		<span class="text-fg-secondary text-right font-mono tabular-nums">
+		<span
+			class="text-fg-secondary text-right font-mono tabular-nums"
+			style:min-width="{barValueChars}ch"
+		>
 			{row.value === null ? '' : widgetValue(row.value)}
 			<span class="text-fg-tertiary">/{row.max === null ? '' : widgetValue(row.max)}</span>
 		</span>
@@ -175,6 +308,50 @@
 	{/if}
 {/snippet}
 
+{#snippet rowList(source: WidgetData, flush: boolean)}
+	<ul
+		class={[
+			'text-2xs grid min-h-0 flex-1 grid-flow-col grid-rows-[repeat(auto-fill,22px)] gap-x-4 overflow-hidden',
+			layout.rowColumns === 2
+				? 'auto-cols-[minmax(calc(50%-0.5rem),1fr)]'
+				: 'auto-cols-[minmax(100%,1fr)]',
+			!flush && 'mt-3',
+		]}
+	>
+		{#each source.rows as row, index (index)}
+			<li class="min-w-0">
+				{#if row.url && onopen}
+					{@const url = row.url}
+					<Button
+						bare
+						class={[
+							'hover:bg-surface-100 focus-visible:ring-border-default/50 pointer-events-auto -mx-1.5 grid h-[22px] w-[calc(100%+0.75rem)] cursor-pointer items-center gap-2.5 rounded-md px-1.5 outline-0 focus-visible:ring-2',
+							rowColumns,
+						]}
+						onclick={() => open(url)}
+					>
+						{@render rowBody(row)}
+					</Button>
+				{:else}
+					<div class={['grid h-[22px] items-center gap-2.5', rowColumns]}>
+						{@render rowBody(row)}
+					</div>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
+
+{#snippet detail(source: WidgetData, flush: boolean)}
+	{#if layout.chart && source.chart}
+		<div class={['flex min-h-0 min-w-0 flex-1', !flush && 'mt-2.5']}>
+			<WidgetChart chart={source.chart} label={chartLabel()} {pointer} legend={layout.legend} />
+		</div>
+	{:else if layout.rows !== null}
+		{@render rowList(source, flush)}
+	{/if}
+{/snippet}
+
 {#snippet emptyState()}
 	<p class="text-fg-tertiary text-2xs flex items-center gap-1.5 leading-4">
 		{#if reading?.reading}
@@ -193,14 +370,11 @@
 {/snippet}
 
 <article
-	class={[
-		'bg-surface-root [container-type:size] relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border-[0.5px] px-3.5 py-3 transition-[border-color] duration-200 select-none',
-		faded
-			? 'border-border-default border-dashed'
-			: 'border-border-default/60 hover:border-border-default',
-	]}
+	class="bg-surface-root border-border-default/60 hover:border-border-default [container-type:size] relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border-[0.5px] px-3.5 py-3 transition-[border-color] duration-200 select-none"
 	aria-label={tileName(widget, span, columns)}
 	data-widget-id={widget.id}
+	onpointermove={layout.chart ? onPointerMove : undefined}
+	onpointerleave={layout.chart ? onPointerLeave : undefined}
 >
 	{#if tileUrl && onopen}
 		<Button
@@ -214,8 +388,8 @@
 	<header
 		class="text-fg-tertiary text-2xs pointer-events-none relative mb-2 flex h-4 shrink-0 items-center gap-1.5"
 	>
-		<Icon name={iconOf(widget.icon)} size={12} class={['shrink-0', faded && 'opacity-60']} />
-		<span class={['min-w-0 flex-1 truncate', faded && 'opacity-60']}>
+		<Icon name={iconOf(widget.icon)} size={12} class="shrink-0" />
+		<span class="min-w-0 flex-1 truncate">
 			{#if titleHref}
 				<a
 					href={titleHref}
@@ -252,8 +426,8 @@
 	<div
 		class={[
 			'pointer-events-none relative flex min-h-0 flex-1 flex-col',
-			tall ? 'justify-start' : 'justify-end',
-			faded ? 'opacity-40' : stale && 'opacity-50',
+			layout.chart || layout.rows !== null ? 'justify-start' : 'justify-end',
+			stale && 'opacity-50',
 		]}
 	>
 		{#if widget.source.kind === 'plan'}
@@ -264,139 +438,42 @@
 					{@render emptyState()}
 				{/if}
 			</div>
-		{:else if locked && widget.source.kind === 'command'}
-			<p class="text-fg-tertiary text-2xs leading-4">Runs</p>
-			<code
-				class="text-fg-secondary text-2xs mt-0.5 line-clamp-3 font-mono leading-4 break-all select-text"
-			>
-				{widget.source.run}
-			</code>
 		{:else if empty || data === null}
 			{@render emptyState()}
+		{:else if layout.side}
+			<div class="flex min-h-0 flex-1 gap-4">
+				<div class="flex max-w-[48%] min-w-0 shrink-0 flex-col justify-end">
+					{@render headline(data, true)}
+				</div>
+				<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+					{@render detail(data, true)}
+				</div>
+			</div>
 		{:else}
-			{#if layout.headline === 'number' && data.value !== null}
-				<div class="flex min-w-0 items-end justify-between gap-2">
-					<p
-						class="text-fg-agent-message-strong min-w-0 truncate text-[clamp(1.5rem,21cqmin,2.5rem)] leading-none font-medium tracking-tight tabular-nums"
-					>
-						{widgetValue(data.value)}{#if data.unit}<span
-								class="text-fg-tertiary ml-1 text-xs font-normal tracking-normal"
-							>
-								{data.unit}
-							</span>{/if}
-					</p>
-					{#if data.delta && size !== 'small'}
-						<span class="text-fg-secondary text-2xs shrink-0 leading-4 tabular-nums">
-							{data.delta}
-						</span>
-					{/if}
-				</div>
-				{#if layout.caption || smallDelta}
-					{@render caption(layout.caption ? data.caption : null)}
-				{/if}
-			{:else if layout.headline === 'ring' && data.percent !== null}
-				<div class={['flex', size === 'medium' ? 'items-center gap-3.5' : 'flex-col items-start']}>
-					<svg
-						viewBox="0 0 52 52"
-						class="size-[52px] shrink-0"
-						role="img"
-						aria-label="{Math.round(data.percent)}%"
-					>
-						<circle
-							cx="26"
-							cy="26"
-							r="22"
-							fill="none"
-							stroke-width="6"
-							class="stroke-surface-100"
-						/>
-						<circle
-							cx="26"
-							cy="26"
-							r="22"
-							fill="none"
-							stroke-width="6"
-							stroke-linecap="round"
-							stroke="currentColor"
-							pathLength="100"
-							stroke-dasharray="{data.percent} 100"
-							transform="rotate(-90 26 26)"
-							class="text-fg-secondary"
-						/>
-						<text
-							x="26"
-							y="26"
-							text-anchor="middle"
-							dominant-baseline="central"
-							class="text-fg-agent-message-strong fill-current font-mono text-[12px] font-medium"
-						>
-							{Math.round(data.percent)}%
-						</text>
-					</svg>
-					{#if layout.caption}
-						<p
-							class={[
-								'text-fg-tertiary text-2xs line-clamp-2 leading-4',
-								size !== 'medium' && 'mt-2',
-							]}
-						>
-							{data.caption}
-						</p>
-					{/if}
-				</div>
-			{:else if layout.headline === 'status' && layout.status !== null}
-				{@render stateMark(layout.status, 22)}
-				{#if layout.caption}
-					{@render caption(data.caption)}
-				{/if}
-			{:else if layout.caption}
-				<p class="text-fg-secondary line-clamp-3 text-xs leading-[18px]">{data.caption}</p>
-			{/if}
-
-			{#if layout.runs.length > 0}
-				<div class="mt-2.5 flex shrink-0 gap-[3px]" role="img" aria-label={runsLabel(layout.runs)}>
-					{#each layout.runs as run, index (index)}
-						<span class={['h-3.5 max-w-[9px] min-w-0 flex-1 rounded-[3px]', RUN_TONES[run]]}></span>
-					{/each}
+			{#if layout.headline !== null || layout.caption}
+				<div class="shrink-0">
+					{@render headline(data, false)}
 				</div>
 			{/if}
-
-			{#if rows.length > 0}
-				<ul
-					class={[
-						'text-2xs flex min-h-0 flex-col flex-wrap content-start gap-x-0 overflow-hidden',
-						layout.headline === null ? 'flex-1' : 'mt-3 flex-1',
-						tall ? 'justify-start' : 'justify-end',
-					]}
-				>
-					{#each rows as row, index (index)}
-						<li class="w-full shrink-0">
-							{#if row.url && onopen}
-								{@const url = row.url}
-								<Button
-									bare
-									class={[
-										'hover:bg-surface-100 focus-visible:ring-border-default/50 pointer-events-auto -mx-1.5 grid h-[22px] w-[calc(100%+0.75rem)] cursor-pointer items-center gap-2.5 rounded-md px-1.5 outline-0 focus-visible:ring-2',
-										rowColumns,
-									]}
-									onclick={() => open(url)}
-								>
-									{@render rowBody(row)}
-								</Button>
-							{:else}
-								<div class={['grid h-[22px] items-center gap-2.5', rowColumns]}>
-									{@render rowBody(row)}
-								</div>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			{/if}
+			{@render detail(data, layout.headline === null && !layout.caption)}
 		{/if}
 
-		{#if actions}
-			<div class="pointer-events-auto mt-2 flex shrink-0 items-center gap-1.5">
-				{@render actions()}
+		{#if layout.runs.length > 0 && widget.source.kind !== 'plan' && !empty}
+			<div class={['flex shrink-0 flex-col gap-1.5', tall ? 'mt-auto pt-3' : 'mt-2.5']}>
+				<div
+					class={['flex gap-[3px]', tall ? 'h-[clamp(0.875rem,10cqh,2.5rem)]' : 'h-3.5']}
+					role="img"
+					aria-label={runsLabel(layout.runs)}
+				>
+					{#each layout.runs as run, index (index)}
+						<span class={['h-full max-w-4 min-w-0 flex-1 rounded-[3px]', RUN_TONES[run]]}></span>
+					{/each}
+				</div>
+				{#if tall}
+					<p class="text-fg-tertiary text-2xs leading-4" aria-hidden="true">
+						{runsLabel(layout.runs)}
+					</p>
+				{/if}
 			</div>
 		{/if}
 	</div>

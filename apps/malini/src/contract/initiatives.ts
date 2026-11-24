@@ -14,6 +14,7 @@ export type Initiative = Readonly<{
 	repositoryFullName: string;
 	title: string;
 	dueOn: string | null;
+	done: boolean;
 	note: string | null;
 	dependencies: readonly InitiativeDependency[];
 }>;
@@ -28,6 +29,7 @@ export type UpdateInitiativeArgs = Readonly<{
 	id: string;
 	title?: string;
 	dueOn?: string | null;
+	done?: boolean;
 	note?: string | null;
 }>;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WIDGET_SIZE_SPANS, parseWidgetData, type WidgetData } from '$contract/widgets';
+import { parseWidgetData, type WidgetData, type WidgetSpan } from '$contract/widgets';
 import { gallerySizes, rowShare, widgetLayout } from './widget-layout';
 
 function data(fields: Readonly<Record<string, unknown>>): WidgetData {
@@ -8,69 +8,87 @@ function data(fields: Readonly<Record<string, unknown>>): WidgetData {
 	return parsed;
 }
 
+const SMALL: WidgetSpan = { columns: 1, rows: 1 };
+const WIDE: WidgetSpan = { columns: 2, rows: 1 };
+const FULL: WidgetSpan = { columns: 4, rows: 1 };
+const TALL: WidgetSpan = { columns: 1, rows: 2 };
+const LARGE: WidgetSpan = { columns: 4, rows: 3 };
+
 const ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => ({ label: `Row ${value}`, value }));
+
+const CHART = {
+	kind: 'line',
+	series: [
+		{ label: 'Visits', values: [1, 2, 3] },
+		{ label: 'Sign-ups', values: [0, 1, 1] },
+	],
+};
 
 describe('widgetLayout', () => {
 	it('draws nothing without data', () => {
-		expect(widgetLayout(null, WIDGET_SIZE_SPANS.large)).toMatchObject({
-			headline: null,
+		expect(widgetLayout(null, LARGE)).toMatchObject({ headline: null, rows: null, chart: false });
+	});
+
+	it('lets a lone number fill the tile and keeps rows off a small tile', () => {
+		expect(widgetLayout(data({ value: 42 }), SMALL)).toMatchObject({ hero: true, caption: false });
+		expect(widgetLayout(data({ value: 42, caption: 'Open', rows: ROWS }), SMALL)).toMatchObject({
+			headline: 'number',
+			caption: true,
 			rows: null,
-			rowCount: 0,
+			hero: true,
 		});
 	});
 
-	it('leads with the number and keeps rows off a small tile', () => {
-		const layout = widgetLayout(
-			data({ value: 42, caption: 'Open', rows: ROWS }),
-			WIDGET_SIZE_SPANS.small,
-		);
-		expect(layout).toMatchObject({ headline: 'number', caption: true, rows: null, rowCount: 0 });
+	it('puts the number beside its rows on a wide short tile', () => {
+		expect(widgetLayout(data({ value: 42, caption: 'Open', rows: ROWS }), WIDE)).toMatchObject({
+			caption: true,
+			rows: 'list',
+			side: true,
+			rowColumns: 1,
+		});
+		expect(widgetLayout(data({ value: 42, rows: ROWS }), TALL).side).toBe(false);
 	});
 
-	it('trades the caption for two rows on a medium tile', () => {
-		const layout = widgetLayout(
-			data({ value: 42, caption: 'Open', rows: ROWS }),
-			WIDGET_SIZE_SPANS.medium,
-		);
-		expect(layout).toMatchObject({ caption: false, rows: 'list', rowCount: 2 });
+	it('splits rows in two columns on a wide tall tile', () => {
+		expect(widgetLayout(data({ rows: ROWS }), LARGE).rowColumns).toBe(2);
+		expect(widgetLayout(data({ rows: ROWS }), FULL).rowColumns).toBe(2);
+		expect(widgetLayout(data({ rows: ROWS }), WIDE).rowColumns).toBe(1);
 	});
 
 	it('falls back to a ring, then to a status', () => {
-		expect(widgetLayout(data({ percent: 64 }), WIDGET_SIZE_SPANS.small).headline).toBe('ring');
-		expect(widgetLayout(data({ history: ['failure'] }), WIDGET_SIZE_SPANS.small)).toMatchObject({
+		expect(widgetLayout(data({ percent: 64 }), SMALL).headline).toBe('ring');
+		expect(widgetLayout(data({ history: ['failure'] }), SMALL)).toMatchObject({
 			headline: 'status',
 			status: 'failure',
 		});
 	});
 
-	it('ends the runs strip with the current state and keeps the newest runs', () => {
-		const history = Array.from({ length: 12 }, () => 'success');
-		const layout = widgetLayout(data({ state: 'failure', history }), WIDGET_SIZE_SPANS.small);
-		expect(layout.runs).toHaveLength(10);
-		expect(layout.runs.at(-1)).toBe('failure');
+	it('ends the runs strip with the current state and keeps more runs on wider tiles', () => {
+		const history = Array.from({ length: 30 }, () => 'success');
+		const runs = (span: WidgetSpan): number =>
+			widgetLayout(data({ state: 'failure', history }), span).runs.length;
+		expect(widgetLayout(data({ state: 'failure', history }), SMALL).runs.at(-1)).toBe('failure');
+		expect([runs(SMALL), runs(WIDE), runs(FULL)]).toEqual([10, 20, 30]);
 	});
 
-	it('gives a large tile one row less for its strip', () => {
-		const layout = widgetLayout(
-			data({ value: 3, history: ['success'], rows: ROWS }),
-			WIDGET_SIZE_SPANS.large,
-		);
-		expect(layout.rowCount).toBe(5);
-	});
-
-	it('gives a taller tile more rows', () => {
-		const many = data({ value: 3, rows: [...ROWS, ...ROWS] });
-		expect(widgetLayout(many, { columns: 1, rows: 3 }).rowCount).toBe(12);
-		expect(widgetLayout(many, { columns: 4, rows: 3 }).rowCount).toBe(12);
-		expect(widgetLayout(many, { columns: 3, rows: 1 }).rowCount).toBe(2);
+	it('draws a chart in place of rows, with a legend for more than one series on tall tiles', () => {
+		const chart = data({ value: 3, caption: 'This week', rows: ROWS, chart: CHART });
+		expect(widgetLayout(chart, SMALL)).toMatchObject({
+			chart: true,
+			rows: null,
+			caption: false,
+			legend: false,
+			hero: false,
+		});
+		expect(widgetLayout(chart, WIDE)).toMatchObject({ side: true, legend: false, caption: true });
+		expect(widgetLayout(chart, LARGE)).toMatchObject({ side: false, legend: true });
+		expect(widgetLayout(data({ chart: CHART }), WIDE)).toMatchObject({ side: false });
 	});
 
 	it('draws bars only when every row has a share', () => {
 		const bars = [{ label: 'CPU', value: 3, max: 4 }];
-		expect(widgetLayout(data({ rows: bars }), WIDGET_SIZE_SPANS.medium).rows).toBe('bars');
-		expect(
-			widgetLayout(data({ rows: [...bars, { label: 'Up' }] }), WIDGET_SIZE_SPANS.medium).rows,
-		).toBe('list');
+		expect(widgetLayout(data({ rows: bars }), WIDE).rows).toBe('bars');
+		expect(widgetLayout(data({ rows: [...bars, { label: 'Up' }] }), WIDE).rows).toBe('list');
 	});
 });
 

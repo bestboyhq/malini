@@ -208,4 +208,7 @@
 	--themed-color-activity-2: var(--color-activity-2-light);
 	--themed-color-activity-3: var(--color-activity-3-light);
 	--themed-color-activity-4: var(--color-activity-4-light);
+	--themed-color-chart-1: var(--color-chart-1-light);
+	--themed-color-chart-2: var(--color-chart-2-light);
+	--themed-color-chart-3: var(--color-chart-3-light);
 }

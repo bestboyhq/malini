@@ -7,6 +7,7 @@ import {
 	DEFAULT_AUTOMATION_BOUNDARY,
 	type AutomationDefinitionRecord,
 } from '$contract/automations';
+import { parseWidgetData } from '$contract/widgets';
 import { all, isRecord, run } from '$main/db/rows';
 import { BrowserDialogOpen, type BrowserDialog } from '$lib/browser/browser.platform';
 import type { WidgetsPlatform } from '$lib/widgets/widgets.platform';
@@ -1015,7 +1016,7 @@ describe('platform requests from the agent', () => {
 		);
 	});
 
-	it("saves a widget in the chat's workstream and tells the agent a command runs only once the user pins it", async () => {
+	it("saves a widget in the chat's workstream and answers with the widget and its first reading", async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const saved: Array<readonly [string, unknown]> = [];
@@ -1025,7 +1026,6 @@ describe('platform requests from the agent', () => {
 				const command = isRecord(input) && isRecord(input['source']) && input['source']['command'];
 				const id = command ? 'rooms' : 'deploys';
 				return {
-					path: `.malini/widgets/${id}.json`,
 					widget: {
 						id,
 						title: 'Rooms',
@@ -1036,13 +1036,21 @@ describe('platform requests from the agent', () => {
 								? { kind: 'command', run: command }
 								: { kind: 'github', path: 'repos/{owner}/{repo}/actions/runs', select: null },
 						refresh: { everySeconds: 300, on: [] },
-						size: 'medium',
 						url: null,
 						author: 'e2e-user',
 						fingerprint: id,
-						path: `.malini/widgets/${id}.json`,
+						origin: 'mine',
 					},
-					reading: null,
+					reading: {
+						board: 'board',
+						widgetId: id,
+						fingerprint: id,
+						data: parseWidgetData({ value: 3 }),
+						readAt: '2026-11-24T09:00:00.000Z',
+						error: null,
+						attemptedAt: '2026-11-24T09:00:00.000Z',
+						reading: false,
+					},
 				};
 			},
 		};
@@ -1070,10 +1078,10 @@ describe('platform requests from the agent', () => {
 			return isRecord(parsed) ? parsed : {};
 		};
 		const rooms = { title: 'Rooms', source: { command: 'node scripts/rooms.mjs' } };
-		bridge.send(platformRequest('w-1', 'widgets_save', { ...rooms, sample: { value: 3 } }));
-		const sampled = await answer('w-1');
+		bridge.send(platformRequest('w-1', 'widgets_save', rooms));
+		const command = await answer('w-1');
 		bridge.send(platformRequest('w-2', 'widgets_save', rooms));
-		const unsampled = await answer('w-2');
+		await answer('w-2');
 		bridge.send(
 			platformRequest('w-3', 'widgets_save', {
 				title: 'Deploys',
@@ -1083,19 +1091,12 @@ describe('platform requests from the agent', () => {
 		const github = await answer('w-3');
 
 		expect(saved.map(([workstreamId]) => workstreamId)).toEqual(['ws-1', 'ws-1', 'ws-1']);
-		expect(saved[0]?.[1]).toEqual({ ...rooms, sample: { value: 3 } });
-		expect(sampled).toMatchObject({
-			path: '.malini/widgets/rooms.json',
-			widget: { id: 'rooms', author: 'e2e-user' },
-			reading: null,
-			note: expect.stringContaining('Until then the chat shows your `sample`.'),
+		expect(saved[0]?.[1]).toEqual(rooms);
+		expect(command).toEqual({
+			widget: expect.objectContaining({ id: 'rooms', author: 'e2e-user', origin: 'mine' }),
+			reading: expect.objectContaining({ data: expect.objectContaining({ value: 3 }) }),
 		});
-		expect(unsampled['note']).toContain('You passed no `sample`');
-		expect(github).toEqual({
-			path: '.malini/widgets/deploys.json',
-			widget: expect.objectContaining({ id: 'deploys' }),
-			reading: null,
-		});
+		expect(github['widget']).toEqual(expect.objectContaining({ id: 'deploys' }));
 		expect(all(test.db, 'SELECT tool, status, approval FROM agent_actions ORDER BY rowid')).toEqual(
 			Array.from({ length: 3 }, () => ({
 				tool: 'widgets_save',

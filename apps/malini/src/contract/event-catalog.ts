@@ -639,7 +639,7 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'widgets:board-changed': {
 		description:
-			'Fires when a widget board changes: a widget file under `.malini/widgets` is added, changed or removed in a checkout, or you place, resize, remove or hide a widget, with the `board` it belongs to. Malini does not keep it in its event log.',
+			'Fires when a widget board changes: an agent saves a widget, a shared widget changes on the default branch, or you add, move, resize or remove a widget, with the `board` it belongs to. Malini does not keep it in its event log.',
 		logged: false,
 		facts: ['board'],
 	},
