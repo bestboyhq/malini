@@ -156,6 +156,27 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		});
 	});
 
+	it('calls an MCP tool and refuses an ack without a tool result frame', async () => {
+		const supervisor = await spawn();
+		expect(
+			await supervisor.callMcpTool('/repo', 'logdash', 'describe', { days: 7 }, ['/ext/logdash']),
+		).toEqual({
+			kind: 'output',
+			text: JSON.stringify({
+				cwd: '/repo',
+				serverName: 'logdash',
+				tool: 'describe',
+				args: { days: 7 },
+				plugins: ['/ext/logdash'],
+			}),
+		});
+
+		const silent = await spawn({ FAKE_BRIDGE_SKIP_MCP_TOOL_FRAME: '1' });
+		await expect(silent.callMcpTool('/repo', 'logdash', 'describe', {}, [])).rejects.toThrow(
+			'the tool call was acknowledged without a bridge.mcp_tool_result frame',
+		);
+	});
+
 	it('fails a command still in flight when the bridge is stopped as stopped, not as a protocol error', async () => {
 		const supervisor = await spawn({ FAKE_BRIDGE_ACK_DELAY_MS: '5000' });
 		const stopped = expect(

@@ -2,7 +2,9 @@ import {
 	WIDGET_DEFAULT_SPAN,
 	isWidgetSpan,
 	parseWidgetData,
+	WIDGET_NEEDS,
 	type WidgetData,
+	type WidgetNeed,
 	type WidgetSpan,
 } from '$contract/widgets';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -17,6 +19,7 @@ export type StoredReading = Readonly<{
 	data: WidgetData | null;
 	readAt: string | null;
 	error: string | null;
+	need: WidgetNeed | null;
 	attemptedAt: string | null;
 }>;
 
@@ -31,6 +34,7 @@ type ReadingRow = {
 	data: string | null;
 	read_at: string | null;
 	error: string | null;
+	need: string | null;
 	attempted_at: string | null;
 };
 
@@ -126,7 +130,7 @@ export function getReading(
 ): StoredReading | null {
 	const row = get<ReadingRow>(
 		db,
-		`SELECT fingerprint, data, read_at, error, attempted_at FROM widget_readings
+		`SELECT fingerprint, data, read_at, error, need, attempted_at FROM widget_readings
 		 WHERE board = ? AND widget_id = ?`,
 		board,
 		widgetId,
@@ -137,6 +141,7 @@ export function getReading(
 		data: storedData(row.data),
 		readAt: row.read_at,
 		error: row.error,
+		need: WIDGET_NEEDS.find((need) => need === row.need) ?? null,
 		attemptedAt: row.attempted_at,
 	};
 }
@@ -158,6 +163,7 @@ export function recordRead(
 		   data = excluded.data,
 		   read_at = excluded.read_at,
 		   error = NULL,
+		   need = NULL,
 		   attempted_at = excluded.attempted_at`,
 		board,
 		widgetId,
@@ -173,19 +179,22 @@ export function recordFailedRead(
 	board: string,
 	widgetId: string,
 	fingerprint: string,
-	error: string,
+	failure: Readonly<{ error: string; need: WidgetNeed | null }>,
 ): void {
 	run(
 		db,
-		`INSERT INTO widget_readings (board, widget_id, fingerprint, data, read_at, error, attempted_at)
-		 VALUES (?, ?, ?, NULL, NULL, ?, ?)
+		`INSERT INTO widget_readings
+		   (board, widget_id, fingerprint, data, read_at, error, need, attempted_at)
+		 VALUES (?, ?, ?, NULL, NULL, ?, ?, ?)
 		 ON CONFLICT(board, widget_id) DO UPDATE SET
 		   error = excluded.error,
+		   need = excluded.need,
 		   attempted_at = excluded.attempted_at`,
 		board,
 		widgetId,
 		fingerprint,
-		error,
+		failure.error,
+		failure.need,
 		nowIso8601(),
 	);
 }

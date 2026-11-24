@@ -235,7 +235,7 @@ describe('malini tool approval', () => {
 		expect(
 			maliniToolApproval('mcp__malini__widgets_save', {
 				title: 'Deploys',
-				source: { command: 'node scripts/rooms.mjs' },
+				source: { mcp: { server: 'posthog', tool: 'trend', arguments: {} } },
 			}),
 		).toEqual({ headline: 'Save widget ‘Deploys’', details: [] });
 	});

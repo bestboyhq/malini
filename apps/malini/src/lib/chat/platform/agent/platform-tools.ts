@@ -277,8 +277,8 @@ async function runPlatformTool(
 			});
 		}
 		case 'widgets_save':
-			if (internetOff && isRecord(input['source']) && 'github' in input['source']) {
-				throw refusesInternet('Reading a GitHub source reaches');
+			if (internetOff && isRecord(input['source'])) {
+				throw refusesInternet('Reading a widget source reaches');
 			}
 			return saveWidget(deps, request);
 	}

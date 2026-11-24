@@ -5,6 +5,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import type {
 		WidgetDefinition,
+		WidgetNeed,
 		WidgetPlacement,
 		WidgetReading,
 		WidgetSize,
@@ -42,6 +43,7 @@
 		onopen: (url: string) => void;
 		onnew?: ((prompt: string) => void) | undefined;
 		onshare?: ((widget: WidgetDefinition) => void) | undefined;
+		onneed?: ((widget: WidgetDefinition, need: WidgetNeed) => void) | undefined;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
 		planHref?: string | undefined;
@@ -61,7 +63,8 @@
 
 	type Sizing = Readonly<{ widgetId: string; span: WidgetSpan }>;
 
-	let { workstreamId, onopen, onnew, onshare, plan, planHeader, planHref }: Props = $props();
+	let { workstreamId, onopen, onnew, onshare, onneed, plan, planHeader, planHref }: Props =
+		$props();
 
 	const DRAG_THRESHOLD = 4;
 	const SETTLE_MS = 150;
@@ -424,6 +427,7 @@
 							{planHeader}
 							titleHref={widget.source.kind === 'plan' ? planHref : undefined}
 							{onopen}
+							onneed={onneed && ((need) => onneed(widget, need))}
 							author={madeBy === null ? undefined : authorMark}
 						/>
 						<span

@@ -511,7 +511,7 @@ describe('malini MCP server', () => {
 				},
 				title: { type: 'string', description: expect.any(String) },
 				scope: { enum: ['shared', 'own'], description: expect.any(String) },
-				source: { anyOf: [{ required: ['github'] }, { required: ['command'] }] },
+				source: { anyOf: [{ required: ['mcp'] }, { required: ['github'] }] },
 				refresh: {
 					properties: { every: { type: 'integer', minimum: 15 }, on: { type: 'array' } },
 				},
@@ -587,7 +587,7 @@ describe('malini MCP server', () => {
 		expect(invalid).toMatchObject({ result: { isError: true } });
 	});
 
-	it('sends a widget with a github or a command source to malini and refuses a mix of both', async () => {
+	it('sends a widget with an mcp or a github source to malini and refuses a script or a mix', async () => {
 		const { call, platformCalls } = await connect(
 			async () => ({ ok: true }),
 			async () => ({ ok: true, text: '{"widget":{"id":"deploys"}}' }),
@@ -598,15 +598,26 @@ describe('malini MCP server', () => {
 			github: 'repos/{owner}/{repo}/actions/runs?per_page=12',
 			select: '{value: .total_count}',
 		};
+		const mcp = {
+			mcp: {
+				server: 'posthog',
+				tool: 'trend',
+				arguments: { days: 7 },
+				url: 'https://mcp.posthog.com/mcp',
+			},
+			select: '{value: .total}',
+		};
 
 		const saved = await save({ source: github, refresh: { every: 120 } });
-		await save({ id: 'rooms', source: { command: 'node .malini/widgets/rooms.mjs' } });
-		const mixed = await save({ source: { ...github, command: 'node .malini/widgets/rooms.mjs' } });
+		await save({ id: 'rooms', source: mcp });
+		const script = await save({ source: { command: 'node .malini/widgets/rooms.mjs' } });
+		const mixed = await save({ source: { ...github, mcp: mcp.mcp } });
 		const tooOften = await save({ source: github, refresh: { every: 5 } });
 
 		expect(saved).toMatchObject({
 			result: { content: [{ type: 'text', text: '{"widget":{"id":"deploys"}}' }] },
 		});
+		expect(script).toMatchObject({ result: { isError: true } });
 		expect(mixed).toMatchObject({ result: { isError: true } });
 		expect(tooOften).toMatchObject({ result: { isError: true } });
 		expect(platformCalls).toEqual([
@@ -616,11 +627,7 @@ describe('malini MCP server', () => {
 			},
 			{
 				tool: 'widgets_save',
-				input: {
-					id: 'rooms',
-					title: 'Deploys',
-					source: { command: 'node .malini/widgets/rooms.mjs' },
-				},
+				input: { id: 'rooms', title: 'Deploys', source: mcp },
 			},
 		]);
 	});

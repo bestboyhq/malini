@@ -13,9 +13,9 @@ import {
 	type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import { isBrowserMcpServer } from './browser-mcp.js';
-import type { McpServerListing, McpServerReport } from '../types.js';
+import type { McpServerListing, McpServerReport, McpToolOutcome } from '../types.js';
 import { idle } from './capabilities.js';
-import { configChanged, mcpConfigSnapshot } from './config-snapshot.js';
+import { configChanged, mcpConfigSnapshot, type ConfigSnapshot } from './config-snapshot.js';
 import { findClaudeExecutable } from './installation.js';
 import { claudeEnvironment, type ClaudeQuery } from './session.js';
 import { claudeStateFile } from './user-settings.js';
@@ -35,6 +35,11 @@ const WATCH_RETRY_MS = 5_000;
 const SWITCH_WINDOW_MS = 5_000;
 const SWITCH_RETRY_MS = 250;
 const SAVE_TIMEOUT_MS = 30_000;
+const TOOL_CALL_WINDOW_MS = 20_000;
+const TOOL_CALL_DEADLINE_MS = 75_000;
+const TOOL_PROBE_IDLE_MS = 5 * 60_000;
+const TOOL_OUTPUT_MAX_BYTES = 256 * 1_024;
+const TOOL_ERROR_MAX_CHARACTERS = 300;
 
 export type McpProbeQuery = Pick<
 	ClaudeQuery,
@@ -44,6 +49,7 @@ export type McpProbeQuery = Pick<
 	| 'toggleMcpServer'
 	| 'applyFlagSettings'
 	| 'mcpAuthenticate'
+	| 'request'
 	| 'close'
 >;
 
@@ -85,7 +91,21 @@ export interface McpServerProbes {
 		plugins: readonly string[],
 	): Promise<McpServerReport | null>;
 	turnOn(cwd: string, serverName: string, plugins: readonly string[]): Promise<boolean>;
+	callTool(
+		cwd: string,
+		serverName: string,
+		tool: string,
+		args: Readonly<Record<string, unknown>>,
+		plugins: readonly string[],
+	): Promise<McpToolOutcome>;
 }
+
+export type McpToolCaller = (
+	options: McpProbeOptions,
+	serverName: string,
+	tool: string,
+	args: Readonly<Record<string, unknown>>,
+) => Promise<McpToolOutcome>;
 
 export type McpServerEntry = Pick<
 	McpServerStatus,
@@ -98,6 +118,8 @@ export type AddedMcpServer = McpStdioServerConfig | McpHttpServerConfig | McpSSE
 
 export type McpServerAdder = (name: string, config: AddedMcpServer) => Promise<string>;
 
+const claudeMcpTools = mcpToolCaller();
+
 export const claudeMcpServers: McpServerProbes = {
 	watch: (cwd, onListing, plugins) => watchMcpServers(claudeProbe(cwd, plugins), onListing),
 	authorize: async (cwd, serverName, plugins) =>
@@ -105,6 +127,8 @@ export const claudeMcpServers: McpServerProbes = {
 	probe: async (cwd, serverName, plugins) => probeMcpServer(serverName, claudeProbe(cwd, plugins)),
 	turnOn: async (cwd, serverName, plugins) =>
 		!existsSync(cwd) || turnOnMcpServer(serverName, claudeProbe(cwd, plugins)),
+	callTool: async (cwd, serverName, tool, args, plugins) =>
+		claudeMcpTools(claudeProbe(cwd, plugins), serverName, tool, args),
 };
 
 function claudeProbe(cwd: string, plugins: readonly string[]): McpProbeOptions {
@@ -331,6 +355,131 @@ async function userMcpServer(env: Record<string, string>, name: string): Promise
 		return undefined;
 	}
 }
+
+interface PooledProbe {
+	readonly probe: McpProbe;
+	readonly ready: Promise<unknown>;
+	readonly config: ConfigSnapshot;
+	idle?: NodeJS.Timeout;
+}
+
+export function mcpToolCaller(): McpToolCaller {
+	// ponytail: one Claude Code per folder and plugin set with no cap; bound the pool once widgets read from many folders at once
+	const pool = new Map<string, PooledProbe>();
+	const drop = (key: string, pooled: PooledProbe): void => {
+		clearTimeout(pooled.idle);
+		if (pool.get(key) === pooled) pool.delete(key);
+		pooled.probe.close();
+	};
+	const lease = (options: McpProbeOptions): readonly [string, PooledProbe] => {
+		const key = JSON.stringify([options.cwd, options.plugins]);
+		const kept = pool.get(key);
+		if (kept && !configChanged(kept.config)) return [key, kept];
+		if (kept) drop(key, kept);
+		const probe = openProbe(options);
+		const ready = probe.query.initializationResult();
+		ready.catch(() => undefined);
+		const pooled: PooledProbe = { probe, ready, config: mcpConfigSnapshot(options.cwd) };
+		pool.set(key, pooled);
+		return [key, pooled];
+	};
+	return async (options, serverName, tool, args) => {
+		const [key, pooled] = lease(options);
+		clearTimeout(pooled.idle);
+		pooled.idle = setTimeout(() => drop(key, pooled), TOOL_PROBE_IDLE_MS).unref();
+		const late = new AbortController();
+		try {
+			const outcome = await Promise.race([
+				callMcpTool(pooled.probe.query, pooled.ready, serverName, tool, args),
+				delay(TOOL_CALL_DEADLINE_MS, null, { ref: false, signal: late.signal }),
+			]);
+			if (outcome) return outcome;
+			drop(key, pooled);
+			return failedTool(`Claude Code did not answer within ${TOOL_CALL_DEADLINE_MS / 1_000} s`);
+		} catch (error) {
+			drop(key, pooled);
+			return failedTool(describe(error));
+		} finally {
+			late.abort();
+		}
+	};
+}
+
+export async function callMcpTool(
+	query: McpProbeQuery,
+	ready: Promise<unknown>,
+	serverName: string,
+	tool: string,
+	args: Readonly<Record<string, unknown>>,
+): Promise<McpToolOutcome> {
+	await ready;
+	let server = await listedServer(query, serverName);
+	if (server?.status === 'pending') {
+		await settle(query, serverName, ({ status }) => status !== 'pending', SETTLE_WINDOW_MS);
+		server = await listedServer(query, serverName);
+	}
+	if (!server) return { kind: 'missing' };
+	if (server.status === 'needs-auth') return { kind: 'needs-auth' };
+	if (server.status === 'disabled') return { kind: 'off' };
+	if (server.status !== 'connected') {
+		return failedTool(server.error ?? `${serverName} did not connect`);
+	}
+	const listed = server.tools?.find(({ name }) => name === tool);
+	if (!listed) return { kind: 'no-tool' };
+	if (listed.annotations?.readOnly !== true) return { kind: 'not-read-only' };
+	const request = query.request;
+	if (!request)
+		throw new Error('This Claude Code cannot call MCP tools. Update Claude Code first.');
+	const deadline = AbortSignal.timeout(TOOL_CALL_WINDOW_MS);
+	try {
+		const answer = await request.call(
+			query,
+			{ subtype: 'mcp_call', tool: mcpToolName(serverName, tool), arguments: args },
+			{ signal: deadline },
+		);
+		return toolOutcome(answer);
+	} catch (error) {
+		if (!deadline.aborted) throw error;
+		return failedTool(`${tool} did not answer within ${TOOL_CALL_WINDOW_MS / 1_000} s`);
+	}
+}
+
+async function listedServer(
+	query: McpProbeQuery,
+	serverName: string,
+): Promise<McpServerStatus | undefined> {
+	return (await query.mcpServerStatus()).find(({ name }) => name === serverName);
+}
+
+function mcpToolName(serverName: string, tool: string): string {
+	return `mcp__${serverName.replace(/[^a-zA-Z0-9_-]/gu, '_')}__${tool}`;
+}
+
+function toolOutcome(answer: unknown): McpToolOutcome {
+	const result = isRecord(answer) ? answer['response'] : undefined;
+	if (!isRecord(result)) throw new Error('Claude Code answered the tool call without a result');
+	const blocks: unknown[] = Array.isArray(result['content']) ? result['content'] : [];
+	const text = blocks
+		.flatMap((block) =>
+			isRecord(block) && block['type'] === 'text' && typeof block['text'] === 'string'
+				? [block['text']]
+				: [],
+		)
+		.join('\n');
+	if (result['isError'] === true) return failedTool(text || 'The tool failed');
+	const structured = result['structuredContent'];
+	const output = isRecord(structured) ? JSON.stringify(structured) : text;
+	if (Buffer.byteLength(output) > TOOL_OUTPUT_MAX_BYTES) {
+		return failedTool(`The tool answered with more than ${TOOL_OUTPUT_MAX_BYTES / 1_024} KB`);
+	}
+	return { kind: 'output', text: output };
+}
+
+function failedTool(error: string): McpToolOutcome {
+	return { kind: 'failed', error: error.trim().slice(0, TOOL_ERROR_MAX_CHARACTERS) };
+}
+
+type McpProbe = ReturnType<typeof openProbe>;
 
 function openProbe({ cwd, plugins, executable, env, query }: McpProbeOptions): {
 	readonly query: McpProbeQuery;

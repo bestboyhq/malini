@@ -13,6 +13,7 @@
 	import { makeWidgetDefaultCommand } from '$lib/app/application/commands/make-widget-default.command';
 	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
 	import { startWidgetWorkstreamCommand } from '$lib/app/application/commands/start-widget-workstream.command';
+	import { fixWidgetSourceCommand } from '$lib/app/application/commands/fix-widget-source.command';
 	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
 	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
 	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
@@ -207,6 +208,9 @@
 		onopen={(url) => openBrowserUrlCommand(workstreamId, url)}
 		onnew={repositoryContext
 			? (prompt) => startWidgetWorkstreamCommand(repositoryContext.repo, prompt)
+			: undefined}
+		onneed={repositoryContext
+			? (widget, need) => fixWidgetSourceCommand(repositoryContext.repo, workstreamId, widget, need)
 			: undefined}
 		onshare={repositoryContext && remotePullRequestsSupported
 			? (widget) => makeWidgetDefaultCommand(repositoryContext.repo, workstreamId, widget)

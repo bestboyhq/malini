@@ -17,7 +17,11 @@ import {
 } from '$main/errors';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { readJsonObject, updateClaudeSettings, type JsonObject } from '$lib/skills/skills.platform';
-import type { AgentMcpServerListing, BridgeMcpServerTarget } from './agent/protocol';
+import type {
+	AgentMcpServerListing,
+	BridgeMcpServerTarget,
+	McpToolOutcome,
+} from './agent/protocol';
 import { SupervisorError, type BridgeSupervisor } from './agent/supervisor';
 import type { WorkstreamCheckoutResolver } from './attachments/commands';
 import {
@@ -36,6 +40,7 @@ type McpSupervisor = Pick<
 	| 'authorizeMcpServer'
 	| 'reconnectMcpServer'
 	| 'cancelMcpAuthorization'
+	| 'callMcpTool'
 >;
 
 export interface McpServerDeps {
@@ -50,6 +55,8 @@ export interface McpServerDeps {
 	readonly plugins: () => readonly string[];
 	readonly log: (line: string) => void;
 }
+
+export type CallMcpTool = McpServerListings['callTool'];
 
 export class McpServerListings {
 	readonly #deps: McpServerDeps;
@@ -160,6 +167,21 @@ export class McpServerListings {
 				`mcp: could not turn ${serverName} ${on ? 'on' : 'off'} in running Claude Code: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
+	}
+
+	async callTool(
+		cwd: string,
+		serverName: string,
+		tool: string,
+		args: Readonly<Record<string, unknown>>,
+	): Promise<McpToolOutcome> {
+		const supervisor = await this.#deps.runtime.ensureReady();
+		const outcome = await plainly(() =>
+			supervisor.callMcpTool(cwd, serverName, tool, args, this.#deps.plugins()),
+		);
+		if (outcome.kind !== 'missing') return outcome;
+		const turnedOff = await readTurnedOffMcpServers(this.#deps.claudeSettings());
+		return turnedOff.includes(serverName) ? { kind: 'off' } : outcome;
 	}
 
 	#cached(cwd: string): McpServerReport[] {

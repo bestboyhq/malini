@@ -3,6 +3,7 @@
 	import type {
 		WidgetData,
 		WidgetDefinition,
+		WidgetNeed,
 		WidgetReading,
 		WidgetRow,
 		WidgetScope,
@@ -19,6 +20,7 @@
 	import {
 		WIDGET_STATE_NAMES,
 		deltaOf,
+		needAction,
 		runsLabel,
 		tileName,
 		widgetValue,
@@ -36,6 +38,7 @@
 		titleHref?: string | undefined;
 		author?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
+		onneed?: ((need: WidgetNeed) => void) | undefined;
 	}
 
 	let {
@@ -49,6 +52,7 @@
 		titleHref,
 		author,
 		onopen,
+		onneed,
 	}: Props = $props();
 
 	type Pointer = Readonly<{ x: number; y: number }>;
@@ -97,6 +101,7 @@
 	const wide = $derived(shown.columns > 1);
 	const tall = $derived(shown.rows > 1);
 	const layout = $derived(widgetLayout(data, shown));
+	const need = $derived(reading !== null && !reading.reading ? reading.need : null);
 	const stale = $derived(reading !== null && reading.error !== null && reading.data !== null);
 	const tileUrl = $derived(data?.url ?? widget.url);
 	const scope = $derived(SCOPE_MARKS[widget.scope]);
@@ -352,6 +357,16 @@
 	{/if}
 {/snippet}
 
+{#snippet needState(wanted: WidgetNeed)}
+	{@const action = needAction(widget, wanted)}
+	<p class="text-fg-tertiary text-2xs line-clamp-2 leading-4 break-words">{reading?.error}</p>
+	{#if action && onneed}
+		<span class="pointer-events-auto mt-2 flex" data-widget-chrome>
+			<Button variant="secondary" size="xs" onclick={() => onneed?.(wanted)}>{action}</Button>
+		</span>
+	{/if}
+{/snippet}
+
 {#snippet emptyState()}
 	<p class="text-fg-tertiary text-2xs flex items-center gap-1.5 leading-4">
 		{#if reading?.reading}
@@ -415,6 +430,15 @@
 					></span>
 					<span class="bg-success-content relative size-1.5 rounded-full"></span>
 				</span>
+			{:else if stale && need === null && reading?.error}
+				<Tooltip content={reading.error} placement="top" class="shrink-0">
+					<Icon
+						name="warning"
+						size={12}
+						class="text-warning-content"
+						ariaLabel="Last read failed: {reading.error}"
+					/>
+				</Tooltip>
 			{/if}
 			{@render author?.()}
 			<Tooltip content={scope.tip} placement="top" class="shrink-0">
@@ -427,7 +451,7 @@
 		class={[
 			'pointer-events-none relative flex min-h-0 flex-1 flex-col',
 			layout.chart || layout.rows !== null ? 'justify-start' : 'justify-end',
-			stale && 'opacity-50',
+			stale && need === null && 'opacity-50',
 		]}
 	>
 		{#if widget.source.kind === 'plan'}
@@ -438,6 +462,8 @@
 					{@render emptyState()}
 				{/if}
 			</div>
+		{:else if need !== null}
+			{@render needState(need)}
 		{:else if empty || data === null}
 			{@render emptyState()}
 		{:else if layout.side}

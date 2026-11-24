@@ -208,6 +208,7 @@ function reading(board: string, { widget, data }: DemoWidget): WidgetReading {
 		data,
 		readAt: data ? minutesAgo(2) : null,
 		error: null,
+		need: null,
 		attemptedAt: data ? minutesAgo(2) : null,
 		reading: false,
 	};

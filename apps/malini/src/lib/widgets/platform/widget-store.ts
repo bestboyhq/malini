@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, type Dirent } from 'node:fs';
-import { copyFile, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { WIDGETS_FOLDER, type WidgetDefinition } from '$contract/widgets';
 import { describeError, errorCode } from '$main/errors';
 import { recordedRemoteBase } from '$main/git/remote';
 import { runGit, runGitBoundedStdout } from '$main/git/run';
-import { isWidgetId, readWidgetFile, writeWidgetFile } from './widget-files';
+import { isWidgetId, readWidgetFile, widgetPath, writeWidgetFile } from './widget-files';
 
 const WIDGET_FILES_MAX = 64;
 const WIDGET_FILE_MAX_BYTES = 256 * 1024;
@@ -42,17 +42,10 @@ export async function readMine(root: string, skip: Skip): Promise<WidgetDefiniti
 	return widgets.flat().sort((left, right) => left.id.localeCompare(right.id));
 }
 
-export async function writeMine(
-	root: string,
-	widget: WidgetDefinition,
-	helpersFrom: string,
-): Promise<void> {
+export async function writeMine(root: string, widget: WidgetDefinition): Promise<void> {
 	const home = mineHome(root, widget.id);
 	const stage = join(root, 'mine', `.${widget.id}-${randomUUID()}`);
 	try {
-		const folder = join(stage, WIDGETS_FOLDER);
-		await copyHelpers(join(home, WIDGETS_FOLDER), folder);
-		await copyHelpers(join(helpersFrom, WIDGETS_FOLDER), folder);
 		await writeWidgetFile(stage, widget);
 		const old = join(dirname(home), `.${basename(home)}-${randomUUID()}`);
 		await rename(home, old).catch((error: unknown) => {
@@ -69,13 +62,9 @@ export function deleteMine(root: string, id: string): Promise<void> {
 	return rm(mineHome(root, id), { recursive: true, force: true });
 }
 
-export async function copyWidgetFiles(home: string, checkout: string): Promise<void> {
-	const from = join(home, WIDGETS_FOLDER);
-	const to = join(checkout, WIDGETS_FOLDER);
-	await mkdir(to, { recursive: true });
-	for (const entry of await entries(from)) {
-		if (entry.isFile()) await copyFile(join(from, entry.name), join(to, entry.name));
-	}
+export async function copyWidgetFile(home: string, id: string, checkout: string): Promise<void> {
+	await mkdir(join(checkout, WIDGETS_FOLDER), { recursive: true });
+	await copyFile(join(home, widgetPath(id)), join(checkout, widgetPath(id)));
 }
 
 export async function sharedTree(base: SharedBase): Promise<string | null> {
@@ -116,15 +105,15 @@ export async function materializeShared(
 				return listed === null ? [] : [listed];
 			})
 			.slice(0, WIDGET_FILES_MAX);
-		for (const [, mode, blob = '', size, name = ''] of files) {
-			if (Number(size) > WIDGET_FILE_MAX_BYTES || name.startsWith('.')) continue;
+		for (const [, , blob = '', size, name = ''] of files) {
+			if (Number(size) > WIDGET_FILE_MAX_BYTES || !name.endsWith('.json')) continue;
 			const text = await runGitBoundedStdout(
 				['-C', base.repoPath, 'cat-file', 'blob', blob],
 				WIDGET_FILE_MAX_BYTES,
 				'a shared widget file',
 			).catch(() => null);
 			if (text === null) continue;
-			await writeFile(join(folder, name), text, { mode: mode === '100755' ? 0o755 : 0o644 });
+			await writeFile(join(folder, name), text);
 		}
 		await rename(stage, home).catch((error: unknown) => {
 			if (!existsSync(home)) throw error;
@@ -138,18 +127,6 @@ export async function materializeShared(
 		await rm(stage, { recursive: true, force: true });
 	}
 	return home;
-}
-
-async function copyHelpers(from: string, to: string): Promise<void> {
-	await mkdir(to, { recursive: true });
-	let copied = 0;
-	for (const entry of await entries(from)) {
-		if (!entry.isFile() || entry.name.startsWith('.') || entry.name.endsWith('.json')) continue;
-		const source = join(from, entry.name);
-		if ((await stat(source)).size > WIDGET_FILE_MAX_BYTES) continue;
-		if ((copied += 1) > WIDGET_FILES_MAX) return;
-		await copyFile(source, join(to, entry.name));
-	}
 }
 
 async function entries(folder: string): Promise<Dirent[]> {

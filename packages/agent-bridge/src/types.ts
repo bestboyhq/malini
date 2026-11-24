@@ -187,6 +187,15 @@ export interface McpServerListing {
 	readonly error?: string;
 }
 
+export type McpToolOutcome =
+	| { readonly kind: 'output'; readonly text: string }
+	| { readonly kind: 'missing' }
+	| { readonly kind: 'needs-auth' }
+	| { readonly kind: 'off' }
+	| { readonly kind: 'no-tool' }
+	| { readonly kind: 'not-read-only' }
+	| { readonly kind: 'failed'; readonly error: string };
+
 export const BACKGROUND_TASK_KINDS = ['command', 'agent', 'task'] as const;
 
 export type BackgroundTaskKind = (typeof BACKGROUND_TASK_KINDS)[number];

@@ -51,7 +51,7 @@ Malini never puts a repository widget on your board by itself.
 ### Make one a default
 
 **Make default for this repository**, in your own widget's menu, starts a workstream of the repository in the background.
-Malini copies the widget file and the helper files it runs into `.malini/widgets/` there, and the agent checks them for secrets and private data and opens a draft pull request.
+Malini copies the widget file into `.malini/widgets/` there, and the agent checks it for secrets and private data and opens a draft pull request.
 Once it merges, every teammate finds it under their board, and on yours it turns into the repository's widget.
 
 ### Updates reach everyone
@@ -80,27 +80,39 @@ A widget is one JSON object, in Malini for your own and in `.malini/widgets/<id>
 
 ```json
 {
-	"title": "Deploy",
-	"icon": "workflow",
+	"title": "Visitors",
+	"icon": "trend-up",
 	"scope": "shared",
 	"source": {
-		"github": "repos/{owner}/{repo}/actions/runs?per_page=12",
-		"select": "{state: (.workflow_runs[0].conclusion // \"running\"), history: [.workflow_runs[].conclusion]}"
+		"mcp": {
+			"server": "logdash",
+			"tool": "trend",
+			"arguments": {
+				"clusterId": "0123456789abcdef01234567",
+				"events": [{ "name": "pageview" }],
+				"days": 14
+			},
+			"url": "https://mcp.logdash.io/mcp"
+		},
+		"select": "{value: .series[0].total, unit: \"views\", chart: {kind: \"line\", labels: .times, series: [{label: \"Views\", values: .series[0].counts}]}}"
 	},
-	"refresh": { "every": 120, "on": ["pull-requests:ship-changed"] },
-	"url": "https://github.com/acme/web/actions",
+	"refresh": { "every": 600 },
 	"author": "your-login"
 }
 ```
 
 The source is one of two kinds:
 
+- `mcp` calls a tool of one of your [MCP servers](/malini/docs/agent-tools.md#mcp-servers) with fixed `arguments`, the way your agent calls it, and `select` shapes its answer with jq.
+  Malini runs only a tool its server marks read-only, so a widget never changes data.
+  `url` is the address of a remote server, so a teammate who lacks it can add it from the tile.
 - `github` reads a GitHub API path with `gh api`, under your own sign-in, and `select` shapes the answer with jq.
   `{owner}` and `{repo}` are the repository's.
-- `command` runs a shell command and reads what it prints, such as `node .malini/widgets/rooms.mjs`.
-  It runs in the widget's own folder, which holds the helper files from `.malini/widgets/`, with the repository's [secrets](/malini/docs/agent-tools.md#secrets) in its environment and `$MALINI_CHECKOUT` set to the workstream's checkout.
 
-Either way, the source prints one JSON object, and Malini draws what it finds there:
+Widgets run no scripts.
+A widget from an older Malini that runs a command shows **Widgets read MCP servers now, not scripts.** until your agent moves it to a server.
+
+Either way, the source gives one JSON object, and Malini draws what it finds there:
 
 | Field                      | What Malini draws                                                                                         |
 | -------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -124,11 +136,26 @@ Hover a chart to read each point.
 Malini reads only the widgets on your board, and only while a board is on screen and Malini's window is visible.
 It reads a new widget at once, then on the widget's timer and on its events.
 A read that fails keeps the last numbers it got, dimmed, and the menu says when they are from.
+A warning sign in the tile's header says why the read failed.
 The last numbers stay across restarts, so a board opens full.
 
-Adding a widget to your board allows it to run.
-A repository widget runs what the default branch says, so a merged change to its command runs on every board that shows it, the way a merged script does.
-A widget that reads GitHub reaches nothing but GitHub, as you.
+Adding a widget to your board allows it to read.
+A repository widget reads what the default branch says, through your own servers and your own sign-ins.
+It reaches nothing but the server it names, or GitHub, as you, and it can only read.
+
+### When a tile needs you
+
+A widget that reads an MCP server you cannot reach says why, with one button.
+
+- **Add logdash**: the server is not one of yours.
+  Malini starts a workstream whose agent adds it with `mcp_servers_add`, at the widget's `url`, and signs you in.
+- **Sign in to logdash**: the server needs a sign-in.
+  Malini opens its sign-in page, as **Fix MCP servers** does.
+- **Turn on logdash**: you turned the server off.
+
+Once the server connects, the tile reads again by itself.
+A widget that still runs a script shows no numbers, only that widgets read MCP servers now: ask the agent to move it to one.
+`select` needs `jq`, which macOS 15 and later ship.
 
 ## Widgets your agent makes
 

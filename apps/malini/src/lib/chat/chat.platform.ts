@@ -2,6 +2,8 @@ export { resumesTurn } from './domain/background-work';
 export { commitLine } from './domain/run-evidence';
 export { hasTurnReport, parseTurnReport } from './domain/turn-report';
 export { AgentRunLeases, type Lease } from './platform/agent/lifecycle';
+export type { McpToolOutcome } from './platform/agent/protocol';
+export type { CallMcpTool } from './platform/mcp-servers';
 export {
 	agentHasReadFile,
 	backgroundCommandSource,

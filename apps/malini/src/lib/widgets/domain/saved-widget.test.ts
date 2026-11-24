@@ -27,22 +27,50 @@ describe('savedWidget', () => {
 			widget: {
 				id: 'open-prs',
 				title: 'Open PRs',
-				source: { kind: 'command', run: 'gh pr list' },
+				source: {
+					kind: 'mcp',
+					server: 'posthog',
+					tool: 'trend',
+					arguments: { days: 7 },
+					select: '.value',
+					url: null,
+				},
 				refresh: { everySeconds: 120, on: ['push'] },
 				fingerprint: 'abc',
 				origin: 'mine',
 			},
-			reading: { board: 'b', data: { value: 7 }, readAt: '2026-11-22T12:00:00Z' },
+			reading: { board: 'b', data: null, error: 'posthog needs you to sign in.', need: 'sign-in' },
 		});
 		const saved = savedWidget(INPUT, output);
 		expect(saved.widget).toMatchObject({
 			title: 'Open PRs',
-			source: { kind: 'command', run: 'gh pr list' },
+			source: {
+				kind: 'mcp',
+				server: 'posthog',
+				tool: 'trend',
+				arguments: { days: 7 },
+				select: '.value',
+				url: null,
+			},
 			refresh: { everySeconds: 120, on: ['push'] },
 			fingerprint: 'abc',
 		});
-		expect(saved.reading).toMatchObject({ widgetId: 'open-prs', reading: false });
-		expect(saved.reading?.data?.value).toBe(7);
+		expect(saved.reading).toMatchObject({ widgetId: 'open-prs', need: 'sign-in', reading: false });
+	});
+
+	it('draws an MCP source from the call input', () => {
+		const input = {
+			title: 'Visitors',
+			source: { mcp: { server: 'logdash', tool: 'trend', arguments: { days: 7 } }, select: '.x' },
+		};
+		expect(savedWidget(input, null).widget?.source).toEqual({
+			kind: 'mcp',
+			server: 'logdash',
+			tool: 'trend',
+			arguments: { days: 7 },
+			select: '.x',
+			url: null,
+		});
 	});
 
 	it('falls back to the input when the result is not JSON', () => {
