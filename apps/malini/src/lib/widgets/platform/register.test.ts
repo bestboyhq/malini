@@ -14,7 +14,6 @@ import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
 import { createNodeProcessRunner } from '$main/process/runner';
 import {
-	getProject,
 	getWorkstream,
 	upsertProject,
 	upsertWorkstream,
@@ -485,8 +484,8 @@ describe('the board', () => {
 			call('widgets.place', { workstreamId, widgetId: 'gone', index: 0 }),
 		).resolves.toMatchObject(refused('No widget `gone`'));
 		await expect(
-			call('widgets.share', { workstreamId, widgetId: 'rooms', into: '' }),
-		).resolves.toMatchObject(refused('into'));
+			call('widgets.share', { workstreamId: '', widgetId: 'rooms' }),
+		).resolves.toMatchObject(refused('workstreamId'));
 		await expect(call('widgets.watch', { workstreamId, watching: 'yes' })).resolves.toMatchObject(
 			refused('watching'),
 		);
@@ -572,46 +571,26 @@ describe('the board', () => {
 			SLOW,
 		);
 		await expect(
-			context.commands.call('widgets.share', {
-				workstreamId: WORKSTREAM,
-				widgetId: 'rooms',
-				into: WORKSTREAM,
-			}),
+			context.commands.call('widgets.share', { workstreamId: WORKSTREAM, widgetId: 'rooms' }),
 		).rejects.toMatchObject({ kind: 'shared-widget' });
 		await watch(false);
 	});
 });
 
 describe('making a widget a default', () => {
-	it('copies your widget into the new workstream once it starts', async () => {
+	it('copies your widget into this workstream, where the agent opens its pull request', async () => {
 		await widgets.save(WORKSTREAM, ROOMS);
-		const second = repository('second');
 
-		const shared = context.commands.call('widgets.share', {
-			workstreamId: WORKSTREAM,
-			widgetId: 'rooms',
-			into: 'ws-2',
-		});
-		await new Promise((resolve) => setTimeout(resolve, 20));
-		expect(existsSync(join(second, '.malini'))).toBe(false);
-		startWorkstream('ws-2', second);
-		const project = getProject(context.db, 'project');
-		const workstream = getWorkstream(context.db, 'ws-2');
-		if (project === null || workstream === null) throw new Error('the workstream was not stored');
-		context.events.emit('repositories:workstream-created', {
-			workstreamId: 'ws-2',
-			project,
-			workstream,
-		});
-		await shared;
+		await context.commands.call('widgets.share', { workstreamId: WORKSTREAM, widgetId: 'rooms' });
 
 		expect(
-			JSON.parse(readFileSync(join(second, '.malini/widgets/rooms.json'), 'utf8')),
+			JSON.parse(readFileSync(join(checkout, '.malini/widgets/rooms.json'), 'utf8')),
 		).toMatchObject({
 			title: 'Rooms',
 			source: ROOMS.source,
 			author: 'szymeo',
 		});
+		expect((await board()).widgets.filter(({ id }) => id === 'rooms')).toHaveLength(1);
 	});
 });
 

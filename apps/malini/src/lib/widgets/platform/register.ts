@@ -35,7 +35,7 @@ export function registerWidgets(context: MainContext, deps: WidgetsDeps): Widget
 	);
 
 	commands.define('widgets.share', (args: unknown) =>
-		boards.share(workstreamId(args), widgetId(args), workstreamId(args, 'into')),
+		boards.share(workstreamId(args), widgetId(args)),
 	);
 
 	commands.define('widgets.pin-plan', (args: unknown) => {
@@ -62,10 +62,10 @@ function field(args: unknown, key: string): unknown {
 	return isRecord(args) ? args[key] : undefined;
 }
 
-function workstreamId(args: unknown, key = 'workstreamId'): string {
-	const value = field(args, key);
+function workstreamId(args: unknown): string {
+	const value = field(args, 'workstreamId');
 	if (typeof value !== 'string' || value.trim() === '' || value.length > WORKSTREAM_ID_MAX_LENGTH) {
-		throw invalid(`\`${key}\` must be an id`);
+		throw invalid('`workstreamId` must be an id');
 	}
 	return value;
 }

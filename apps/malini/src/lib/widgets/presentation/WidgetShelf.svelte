@@ -11,7 +11,7 @@
 		repository: string | null;
 		me: string | null;
 		onadd: (widget: WidgetDefinition) => void;
-		onnew?: ((prompt: string) => void) | undefined;
+		onnew?: ((prompt: string, inNewChat: boolean) => void) | undefined;
 	}
 
 	let { widgets, repository, me, onadd, onnew }: Props = $props();
@@ -43,7 +43,7 @@
 		}
 		if (event.key !== 'Enter' || event.isComposing || wanted.trim() === '') return;
 		event.preventDefault();
-		onnew?.(`${PROMPT}${wanted.trim()}`);
+		onnew?.(`${PROMPT}${wanted.trim()}`, event.metaKey);
 		close();
 	}
 
@@ -61,7 +61,7 @@
 				bind:element={field}
 				size="sm"
 				ariaLabel="New widget"
-				placeholder="What should it show? Enter starts a workstream"
+				placeholder="What should it show? ⌘↵ for a new chat"
 				onkeydown={ask}
 				onblur={() => wanted.trim() === '' && close()}
 			/>

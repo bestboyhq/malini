@@ -25,6 +25,7 @@
 		tileName,
 		widgetValue,
 	} from '$lib/widgets/domain/widget-text';
+	import { commandKeyHeld } from '$shared/shell/command-key.svelte';
 	import WidgetChart from './WidgetChart.svelte';
 
 	interface Props {
@@ -38,7 +39,7 @@
 		titleHref?: string | undefined;
 		author?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
-		onneed?: ((need: WidgetNeed) => void) | undefined;
+		onneed?: ((need: WidgetNeed, inNewChat: boolean) => void) | undefined;
 	}
 
 	let {
@@ -361,8 +362,22 @@
 	{@const action = needAction(widget, wanted)}
 	<p class="text-fg-tertiary text-2xs line-clamp-2 leading-4 break-words">{reading?.error}</p>
 	{#if action && onneed}
+		{@const asks = wanted === 'add'}
+		{@const inNewChat = asks && commandKeyHeld()}
 		<span class="pointer-events-auto mt-2 flex" data-widget-chrome>
-			<Button variant="secondary" size="xs" onclick={() => onneed?.(wanted)}>{action}</Button>
+			<Tooltip
+				content="Hold ⌘ to add it in a new chat"
+				placement="top"
+				suppressed={!asks || inNewChat}
+			>
+				<Button
+					variant="secondary"
+					size="xs"
+					onclick={(event) => onneed?.(wanted, asks && event.metaKey)}
+				>
+					{inNewChat ? `${action} in a new chat` : action}
+				</Button>
+			</Tooltip>
 		</span>
 	{/if}
 {/snippet}

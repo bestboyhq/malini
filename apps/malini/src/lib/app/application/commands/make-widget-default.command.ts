@@ -1,42 +1,38 @@
 import type { WidgetDefinition } from '$contract/widgets';
 import { toast } from '$hyper-ui/components/toast';
-import { sendFirstPromptCommand } from '$lib/chat/application/commands/send-first-prompt.command';
+import { shipPromptCommand } from '$lib/chat/application/commands/ship-prompt.command';
 import { shareWidgetCommand } from '$lib/widgets/application/commands/share-widget.command';
 import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
-import {
-	createWorkstreamForRepositoryCommand,
-	nextWorkstreamId,
-	workstreamByIdQuery,
-	type Repository,
-} from '$shared/repositories/repositories.api';
 
 export { makeWidgetDefaultCommand };
 
 function makeWidgetDefaultCommand(
-	repository: Repository,
-	from: string,
+	workstreamId: string,
 	widget: WidgetDefinition,
+	inNewChat: boolean,
 ): void {
-	const workstreamId = nextWorkstreamId();
-	createWorkstreamForRepositoryCommand(repository, { workstreamId, inBackground: true });
-	if (workstreamByIdQuery.data(workstreamId) === null) return;
 	void (async () => {
 		try {
-			await shareWidgetCommand(from, widget.id, workstreamId);
+			await shareWidgetCommand(workstreamId, widget.id);
 		} catch (error) {
 			const detail = sanitizeFailureDetail(error instanceof Error ? error.message : null);
 			toast.error(`Widget not shared${detail ? ` · ${detail}` : ''}.`);
 			return;
 		}
-		sendFirstPromptCommand({ workstreamId, prompt: defaultPrompt(widget) });
+		shipPromptCommand({
+			workstreamId,
+			prompt: defaultPrompt(widget),
+			subject: 'Widget',
+			inNewChat,
+		});
 	})();
 }
 
 function defaultPrompt(widget: WidgetDefinition): string {
 	return [
 		`Make the "${widget.title}" widget a default for this repository, so every teammate can add it to their board.`,
-		`Its files are in \`.malini/widgets/\`: \`${widget.id}.json\` and the helper files it runs.`,
-		'Check that no file holds a secret, a token, a personal path or private data, and that its command runs from a fresh clone.',
-		'Then open a draft pull request that adds them.',
+		`Its file is \`.malini/widgets/${widget.id}.json\` in this checkout.`,
+		'Check that it holds no secret, token, personal path or private data.',
+		'Then open a draft pull request with it.',
 	].join('\n');
 }

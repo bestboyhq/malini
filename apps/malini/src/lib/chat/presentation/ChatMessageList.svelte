@@ -6,7 +6,7 @@
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
 	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
-	import { shipInForkCommand } from '$lib/chat/application/commands/ship-in-fork.command';
+	import { shipInNewChatCommand } from '$lib/chat/application/commands/ship-in-new-chat.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
@@ -483,7 +483,7 @@
 	}
 
 	function shipInFork(prompt: string, subject: string, atSeq: number): void {
-		shipInForkCommand({ workstreamId, sessionId, atSeq, prompt, subject });
+		shipInNewChatCommand({ workstreamId, fork: { sessionId, atSeq }, prompt, subject });
 	}
 
 	function promptPick(runId: string): RunPick | null {

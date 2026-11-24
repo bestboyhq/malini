@@ -148,7 +148,7 @@ export type ResizeWidgetArgs = Readonly<{
 
 export type WidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
 
-export type ShareWidgetArgs = Readonly<{ workstreamId: string; widgetId: string; into: string }>;
+export type ShareWidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
 
 export type WatchWidgetsArgs = Readonly<{ workstreamId: string; watching: boolean }>;
 

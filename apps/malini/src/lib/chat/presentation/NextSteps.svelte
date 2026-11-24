@@ -3,6 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import type { FileMentionTarget } from '$shared/markdown/file-mention-links';
+	import { commandKeyHeld } from '$shared/shell/command-key.svelte';
 	import NextStepText from './NextStepText.svelte';
 
 	interface Props {
@@ -26,19 +27,14 @@
 	}: Props = $props();
 
 	let handled = $state<Readonly<Record<number, string>>>({});
-	let commandHeld = $state(false);
 	let shipWidth = $state(0);
 	let forkWidth = $state(0);
 
-	const forking = $derived(commandHeld && onfork !== undefined);
+	const forking = $derived(onfork !== undefined && commandKeyHeld());
 	const labelWidth = $derived(forking ? forkWidth : shipWidth);
 
 	function mark(index: number, outcome: string): void {
 		handled = { ...handled, [index]: outcome };
-	}
-
-	function trackCommand(event: KeyboardEvent | PointerEvent): void {
-		commandHeld = event.metaKey;
 	}
 
 	function ship(index: number, step: string, event: MouseEvent): void {
@@ -51,13 +47,6 @@
 		mark(index, 'Sent');
 	}
 </script>
-
-<svelte:window
-	onkeydown={trackCommand}
-	onkeyup={trackCommand}
-	onpointermove={trackCommand}
-	onblur={() => (commandHeld = false)}
-/>
 
 <section class="flex flex-col gap-1.5 py-2 pr-2 pl-[15px]" aria-label="Next steps">
 	{#each steps as step, index (index)}
