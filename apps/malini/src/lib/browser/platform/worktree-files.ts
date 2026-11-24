@@ -16,6 +16,10 @@ const DOCTYPE = /^(?:\xEF\xBB\xBF)?\s*<!doctype[^>]*>/iu;
 const CONTAINED_SCROLL = Buffer.from(
 	"<script>{const scroll=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){const contained={...(typeof options==='object'&&options!==null?options:{block:options===false?'end':'start'}),container:'nearest'};if(innerHeight>0)return scroll.call(this,contained);const sized=()=>{if(innerHeight===0)return;removeEventListener('resize',sized);scroll.call(this,contained)};addEventListener('resize',sized)}}</script>",
 );
+const FOCUS_STAYS_WHERE_THE_USER_PUT_IT = Buffer.from(
+	"<script>for(const[owner,name]of[[HTMLElement.prototype,'focus'],[SVGElement.prototype,'focus'],[HTMLInputElement.prototype,'select'],[HTMLTextAreaElement.prototype,'select'],[window,'focus']]){const call=owner[name];owner[name]=function(...args){if(document.hasFocus())return call.apply(this,args)}}</script>",
+);
+const KEPT_IN_FRAME = Buffer.concat([CONTAINED_SCROLL, FOCUS_STAYS_WHERE_THE_USER_PUT_IT]);
 
 export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []): void {
 	protocol.registerSchemesAsPrivileged([
@@ -45,19 +49,19 @@ export function serveWorktreeFiles(
 			const response = await net.fetch(pathToFileURL(file).href);
 			return served(
 				file,
-				framedInMalini && PAGE.test(file) ? await containScroll(response) : response,
+				framedInMalini && PAGE.test(file) ? await keepInFrame(response) : response,
 			);
 		};
 	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve(false));
 	protocol.handle(BROWSER_WORKTREE_SCHEME, serve(true));
 }
 
-async function containScroll(response: Response): Promise<Response> {
+async function keepInFrame(response: Response): Promise<Response> {
 	const page = Buffer.from(await response.arrayBuffer());
 	const at = DOCTYPE.exec(page.toString('latin1', 0, 1024))?.[0].length ?? 0;
 	const headers = new Headers(response.headers);
 	headers.delete('Content-Length');
-	return new Response(Buffer.concat([page.subarray(0, at), CONTAINED_SCROLL, page.subarray(at)]), {
+	return new Response(Buffer.concat([page.subarray(0, at), KEPT_IN_FRAME, page.subarray(at)]), {
 		status: response.status,
 		headers,
 	});
