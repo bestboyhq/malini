@@ -116,6 +116,7 @@ const SANDBOX_REPORT_SETTLE_MS = 200;
 const MAX_BLOCKED = 50;
 const MAX_COMMANDS = 200;
 const BLOCKED_CALL_DECISION_TIMEOUT_S = 24 * 60 * 60;
+const COMMAND_TIMEOUT_CAP_MS = 12 * 60 * 60_000;
 const SIGN_IN_HOOK_TIMEOUT_S = AUTHORIZATION_WINDOW_MS / 1000 + 60;
 const RETRY_BLOCKED_CALL = {
 	hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true },
@@ -884,6 +885,7 @@ export class ClaudeSession implements ProviderHandle {
 			env: {
 				...claudeEnvironment(this.#context.env),
 				CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
+				BASH_MAX_TIMEOUT_MS: String(COMMAND_TIMEOUT_CAP_MS),
 				CLAUDE_CODE_SHELL: claudeShell(),
 				CLAUDE_CODE_SHELL_PREFIX: this.#secrets.runScript,
 				...(theme ? { MALINI_THEME: theme } : {}),

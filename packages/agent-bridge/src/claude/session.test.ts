@@ -2529,9 +2529,11 @@ describe('ClaudeSession', () => {
 	});
 
 	it('ends the turn whose report leaves its background command running, and goes on with the turn Claude Code starts when it ends', async () => {
-		const { session, events } = harness([reported(recordedScript('backgroundCommand'))]);
+		const { session, claude, events } = harness([reported(recordedScript('backgroundCommand'))]);
 
 		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		expect(claude.runs[0]?.options.env?.['BASH_MAX_TIMEOUT_MS']).toBe(String(12 * 60 * 60_000));
 
 		const waiting = events.findIndex(
 			(event) => event.type === 'background.updated' && event.waiting,
