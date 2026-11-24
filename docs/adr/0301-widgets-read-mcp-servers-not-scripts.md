@@ -1,4 +1,4 @@
-# 0300 - Widgets read MCP servers, not scripts
+# 0301 - Widgets read MCP servers, not scripts
 
 Status: accepted
 
