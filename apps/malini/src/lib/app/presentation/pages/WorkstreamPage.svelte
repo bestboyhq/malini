@@ -12,10 +12,10 @@
 	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
 	import { makeWidgetDefaultCommand } from '$lib/app/application/commands/make-widget-default.command';
 	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
-	import { startWidgetWorkstreamCommand } from '$lib/app/application/commands/start-widget-workstream.command';
 	import { fixWidgetSourceCommand } from '$lib/app/application/commands/fix-widget-source.command';
 	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
 	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
+	import { shipPromptCommand } from '$lib/chat/application/commands/ship-prompt.command';
 	import { checkoutFixTurnQuery } from '$lib/chat/application/queries/checkout-fix-turn.query.svelte';
 	import { offeredVariantsQuery } from '$lib/chat/application/queries/offered-variants.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
@@ -206,14 +206,12 @@
 	<WidgetBoard
 		{workstreamId}
 		onopen={(url) => openBrowserUrlCommand(workstreamId, url)}
-		onnew={repositoryContext
-			? (prompt) => startWidgetWorkstreamCommand(repositoryContext.repo, prompt)
-			: undefined}
-		onneed={repositoryContext
-			? (widget, need) => fixWidgetSourceCommand(repositoryContext.repo, workstreamId, widget, need)
-			: undefined}
-		onshare={repositoryContext && remotePullRequestsSupported
-			? (widget) => makeWidgetDefaultCommand(repositoryContext.repo, workstreamId, widget)
+		onnew={(prompt, inNewChat) =>
+			shipPromptCommand({ workstreamId, prompt, subject: 'Widget', inNewChat })}
+		onneed={(widget, need, inNewChat) =>
+			fixWidgetSourceCommand(workstreamId, widget, need, inNewChat)}
+		onshare={remotePullRequestsSupported
+			? (widget, inNewChat) => makeWidgetDefaultCommand(workstreamId, widget, inNewChat)
 			: undefined}
 		plan={repositoryContext ? planHere : undefined}
 		planHeader={repositoryContext ? planSyncHere : undefined}

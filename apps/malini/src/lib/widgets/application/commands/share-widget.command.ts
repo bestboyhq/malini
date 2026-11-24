@@ -2,6 +2,6 @@ import { widgetsService } from '$lib/widgets/infrastructure/services/widgets.ser
 
 export { shareWidgetCommand };
 
-function shareWidgetCommand(workstreamId: string, widgetId: string, into: string): Promise<void> {
-	return widgetsService.share({ workstreamId, widgetId, into });
+function shareWidgetCommand(workstreamId: string, widgetId: string): Promise<void> {
+	return widgetsService.share({ workstreamId, widgetId });
 }

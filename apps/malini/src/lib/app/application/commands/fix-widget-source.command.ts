@@ -1,15 +1,14 @@
 import type { WidgetDefinition, WidgetNeed } from '$contract/widgets';
 import { fixMcpServerCommand } from '$lib/chat/application/commands/fix-mcp-server.command';
-import type { Repository } from '$shared/repositories/repositories.api';
-import { startWidgetWorkstreamCommand } from './start-widget-workstream.command';
+import { shipPromptCommand } from '$lib/chat/application/commands/ship-prompt.command';
 
 export { fixWidgetSourceCommand };
 
 function fixWidgetSourceCommand(
-	repository: Repository,
 	workstreamId: string,
 	{ source, title }: WidgetDefinition,
 	need: WidgetNeed,
+	inNewChat: boolean,
 ): void {
 	if (source.kind !== 'mcp') return;
 	if (need !== 'add') {
@@ -17,8 +16,10 @@ function fixWidgetSourceCommand(
 		return;
 	}
 	const where = source.url === null ? '' : ` at ${source.url}`;
-	startWidgetWorkstreamCommand(
-		repository,
-		`Add the ${source.server} MCP server${where} with mcp_servers_add, so my ${title} widget can read its \`${source.tool}\` tool.`,
-	);
+	shipPromptCommand({
+		workstreamId,
+		prompt: `Add the ${source.server} MCP server${where} with mcp_servers_add, so my ${title} widget can read its \`${source.tool}\` tool.`,
+		subject: 'Widget',
+		inNewChat,
+	});
 }

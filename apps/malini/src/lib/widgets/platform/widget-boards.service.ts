@@ -57,7 +57,6 @@ import {
 
 export const EVENT_DEBOUNCE_MS = 2_000;
 export const SHARED_CHECK_MS = 60_000;
-const CREATED_WAIT_MS = 10 * 60_000;
 const LOGIN_FRESH_MS = 10 * 60_000;
 
 export type WidgetsDeps = Readonly<{
@@ -96,8 +95,6 @@ type Watch = {
 	readonly soon: Map<string, NodeJS.Timeout>;
 	readonly unsubscribes: Array<() => void>;
 };
-
-type Created = Readonly<{ checkout: Promise<string>; cancel: () => void }>;
 
 type WidgetsContext = Pick<MainContext, 'db' | 'events' | 'commands' | 'appDataRoot'>;
 
@@ -176,18 +173,13 @@ export class WidgetBoards {
 		return this.#changed(await this.#open(workstreamId));
 	}
 
-	async share(workstreamId: string, widgetId: string, into: string): Promise<void> {
-		const created = this.#created(into);
-		try {
-			const opened = await this.#open(workstreamId);
-			const home = opened.homes.get(widgetId);
-			if (this.#widget(opened, widgetId).origin !== 'mine' || home === undefined) {
-				throw new WidgetError('shared-widget', `\`${widgetId}\` is already in this repository.`);
-			}
-			await copyWidgetFile(home, widgetId, await created.checkout);
-		} finally {
-			created.cancel();
+	async share(workstreamId: string, widgetId: string): Promise<void> {
+		const opened = await this.#open(workstreamId);
+		const home = opened.homes.get(widgetId);
+		if (this.#widget(opened, widgetId).origin !== 'mine' || home === undefined) {
+			throw new WidgetError('shared-widget', `\`${widgetId}\` is already in this repository.`);
 		}
+		await copyWidgetFile(home, widgetId, opened.checkout);
 	}
 
 	watch(workstreamId: string, watching: boolean): void {
@@ -340,38 +332,6 @@ export class WidgetBoards {
 		})();
 		this.#writes = written.catch(() => undefined);
 		return written;
-	}
-
-	#created(workstreamId: string): Created {
-		let stop = (): void => undefined;
-		const started = new Promise<void>((resolve, reject) => {
-			if (getWorkstream(this.#context.db, workstreamId) !== null) {
-				resolve();
-				return;
-			}
-			const timer = setTimeout(() => {
-				stop();
-				reject(new WidgetError('workstream-gone', `\`${workstreamId}\` did not start.`));
-			}, CREATED_WAIT_MS);
-			const unsubscribe = this.#context.events.subscribe(
-				'repositories:workstream-created',
-				(created) => {
-					if (created.workstreamId !== workstreamId) return;
-					stop();
-					resolve();
-				},
-			);
-			stop = () => {
-				clearTimeout(timer);
-				unsubscribe();
-			};
-		});
-		const checkout = (async () => {
-			await started;
-			return this.#deps.checkouts.resolveCheckout(workstreamId);
-		})();
-		checkout.catch(() => undefined);
-		return { checkout, cancel: () => stop() };
 	}
 
 	#locate(workstreamId: string, checkout: string): Promise<Location> {

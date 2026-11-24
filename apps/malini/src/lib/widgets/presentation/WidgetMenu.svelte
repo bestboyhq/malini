@@ -15,11 +15,12 @@
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { Icon } from '$hyper-ui/icons';
 	import { sourceLine, updatedLabel } from '$lib/widgets/domain/widget-text';
+	import { commandKeyHeld } from '$shared/shell/command-key.svelte';
 
 	interface Props {
 		target: WidgetMenuTarget | null;
 		onclose: () => void;
-		onshare?: ((widget: WidgetDefinition) => void) | undefined;
+		onshare?: ((widget: WidgetDefinition, inNewChat: boolean) => void) | undefined;
 		onremove: (widget: WidgetDefinition) => void;
 	}
 
@@ -81,14 +82,15 @@
 		{/if}
 		<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
 		{#if widget.origin === 'mine' && onshare}
+			{@const inNewChat = commandKeyHeld()}
 			<DropdownItem
 				role="menuitem"
 				focusOnHover={false}
 				class="gap-2.5"
-				onclick={() => onshare(widget)}
+				onclick={(event) => onshare(widget, event.metaKey)}
 			>
-				<Icon name="users" size={14} class="text-fg-tertiary shrink-0" />
-				Make default for this repository
+				<Icon name={inNewChat ? 'branch' : 'users'} size={14} class="text-fg-tertiary shrink-0" />
+				{inNewChat ? 'Make default in a new chat' : 'Make default for this repository'}
 			</DropdownItem>
 		{/if}
 		<DropdownItem

@@ -50,8 +50,9 @@ Malini never puts a repository widget on your board by itself.
 
 ### Make one a default
 
-**Make default for this repository**, in your own widget's menu, starts a workstream of the repository in the background.
-Malini copies the widget file into `.malini/widgets/` there, and the agent checks it for secrets and private data and opens a draft pull request.
+**Make default for this repository**, in your own widget's menu, copies the widget file into `.malini/widgets/` in this workstream's worktree.
+Then it asks the chat you are in to check the file for secrets and private data and to open a draft pull request, so the widget ships with the rest of the workstream's work.
+Hold ⌘ and it turns into **Make default in a new chat**: the same prompt goes to a new chat in this workstream, while you stay where you are.
 Once it merges, every teammate finds it under their board, and on yours it turns into the repository's widget.
 
 ### Updates reach everyone
@@ -63,7 +64,8 @@ Nobody presses anything.
 ## Make a widget
 
 **New widget**, under the board, asks what the widget should show.
-Return starts a workstream of the repository with that prompt, so the agent builds the widget there and you leave when it is done.
+Return sends that prompt to the chat you are in, and ⌘Return sends it to a new chat in this workstream, while you stay where you are.
+Every widget action that asks an agent works this way, as **Ship** and **Slice, fork, ship** do on a report's next steps.
 
 You can also ask the agent in any chat, as the next section says.
 
@@ -148,7 +150,8 @@ It reaches nothing but the server it names, or GitHub, as you, and it can only r
 A widget that reads an MCP server you cannot reach says why, with one button.
 
 - **Add logdash**: the server is not one of yours.
-  Malini starts a workstream whose agent adds it with `mcp_servers_add`, at the widget's `url`, and signs you in.
+  Malini asks the chat you are in to add it with `mcp_servers_add`, at the widget's `url`, and to sign you in.
+  Hold ⌘ and it reads **Add logdash in a new chat**, for a new chat in this workstream.
 - **Sign in to logdash**: the server needs a sign-in.
   Malini opens its sign-in page, as **Fix MCP servers** does.
 - **Turn on logdash**: you turned the server off.

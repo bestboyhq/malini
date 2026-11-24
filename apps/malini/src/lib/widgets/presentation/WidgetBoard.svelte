@@ -41,9 +41,9 @@
 	interface Props {
 		workstreamId: string;
 		onopen: (url: string) => void;
-		onnew?: ((prompt: string) => void) | undefined;
-		onshare?: ((widget: WidgetDefinition) => void) | undefined;
-		onneed?: ((widget: WidgetDefinition, need: WidgetNeed) => void) | undefined;
+		onnew?: ((prompt: string, inNewChat: boolean) => void) | undefined;
+		onshare?: ((widget: WidgetDefinition, inNewChat: boolean) => void) | undefined;
+		onneed?: ((widget: WidgetDefinition, need: WidgetNeed, inNewChat: boolean) => void) | undefined;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
 		planHref?: string | undefined;
@@ -427,7 +427,7 @@
 							{planHeader}
 							titleHref={widget.source.kind === 'plan' ? planHref : undefined}
 							{onopen}
-							onneed={onneed && ((need) => onneed(widget, need))}
+							onneed={onneed && ((need, inNewChat) => onneed(widget, need, inNewChat))}
 							author={madeBy === null ? undefined : authorMark}
 						/>
 						<span
@@ -481,7 +481,7 @@
 <WidgetMenu
 	target={menu}
 	onclose={() => (menu = null)}
-	onshare={onshare && ((widget) => fromMenu(() => onshare(widget)))}
+	onshare={onshare && ((widget, inNewChat) => fromMenu(() => onshare(widget, inNewChat)))}
 	onremove={(widget) => fromMenu(() => removeWidgetCommand(workstreamId, widget.id))}
 />
 

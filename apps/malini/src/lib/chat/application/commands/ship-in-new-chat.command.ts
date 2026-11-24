@@ -9,29 +9,33 @@ import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 
-export { shipInForkCommand };
+export { shipInNewChatCommand };
 
-function shipInForkCommand(
+function shipInNewChatCommand(
 	request: Readonly<{
 		workstreamId: string;
-		sessionId: SessionId;
-		atSeq: number;
+		fork: Readonly<{ sessionId: SessionId; atSeq: number }> | null;
 		prompt: string;
 		subject: string;
 	}>,
 ): void {
-	const { workstreamId, sessionId, atSeq, prompt, subject } = request;
+	const { workstreamId, fork, prompt, subject } = request;
 	const selection = chatModelStore.currentSelection();
 	const profile = { ...chatModelStore.profile };
 	const requestId = newChatRequestId();
 	chatRequestsStore.begin(requestId);
 	void (async () => {
 		try {
-			const transcript = await composerAttachments.stageForkTranscript(
-				workstreamId,
-				sessionId,
-				atSeq,
-			);
+			const attachments =
+				fork === null
+					? []
+					: [
+							await composerAttachments.stageForkTranscript(
+								workstreamId,
+								fork.sessionId,
+								fork.atSeq,
+							),
+						];
 			const forked = await sessionActivation.mint({
 				workstreamId,
 				setup: { selection, profile },
@@ -47,7 +51,7 @@ function shipInForkCommand(
 				model: selection.model,
 				profile,
 				contextFiles: [],
-				attachments: [transcript],
+				attachments,
 				transcriptReferences: [],
 				elementReferences: [],
 			});
