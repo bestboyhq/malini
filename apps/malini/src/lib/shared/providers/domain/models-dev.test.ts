@@ -56,30 +56,46 @@ describe('models.dev catalog', () => {
 				label: 'Kimi K3',
 				description: 'Text and images, 262K context',
 				efforts: [],
+				released: '2026-10-23',
 			},
 			{
 				id: 'glm-5.3',
 				label: 'GLM-5.3',
 				description: 'Text only, 1M context',
 				efforts: ['low', 'high', 'max'],
+				released: '2026-08-14',
 			},
-			{ id: 'plain-chat', label: 'PLAIN-CHAT', description: 'Text only, 1M context', efforts: [] },
+			{
+				id: 'plain-chat',
+				label: 'PLAIN-CHAT',
+				description: 'Text only, 1M context',
+				efforts: [],
+				released: '2026-08-01',
+			},
 			{
 				id: 'served-openai',
 				label: 'SERVED-OPENAI',
 				description: 'Text only, 1M context',
 				efforts: ['low', 'high', 'max'],
+				released: '2026-08-01',
 			},
 			{
 				id: 'served-anthropic',
 				label: 'SERVED-ANTHROPIC',
 				description: 'Text only, 1M context',
 				efforts: ['low', 'high', 'max'],
+				released: '2026-07-01',
 			},
 		]);
 	});
 
-	it('keeps the newest version of each model under the name people use', () => {
+	it('keeps free models only for OpenCode Go, whose plan runs them', () => {
+		const go = { 'opencode-go': catalog.opencode };
+		expect(modelsDevModels(go, 'opencode-go').map(({ id }) => id)).toContain('beam-free');
+		expect(modelsDevModels(catalog, 'opencode').map(({ id }) => id)).not.toContain('beam-free');
+	});
+
+	it('keeps every version newest first, under the name people use', () => {
 		const families = {
 			opencode: {
 				models: {
@@ -111,10 +127,12 @@ describe('models.dev catalog', () => {
 		).toEqual([
 			{ id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash', family: 'deepseek-flash' },
 			{ id: 'claude-opus-5-5', label: 'Opus 5.5', family: 'claude-opus' },
+			{ id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', family: 'deepseek-flash' },
+			{ id: 'claude-opus-4-8', label: 'Opus 4.8', family: 'claude-opus' },
 		]);
 	});
 
-	it('keeps each model line of a family, so a newer line never hides another', () => {
+	it('gives each model line of a family its own family, so a newer line never hides another', () => {
 		const lines = {
 			opencode: {
 				models: {
@@ -154,6 +172,8 @@ describe('models.dev catalog', () => {
 			{ id: 'nova-4-ember', label: 'Nova 4 Ember', family: 'nova-ember' },
 			{ id: 'nova-4-frost', label: 'Nova 4 Frost', family: 'nova-frost' },
 			{ id: 'nova-4-flash', label: 'Nova 4 Flash', family: 'nova-flash' },
+			{ id: 'zen4', label: 'Zen4', family: 'zen' },
+			{ id: 'nova-3.9-frost', label: 'Nova 3.9 Frost', family: 'nova-frost' },
 		]);
 	});
 
