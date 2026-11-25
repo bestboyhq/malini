@@ -26,7 +26,7 @@
 		class: className,
 		variant = 'default',
 		onclick,
-		onmouseenter,
+		onpointermove,
 		...rest
 	}: Props = $props();
 
@@ -46,11 +46,12 @@
 		commit();
 	}
 
-	function handleMouseEnter(
-		event: MouseEvent & { currentTarget: EventTarget & HTMLButtonElement },
+	function handlePointerMove(
+		event: PointerEvent & { currentTarget: EventTarget & HTMLButtonElement },
 	): void {
-		onmouseenter?.(event);
+		onpointermove?.(event);
 		if (event.defaultPrevented || focusOnHover === false || rest.disabled) return;
+		if (document.activeElement === event.currentTarget) return;
 		if (surface?.isInSafeArea(event.clientX, event.clientY)) return;
 		event.currentTarget.focus({ preventScroll: true });
 		surface?.closeAllChildren();
@@ -75,7 +76,7 @@
 		className,
 	]}
 	onclick={handleClick}
-	onmouseenter={handleMouseEnter}
+	onpointermove={handlePointerMove}
 >
 	{@render children()}
 </button>

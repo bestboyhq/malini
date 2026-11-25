@@ -5,6 +5,7 @@ import {
 	effortsForModel,
 	filterPickerRows,
 	modelLabel,
+	newestModels,
 	normalizeReasoningEffort,
 	pickerRows,
 	releaseMonth,
@@ -267,5 +268,30 @@ describe('earlier versions', () => {
 	it('names the month a version came out', () => {
 		expect(releaseMonth('2025-11-24')).toBe('Nov 2025');
 		expect(releaseMonth('soon')).toBe('');
+	});
+});
+
+describe('models two sellers sell', () => {
+	const dated = (id: string, label: string, released?: string) => ({
+		id,
+		label,
+		description: label,
+		efforts: [],
+		...(released ? { released } : {}),
+	});
+
+	it('lists each model once, newest first, from the first seller that sells it', () => {
+		const go = [dated('hy4', 'Hy4', '2026-10-31'), dated('argon', 'Argon on Go', '2026-10-13')];
+		const zen = [
+			dated('neon', 'Neon', '2026-11-18'),
+			dated('argon', 'Argon on Zen', '2026-10-13'),
+			dated('pickle', 'Pickle'),
+		];
+		expect(newestModels([go, zen]).map((model) => model.label)).toEqual([
+			'Neon',
+			'Hy4',
+			'Argon on Go',
+			'Pickle',
+		]);
 	});
 });

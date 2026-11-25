@@ -5,6 +5,7 @@ import type {
 	ProviderPlan,
 } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
+import { newestModels } from '$shared/providers/domain/model-catalog';
 import {
 	CLAUDE_PROVIDER,
 	CLAUDE_PROVIDER_ID,
@@ -83,13 +84,13 @@ export class ProviderKeys {
 		const providers = listStoredProviders(this.#db)
 			.filter((provider) => provider.id !== OPENCODE_GO_PROVIDER_ID)
 			.map((provider) => {
-				const served = this.#servedBy(provider);
+				const sellers = this.#sellers(provider);
 				return {
 					id: provider.id,
 					name: provider.name,
 					kind: provider.kind,
-					baseUrl: served.baseUrl,
-					models: [...served.models],
+					baseUrl: sellers[0].baseUrl,
+					models: newestModels(sellers.map((seller) => seller.models)),
 					keySaved: provider.sealedKey !== null,
 					account: provider.kind === 'chatgpt' ? this.#chatgpt.account() : null,
 					plan: provider.plan,
@@ -160,17 +161,19 @@ export class ProviderKeys {
 	): Promise<Record<string, string>> {
 		if (providerId === CLAUDE_PROVIDER_ID) return {};
 		const provider = this.#customProvider(providerId);
-		const served = this.#servedBy(provider);
-		if (session === 'new' && !served.models.some((candidate) => candidate.id === model)) {
+		const sellers = this.#sellers(provider);
+		const seller = sellers.find((candidate) => candidate.models.some(({ id }) => id === model));
+		if (session === 'new' && !seller) {
 			throw new ProviderNotConnectedError(
 				'unsupported',
 				`${provider.name} does not offer model \`${model}\``,
 			);
 		}
+		const served = seller ?? sellers[0];
 		const endpoint =
 			provider.kind === 'chatgpt'
 				? await this.#chatgpt.endpoint()
-				: await this.#keyEndpoint(provider.id);
+				: await this.#keyEndpoint(served.id);
 		return providerEnvironment({
 			name: provider.name,
 			kind: provider.kind,
@@ -183,20 +186,23 @@ export class ProviderKeys {
 		});
 	}
 
-	async upstream(providerId: string): Promise<KeyUpstream> {
-		const provider = this.#customProvider(providerId);
-		if (provider.kind !== 'anthropic')
-			throw new ProviderError('not-found', `Unknown provider \`${providerId}\``);
-		const { baseUrl } = this.#servedBy(provider);
+	async upstream(sellerId: string): Promise<KeyUpstream> {
+		const provider = this.#customProvider(
+			sellerId === OPENCODE_GO_PROVIDER_ID ? OPENCODE_PROVIDER_ID : sellerId,
+		);
+		const seller = this.#sellers(provider).find((candidate) => candidate.id === sellerId);
+		if (provider.kind !== 'anthropic' || !seller)
+			throw new ProviderError('not-found', `Unknown provider \`${sellerId}\``);
+		const { baseUrl } = seller;
 		if (baseUrl === null) throw new ProviderError('invariant', `${provider.name} has no base URL`);
 		const apiKey = await this.#decryptedKey(provider);
 		if (apiKey === null) throw missingKey(provider.name);
 		return { baseUrl, apiKey };
 	}
 
-	async #keyEndpoint(providerId: string): Promise<ProxyAddress> {
-		await this.upstream(providerId);
-		return this.#keyProxy(providerId);
+	async #keyEndpoint(sellerId: string): Promise<ProxyAddress> {
+		await this.upstream(sellerId);
+		return this.#keyProxy(sellerId);
 	}
 
 	async #adoptPlan(provider: StoredProvider): Promise<void> {
@@ -217,9 +223,12 @@ export class ProviderKeys {
 		return plan;
 	}
 
-	#servedBy(provider: StoredProvider): StoredProvider {
-		if (provider.id !== OPENCODE_PROVIDER_ID || provider.plan !== 'go') return provider;
-		return getStoredProvider(this.#db, OPENCODE_GO_PROVIDER_ID) ?? provider;
+	#sellers(provider: StoredProvider): readonly [StoredProvider, ...StoredProvider[]] {
+		const go =
+			provider.id === OPENCODE_PROVIDER_ID && provider.plan === 'go'
+				? getStoredProvider(this.#db, OPENCODE_GO_PROVIDER_ID)
+				: null;
+		return go ? [go, provider] : [provider];
 	}
 
 	async #decryptedKey(provider: StoredProvider): Promise<string | null> {
