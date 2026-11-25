@@ -616,6 +616,12 @@ export class WidgetBoards {
 		}
 	}
 
+	#connected(source: WidgetSource): boolean {
+		if (source.kind !== 'http' || source.oauth === null) return false;
+		const grant = this.#grant(new URL(source.url).origin);
+		return grant !== null && covers(grant, source.oauth.scopes);
+	}
+
 	#saveGrant(origin: string, grant: Grant): void {
 		const { sealer } = this.#deps;
 		if (!sealer.isEncryptionAvailable()) {
@@ -658,6 +664,7 @@ export class WidgetBoards {
 				last.fingerprint === widget.fingerprint ? Date.parse(last.attemptedAt ?? '') : Number.NaN;
 			const fresh =
 				Number.isNaN(attempted) ||
+				(last.need !== null && this.#connected(widget.source)) ||
 				(moved && widget.origin === 'shared') ||
 				widget.source.kind === 'retired';
 			const due = fresh ? 0 : Math.max(0, attempted + every - Date.now());

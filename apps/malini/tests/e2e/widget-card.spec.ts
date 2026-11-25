@@ -157,6 +157,88 @@ test('a widget that signs in shows Connect on its tile and its chat card, Cancel
 	}
 });
 
+async function coverWindow(page: Page, covered: boolean): Promise<void> {
+	await page.locator('body').evaluate((body, hidden) => {
+		const doc = body.ownerDocument;
+		if (hidden) {
+			Object.defineProperty(doc, 'hidden', { configurable: true, get: () => true });
+			Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => 'hidden' });
+		} else {
+			Reflect.deleteProperty(doc, 'hidden');
+			Reflect.deleteProperty(doc, 'visibilityState');
+		}
+		doc.dispatchEvent(new doc.defaultView.Event('visibilitychange'));
+	}, covered);
+}
+
+test('a sign-in the browser finishes while it covers the window reads every tile of that site once the window shows again', async () => {
+	test.setTimeout(120_000);
+	const api = await startFakeApi({
+		'/rooms': { value: 8, caption: 'open now' },
+		'/guests': { value: 21, caption: 'checked in' },
+	});
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-widget-connect-covered',
+			'Widget connect covered',
+		);
+		await openWorkstream(page, workstreamId);
+		await recordBrowser(app);
+		for (const [id, title] of [
+			['rooms', 'Rooms'],
+			['guests', 'Guests'],
+		] as const) {
+			writeFileSync(
+				join(app.home, 'malini-tool.json'),
+				JSON.stringify({
+					tool: 'widgets_save',
+					input: {
+						id,
+						title,
+						source: { http: { url: `${api.url}/${id}`, oauth: { scopes: ['rooms:read'] } } },
+					},
+				}),
+			);
+			await sendPrompt(page, 'MALINI_TOOL');
+			await expect(
+				page.getByRole('region', { name: `${title} widget` }).getByText('On your board'),
+			).toBeVisible({ timeout: 20_000 });
+		}
+		const board = page.getByRole('region', { name: 'Widgets' });
+		const rooms = board.getByRole('article', { name: 'Rooms, 2 by 1' });
+		const guests = board.getByRole('article', { name: 'Guests, 2 by 1' });
+		await expect(guests.getByRole('button', { name: `Connect ${api.site}` })).toBeVisible({
+			timeout: 20_000,
+		});
+
+		await rooms.getByRole('button', { name: `Connect ${api.site}` }).click();
+		await expect.poll(() => openedUrls(app)).toHaveLength(1);
+		const [authorize = ''] = await openedUrls(app);
+		await coverWindow(page, true);
+		await finishSignIn(authorize);
+		await expect.poll(() => apiRequests(api).map(({ path }) => path)).toEqual(['/rooms']);
+		await coverWindow(page, false);
+
+		await expect(guests).toContainText('checked in', { timeout: 20_000 });
+		await expect(rooms).toContainText('open now');
+		await expect(page.getByRole('button', { name: `Connect ${api.site}` })).toHaveCount(0);
+		expect(
+			apiRequests(api)
+				.map(({ path, headers }) => `${path} ${headers.authorization ?? ''}`)
+				.sort(),
+		).toEqual(['/guests Bearer token-1', '/rooms Bearer token-1']);
+		await captureFlow(app, 'widget-connect-covered');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		await api.close();
+	}
+});
+
 test('Make default copies your widget into this workstream and asks this chat, and New widget asks this chat or, with ⌘, a new one', async () => {
 	test.setTimeout(150_000);
 	const api = await startFakeApi({ '/rooms': OPEN_ROOMS });
