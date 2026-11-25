@@ -136,6 +136,7 @@ The key never leaves Malini: Claude Code talks to a server Malini runs on your M
 OpenCode sells Go, a subscription, and Console, credits per request, and one key covers either: saving it sends OpenCode one-token messages that answer Go or Console.
 A Console key lists Console's models.
 A Go key lists Go's models and Console's too: a model Go sells runs on your subscription, and a model only Console sells, such as Gemini 4 Neon, uses your Console credits.
+The picker puts those under **On Console credits**, marks an earlier version **Credits**, and the menu a model runs on names OpenCode's **Your Go plan** or **Console credits**.
 **Check again** beside the model count asks again after you change plans, and the card names the plan only for Go: **Key saved. Your Go plan.**
 DeepSeek's and OpenCode's models, and Claude's earlier versions, come from [models.dev](https://models.dev), which Malini reads at launch and at most once an hour as you open the picker or **Settings → Providers**, so a new model shows up without an update.
 Each model says whether it reads images and how much context it holds; Malini lists only models that can use tools, and lists OpenCode's free models only on Go, since OpenCode keeps them to its own apps on Console.

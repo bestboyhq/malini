@@ -17,6 +17,7 @@
 		runs,
 		selectionLabel,
 		selectionModels,
+		usesCredits,
 		type PickerRow,
 		type PickerRunner,
 	} from '$shared/providers/domain/model-catalog';
@@ -79,6 +80,8 @@
 	);
 	const allRows = $derived(pickerRows(groups, selection));
 	const rows = $derived(filterPickerRows(allRows, query));
+	const creditRows = $derived(rows.filter((row) => usesCredits(rowRunner(row, selection, ready))));
+	const planRows = $derived(rows.filter((row) => !creditRows.includes(row)));
 	const versions = $derived(earlierVersions(groups, allRows, query));
 	const selectedLabel = $derived(selectionLabel(groups, selection));
 	const currentPreset: ModelPreset = $derived({
@@ -110,7 +113,9 @@
 			return runner.group.ready ? 'Your ChatGPT plan' : 'Needs a sign-in';
 		}
 		if (runner.group.id !== CLAUDE_PROVIDER_ID) {
-			return runner.group.ready ? 'Key saved' : 'Needs a key';
+			if (!runner.group.ready) return 'Needs a key';
+			if (runner.group.plan !== 'go') return 'Key saved';
+			return usesCredits(runner) ? 'Console credits' : 'Your Go plan';
 		}
 		switch (claudeStatus.kind) {
 			case 'ready':
@@ -213,7 +218,7 @@
 		if (event.key === 'Home' || event.key === 'End') event.stopPropagation();
 		if (event.key !== 'Enter' || event.isComposing) return;
 		event.preventDefault();
-		const first = rows[0];
+		const first = planRows[0] ?? creditRows[0];
 		const version = versions[0];
 		if (first) select(rowRunner(first, selection, ready));
 		else if (version) select(version);
@@ -292,58 +297,21 @@
 					onfocusin={onListFocus}
 				>
 					<div role="group" aria-label="Models">
-						{#each rows as row (row.family)}
-							{@const runner = rowRunner(row, selection, ready)}
-							{@const selected = rowRuns(row, selection)}
-							{@const multiple = row.runners.length > 1}
-							<DropdownItem
-								role="option"
-								aria-selected={selected}
-								aria-haspopup={multiple ? 'listbox' : undefined}
-								aria-expanded={multiple ? flyout?.row.family === row.family : undefined}
-								checked={selected}
-								class="gap-2.5 py-2"
-								data-testid="chat-model-option"
-								data-provider={runner.group.id}
-								data-model={runner.model.id}
-								onmouseenter={(event) => hover(row, event.currentTarget)}
-								onkeydown={(event) => onRowKeydown(event, row)}
-								onSelect={() => select(runner)}
-							>
-								<span class="flex min-w-0 flex-1 flex-col">
-									<span class="truncate text-[13px] leading-5">{row.label}</span>
-									{#if row.description}
-										<span class="text-fg-tertiary text-2xs truncate leading-4">
-											{row.description}
-										</span>
-									{/if}
-								</span>
-								<ProviderIcon
-									providerId={runner.group.id}
-									ariaLabel={runner.group.name}
-									class="text-fg-secondary shrink-0"
-									size={13}
-								/>
-								<span class="flex w-3.5 shrink-0 justify-center">
-									{#if selected}
-										<Icon name="check" class="text-fg-default" size={14} />
-									{:else if multiple}
-										<Icon name="chevron-right" class="text-fg-tertiary" size={12} />
-									{/if}
-								</span>
-							</DropdownItem>
+						{#each planRows as row (row.family)}
+							{@render modelRow(row)}
 						{/each}
 					</div>
+					{#if creditRows.length > 0}
+						<div role="group" aria-label="On Console credits">
+							{@render sectionHeading('On Console credits', planRows.length > 0)}
+							{#each creditRows as row (row.family)}
+								{@render modelRow(row)}
+							{/each}
+						</div>
+					{/if}
 					{#if versions.length > 0}
 						<div role="group" aria-label="Earlier versions">
-							<p
-								class={[
-									'text-2xs text-fg-tertiary px-2.5 pb-0.5 font-medium',
-									rows.length > 0 ? 'pt-2.5' : 'pt-1',
-								]}
-							>
-								Earlier versions
-							</p>
+							{@render sectionHeading('Earlier versions', rows.length > 0)}
 							{#each versions as version (version.group.id + version.model.id)}
 								<DropdownItem
 									role="option"
@@ -358,6 +326,9 @@
 									<span class="min-w-0 flex-1 truncate text-[13px] leading-5">
 										{version.model.label}
 									</span>
+									{#if usesCredits(version)}
+										<span class="text-fg-tertiary shrink-0 text-xs">Credits</span>
+									{/if}
 									<span class="text-fg-tertiary shrink-0 text-xs tabular-nums">
 										{releaseMonth(version.model.released ?? '')}
 									</span>
@@ -554,3 +525,51 @@
 		{/snippet}
 	</Dropdown>
 </div>
+
+{#snippet sectionHeading(label: string, below: boolean)}
+	<p class={['text-2xs text-fg-tertiary px-2.5 pb-0.5 font-medium', below ? 'pt-2.5' : 'pt-1']}>
+		{label}
+	</p>
+{/snippet}
+
+{#snippet modelRow(row: PickerRow)}
+	{@const runner = rowRunner(row, selection, ready)}
+	{@const selected = rowRuns(row, selection)}
+	{@const multiple = row.runners.length > 1}
+	<DropdownItem
+		role="option"
+		aria-selected={selected}
+		aria-haspopup={multiple ? 'listbox' : undefined}
+		aria-expanded={multiple ? flyout?.row.family === row.family : undefined}
+		checked={selected}
+		class="gap-2.5 py-2"
+		data-testid="chat-model-option"
+		data-provider={runner.group.id}
+		data-model={runner.model.id}
+		onmouseenter={(event) => hover(row, event.currentTarget)}
+		onkeydown={(event) => onRowKeydown(event, row)}
+		onSelect={() => select(runner)}
+	>
+		<span class="flex min-w-0 flex-1 flex-col">
+			<span class="truncate text-[13px] leading-5">{row.label}</span>
+			{#if row.description}
+				<span class="text-fg-tertiary text-2xs truncate leading-4">
+					{row.description}
+				</span>
+			{/if}
+		</span>
+		<ProviderIcon
+			providerId={runner.group.id}
+			ariaLabel={runner.group.name}
+			class="text-fg-secondary shrink-0"
+			size={13}
+		/>
+		<span class="flex w-3.5 shrink-0 justify-center">
+			{#if selected}
+				<Icon name="check" class="text-fg-default" size={14} />
+			{:else if multiple}
+				<Icon name="chevron-right" class="text-fg-tertiary" size={12} />
+			{/if}
+		</span>
+	</DropdownItem>
+{/snippet}

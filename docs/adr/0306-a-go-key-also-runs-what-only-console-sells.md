@@ -17,7 +17,9 @@ OpenCode Zen is the service behind Console's credits; Malini keeps calling it Co
   The base URL it shows stays Go's.
 - `environment` runs a model on the first seller that sells it: Claude Code gets the key proxy at `/opencode-go` for a Go model and at `/opencode` for a model only Console sells, and the subagent model comes from that seller's row.
 - `upstream('opencode-go')` answers Go's base URL with the OpenCode key, only while the key is on Go, and `upstream('opencode')` always answers Console's base URL.
-- The picker names no plan: a Console-only model looks like any other OpenCode model.
+- Each merged model carries `plan` on `AgentModelInfo` in `src/contract/agent.ts`, `go` or `console` after the seller that serves it, and `usesCredits` in `model-catalog.ts` is true for a `console` model on a Go key.
+- The picker in `ModelProfilePicker.svelte` lists the rows that run on a plan first and the rows that spend credits after them under **On Console credits**, an earlier version that spends credits shows **Credits** before its month, and the menu a model runs on names OpenCode's runner **Your Go plan** or **Console credits**.
+  The user picked the section from three prototypes: a line in each row's description, a **Credits** tag beside the provider icon, and the section.
 - This amends 0165, which served a Go key only Go's models.
 
 ## Consequences
@@ -25,4 +27,4 @@ OpenCode Zen is the service behind Console's credits; Malini keeps calling it Co
 - A Go key on models.dev of 2026-11-25 lists 89 models instead of 31: Go's 31 and the 58 only Console sells.
 - A model only Console sells spends Console credits even on a Go key; with none left, the run fails with OpenCode's own error.
 - The Go usage gauge still shows for every OpenCode model on a Go key, a Console-only one included.
-- Enforced by `provider-keys.service.test.ts` (Go and Console models on a Go key, each run on its seller's endpoint, `opencode-go` refused once the key is gone), `model-catalog.test.ts` (`newestModels` keeps the first seller and sorts newest first) and `tests/e2e/provider-models.spec.ts` (a Go key lists Kimi K4, which only Console sells, runs GLM-6 at `/opencode-go` and Kimi K4 at `/opencode`).
+- Enforced by `provider-keys.service.test.ts` (Go and Console models on a Go key, each run on its seller's endpoint, `opencode-go` refused once the key is gone), `model-catalog.test.ts` (`newestModels` keeps the first seller and sorts newest first) and `tests/e2e/provider-models.spec.ts` (a Go key lists Kimi K4, which only Console sells, under **On Console credits**, marks Opus 5 **Credits**, names Opus 5.5's OpenCode runner **Console credits**, runs GLM-6 at `/opencode-go` and Kimi K4 at `/opencode`).

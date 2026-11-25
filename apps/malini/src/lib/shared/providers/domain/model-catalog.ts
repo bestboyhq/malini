@@ -161,6 +161,10 @@ export function runs(runner: PickerRunner, selection: ModelSelection): boolean {
 	return runner.group.id === selection.provider && runner.model.id === selection.model;
 }
 
+export function usesCredits(runner: PickerRunner): boolean {
+	return runner.group.plan === 'go' && runner.model.plan === 'console';
+}
+
 export function rowRuns(row: PickerRow, selection: ModelSelection): boolean {
 	return row.runners.some((runner) => runs(runner, selection));
 }

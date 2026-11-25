@@ -533,6 +533,14 @@ test('a Go key lists Go and Zen models, runs each where it is sold, and checks a
 			models: {
 				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
 				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
+				'claude-opus-5-5': {
+					...catalogModel('claude-opus-5-5', 'Claude Opus 5.5', '2026-09-22'),
+					family: 'claude-opus',
+				},
+				'claude-opus-5': {
+					...catalogModel('claude-opus-5', 'Claude Opus 5', '2026-07-24'),
+					family: 'claude-opus',
+				},
 			},
 		},
 		'opencode-go': {
@@ -635,11 +643,23 @@ test('a Go key lists Go and Zen models, runs each where it is sold, and checks a
 			/^Kimi K4/u,
 		]);
 		const models = page.getByRole('listbox', { name: 'Models' });
-		await page.getByRole('textbox', { name: 'Find models' }).fill('hy');
+		await expect(
+			models.getByRole('group', { name: 'On Console credits' }).getByTestId('chat-model-option'),
+		).toHaveText([/^Kimi K4/u]);
+		const filter = page.getByRole('textbox', { name: 'Find models' });
+		await filter.fill('hy');
 		await expect(
 			models.getByRole('group', { name: 'Earlier versions' }).getByTestId('chat-model-version'),
 		).toHaveText([/^Hy3\s*Jul 2026/u]);
 		await captureFlow(app, 'provider-models-opencode-go-earlier-versions');
+		await filter.fill('opus');
+		await expect(
+			models.locator('[data-testid="chat-model-version"][data-provider="opencode"]'),
+		).toHaveText([/^Opus 5\s*Credits\s*Jul 2026/u]);
+		await models.getByRole('option', { name: /^Opus 5\.5/u }).hover();
+		await expect(page.getByRole('listbox', { name: 'Opus 5.5 runs on' })).toBeVisible();
+		await expect(runner(page, 'opencode')).toContainText('Console credits');
+		await captureFlow(app, 'provider-models-opencode-go-console-credits');
 		await page.keyboard.press('Escape');
 		await expect(models).toBeHidden();
 
@@ -663,7 +683,7 @@ test('a Go key lists Go and Zen models, runs each where it is sold, and checks a
 		await expect(card).toHaveAttribute('data-key-saved', 'true');
 		await expect(card).toContainText('Key saved. Your Go plan.');
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
-			/HungerG Free\s*Hy4\s*GLM-6\s*Kimi K4\s*Hy3/u,
+			/HungerG Free\s*Hy4\s*GLM-6\s*Kimi K4\s*Opus 5\.5\s*Opus 5\s*Hy3/u,
 		);
 		await captureFlow(app, 'provider-models-opencode-go-settings');
 
@@ -671,7 +691,7 @@ test('a Go key lists Go and Zen models, runs each where it is sold, and checks a
 		await card.getByRole('button', { name: 'Check again' }).click();
 		await expect(card).toContainText('API key saved on this Mac.');
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
-			/GLM-6\s*Kimi K4/u,
+			/GLM-6\s*Kimi K4\s*Opus 5\.5\s*Opus 5/u,
 		);
 		await captureFlow(app, 'provider-models-opencode-go-checked-again');
 		expectCleanConsole(app);
