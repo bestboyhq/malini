@@ -1810,6 +1810,54 @@ describe('ClaudeSession', () => {
 				},
 			});
 		});
+
+		it('tells the agent a block once after commands that worked, and every block after one that failed', async () => {
+			const blockedSocket: Blocked = ['network-outbound', socket];
+			const feed = denialFeed([blockedSocket], [blockedSocket], [blockedSocket]);
+			const script = recordedScript('readAndBash');
+			const command = (toolUseId: string, outcome: 'worked' | 'failed'): ScriptStep[] => {
+				const hook = {
+					session_id: READ_AND_BASH_SESSION,
+					transcript_path: '/tmp/transcript.jsonl',
+					cwd: '/work/repo',
+					tool_name: 'Bash',
+					tool_input: { command: 'pnpm build' },
+					tool_use_id: toolUseId,
+				};
+				return [
+					{ hook: { ...hook, hook_event_name: 'PreToolUse' } },
+					{
+						hook:
+							outcome === 'worked'
+								? { ...hook, hook_event_name: 'PostToolUse', tool_response: { stdout: 'built' } }
+								: { ...hook, hook_event_name: 'PostToolUseFailure', error: 'Exit code 1' },
+					},
+				];
+			};
+			const { session, claude } = harness(
+				[
+					[
+						...script.slice(0, 1),
+						...command('toolu_first', 'worked'),
+						...command('toolu_again', 'worked'),
+						...command('toolu_failed', 'failed'),
+						...script.slice(1),
+					],
+				],
+				{ denials: feed },
+			);
+
+			await session.sendPrompt('Build it three times', 'run-1', profile('agent', 'auto'));
+
+			const told = claude.runs[0]?.hookOutputs.flatMap((output) =>
+				'hookSpecificOutput' in output &&
+				output.hookSpecificOutput !== undefined &&
+				JSON.stringify(output.hookSpecificOutput).includes(socket)
+					? [output.hookSpecificOutput.hookEventName]
+					: [],
+			);
+			expect(told).toEqual(['PostToolUse', 'PostToolUseFailure']);
+		});
 	});
 
 	describe('a command the user lets out of the sandbox for this chat', () => {
