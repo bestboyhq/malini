@@ -722,10 +722,10 @@ describe('BrowserViews', () => {
 		);
 	});
 
-	it('saves screenshots into the worktree sandbox with a small preview beside them', async () => {
+	it('saves screenshots into the worktree sandbox with a preview at the page size beside them', async () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-shots-'));
 		roots.push(worktree);
-		const { browser } = setup();
+		const { browser, viewAt } = setup();
 		await expect(browser.screenshot(TAB, worktree, VISIBLE)).rejects.toThrow(NOTHING_OPEN);
 		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
 		await expect(browser.screenshot(TAB, worktree, VISIBLE)).rejects.toThrow(NOTHING_OPEN);
@@ -741,7 +741,15 @@ describe('BrowserViews', () => {
 		expect(readFileSync(join(worktree, first.path), 'utf8')).toBe('png 2560x1600');
 		expect(first.previewPath).toBe(join(worktree, first.path.replace(/\.png$/, '.jpg')));
 		expect(existsSync(first.previewPath)).toBe(true);
-		expect(readFileSync(first.previewPath, 'utf8')).toBe(`jpeg ${PREVIEW_LONG_EDGE}x980 q80`);
+		expect(readFileSync(first.previewPath, 'utf8')).toBe(`jpeg ${PREVIEW_LONG_EDGE}x800 q80`);
+
+		viewAt(0).contents.devtoolsAnswer = () => ({
+			...PAGE_METRICS,
+			cssVisualViewport: { ...PAGE_METRICS.cssVisualViewport, clientWidth: 640 },
+		});
+		const narrow = await browser.screenshot(TAB, worktree, VISIBLE);
+		expect(readFileSync(join(worktree, narrow.path), 'utf8')).toBe('png 2560x1600');
+		expect(readFileSync(narrow.previewPath, 'utf8')).toBe('jpeg 640x400 q80');
 	});
 
 	it('lifts a hidden view out of the window while it captures it, then puts it back behind malini', async () => {
@@ -1292,6 +1300,7 @@ describe('BrowserViews', () => {
 			},
 		]);
 		expect(readFileSync(join(worktree, page.path), 'utf8')).toBe('png 2560x6000');
+		expect(readFileSync(page.previewPath, 'utf8')).toBe(`jpeg 546x${PREVIEW_LONG_EDGE} q80`);
 		expect(page).not.toHaveProperty('pageHeight');
 		expect(element).not.toHaveProperty('pageHeight');
 		expect(long.pageHeight).toBe(20_000);

@@ -27,7 +27,7 @@ import {
 import { isLocalUrl } from './url';
 
 export const SCREENSHOTS_PATH = `${SANDBOX_SCRATCH_PATH}/screenshots`;
-export const PREVIEW_LONG_EDGE = 1_568;
+export const PREVIEW_LONG_EDGE = 1_280;
 export const ACTION_WAIT_MS = 5_000;
 export const FULL_PAGE_MAX_HEIGHT = 16_384;
 export const MAX_RESULT_CHARS = 30_000;
@@ -144,6 +144,11 @@ export async function settleAfterAction(contents: PageContents): Promise<void> {
 	await settled(contents, Date.now() + ACTION_SETTLE_MS);
 }
 
+export async function visibleWidth(contents: PageContents): Promise<number> {
+	const metrics = await devtools(contents, 'Page.getLayoutMetrics');
+	return requireNumber(field(metrics, 'cssVisualViewport'), 'clientWidth');
+}
+
 export async function captureVisible(contents: PageContents): Promise<PageImage> {
 	const image = await captureFrame(contents);
 	if (!image) {
@@ -158,7 +163,7 @@ export async function captureVisible(contents: PageContents): Promise<PageImage>
 export async function captureRegion(
 	contents: PageContents,
 	part: BrowserScreenshotPart,
-): Promise<{ readonly png: Buffer; readonly pageHeight?: number }> {
+): Promise<{ readonly png: Buffer; readonly width: number; readonly pageHeight?: number }> {
 	const element = part.selector === undefined ? null : await locate(contents, part.selector, 'see');
 	const metrics = await devtools(contents, 'Page.getLayoutMetrics');
 	const viewport = field(metrics, 'cssVisualViewport');
@@ -189,11 +194,14 @@ export async function captureRegion(
 	if (png.length === 0)
 		throw new BrowserError('empty-capture', 'The browser returned an empty screenshot.');
 	const cut = element === null && height > FULL_PAGE_MAX_HEIGHT;
-	return cut ? { png, pageHeight: Math.round(height) } : { png };
+	return cut
+		? { png, width: clip.width, pageHeight: Math.round(height) }
+		: { png, width: clip.width };
 }
 
 export async function saveScreenshot(
 	image: PageImage,
+	cssWidth: number,
 	url: string,
 	worktree: string,
 	now: Date,
@@ -202,7 +210,7 @@ export async function saveScreenshot(
 	await mkdir(directory, { recursive: true });
 	const name = await writeUnique(directory, timestamp(now), image.toPNG());
 	const previewPath = join(directory, `${name}.jpg`);
-	await writeFile(previewPath, fitLongEdge(image, PREVIEW_LONG_EDGE).toJPEG(80));
+	await writeFile(previewPath, fitLongEdge(image, previewLongEdge(image, cssWidth)).toJPEG(80));
 	return { path: `${SCREENSHOTS_PATH}/${name}.png`, previewPath, url };
 }
 
@@ -529,6 +537,12 @@ async function writeUnique(directory: string, base: string, png: Buffer): Promis
 		}
 	}
 	throw new BrowserError('invariant', `Too many screenshots named ${base} in ${directory}.`);
+}
+
+function previewLongEdge(image: PageImage, cssWidth: number): number {
+	const { width, height } = image.getSize();
+	const scale = width > 0 ? Math.min(1, cssWidth / width) : 1;
+	return Math.min(PREVIEW_LONG_EDGE, Math.round(Math.max(width, height) * scale));
 }
 
 function fitLongEdge(image: PageImage, longEdge: number): PageImage {

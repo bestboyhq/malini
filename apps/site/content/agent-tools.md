@@ -5,6 +5,8 @@ description: The tools the agent gets in a Malini chat - a browser it shares wit
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
 Malini's tools reach Claude Code through an MCP server named `malini`, so their full names start with `mcp__malini__`.
+Every prompt carries the browser tools a chat uses on most pages.
+The rest, such as `browser_hover` and every tool past the browser, load through Claude Code's tool search the first time the agent reaches for one, so a chat that never needs them never pays for them.
 
 ## Browser
 
@@ -71,6 +73,7 @@ Click the pin for your prompt and the thread's outcome.
 **Open chat** shows the thread in a tab of its own until you switch away, and **Dismiss** removes the pin and stops the thread.
 A page that asks for your microphone or camera asks you first, and Malini remembers your answer until it quits.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
+The agent reads a copy at the page's own size in CSS pixels, at most 1,280 on its long edge, and the file it embeds in the chat keeps every pixel.
 
 ### Screenshots in your theme
 
