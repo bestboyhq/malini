@@ -73,6 +73,7 @@ A pin on the element spins while the thread works, turns amber when it needs you
 Click the pin for your prompt and the thread's outcome.
 **Open chat** shows the thread in a tab of its own until you switch away, and **Dismiss** removes the pin and stops the thread.
 A page that asks for your microphone or camera asks you first, and Malini remembers your answer until it quits.
+A page can lock your cursor when you click it, as games do, and Escape unlocks it.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 The agent reads a copy at the page's own size in CSS pixels, at most 1,280 on its long edge, and the file it embeds in the chat keeps every pixel.
 

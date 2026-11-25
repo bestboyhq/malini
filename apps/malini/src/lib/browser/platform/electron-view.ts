@@ -165,7 +165,7 @@ export function browseAsChrome(): void {
 	partition.setUserAgent(chromeUserAgent(partition.getUserAgent()));
 }
 
-export function askBeforeMediaAccess(getWindow: () => BrowserWindow | null): void {
+export function answerPermissionRequests(getWindow: () => BrowserWindow | null): void {
 	const media = rememberMediaAnswers(async (question) => {
 		const window = getWindow();
 		const { response } = await (window
@@ -176,12 +176,13 @@ export function askBeforeMediaAccess(getWindow: () => BrowserWindow | null): voi
 	const partition = session.fromPartition(BROWSER_PARTITION);
 	partition.setPermissionRequestHandler(async (_contents, permission, callback, details) => {
 		callback(
-			permission === 'media' &&
-				'mediaTypes' in details &&
-				(await media.request(
-					details.securityOrigin ?? details.requestingUrl,
-					details.mediaTypes ?? [],
-				)),
+			permission === 'pointerLock' ||
+				(permission === 'media' &&
+					'mediaTypes' in details &&
+					(await media.request(
+						details.securityOrigin ?? details.requestingUrl,
+						details.mediaTypes ?? [],
+					))),
 		);
 	});
 	partition.setPermissionCheckHandler(
