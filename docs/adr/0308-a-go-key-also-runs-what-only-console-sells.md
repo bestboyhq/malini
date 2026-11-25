@@ -1,4 +1,4 @@
-# 0307 - A Go key also runs what only Console sells
+# 0308 - A Go key also runs what only Console sells
 
 Status: accepted
 

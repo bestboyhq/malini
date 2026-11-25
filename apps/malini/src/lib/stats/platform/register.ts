@@ -26,11 +26,12 @@ import {
 import { isRecord } from '$main/db/rows';
 import { appendNdjsonRecord } from '$main/diagnostics/ndjson-log';
 import { thrownDetail } from '$main/diagnostics/thrown';
-import { workstreamsRoot } from '$main/git/paths';
 import type { ProcessRunner } from '$main/process/runner';
 import { listOpenRuns, listRunActivity } from '$lib/chat/chat.platform';
 import {
+	checkoutTrashRoot,
 	displayWorkstreamName,
+	listArchivedWorkstreams,
 	listConnectedRepositories,
 	listWorkstreams,
 	managedProjectIdForRepository,
@@ -137,6 +138,10 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 
 	const liveFolders = (): WorkstreamFolder[] =>
 		listWorkstreams(db).map(({ id, path }) => ({ id, path }));
+	const archivedFolders = (): WorkstreamFolder[] => [
+		...listArchivedWorkstreams(db).map(({ id, path }) => ({ id, path })),
+		{ id: 'trash', path: checkoutTrashRoot(context.checkoutsRoot) },
+	];
 
 	const lookup = createRepositoryLookup();
 	const visibility = visibilityOf(lookup);
@@ -251,7 +256,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 			app.on('browser-window-blur', stopWatchingStalls);
 			if (BrowserWindow.getFocusedWindow()) watchStalls();
 			void running.stopLeftovers({
-				folders: [{ id: 'workstreams', path: workstreamsRoot(context.checkoutsRoot) }],
+				folders: archivedFolders(),
 				live: liveFolders(),
 			});
 		},

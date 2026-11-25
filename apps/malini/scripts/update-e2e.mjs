@@ -197,15 +197,13 @@ async function openSidebar(app) {
  * @param {string} name
  */
 async function shot(app, name) {
-	const windowId = await app.evaluate(({ BrowserWindow }) => {
+	const png = await app.evaluate(async ({ BrowserWindow }) => {
 		const [window] = BrowserWindow.getAllWindows();
-		window?.webContents.invalidate();
-		return window?.getMediaSourceId().split(':')[1];
+		return window ? (await window.capturePage()).toPNG().toString('base64') : null;
 	});
-	await sleep(500);
 	const path = join(appRoot, `../../.context/update-e2e-${name}.png`);
 	mkdirSync(join(path, '..'), { recursive: true });
-	if (windowId) sh('screencapture', ['-o', '-x', '-l', windowId, path]);
+	if (png) writeFileSync(path, Buffer.from(png, 'base64'));
 	console.log(`${name}: ${path}`);
 }
 

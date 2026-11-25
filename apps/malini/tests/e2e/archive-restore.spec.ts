@@ -7,7 +7,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { ArchivedWorkstreamDto } from '../../src/contract/repositories';
 import {
@@ -225,6 +225,56 @@ test('archiving a workstream stops what was left running detached from its folde
 		expectCleanConsole(app);
 	} finally {
 		server?.kill('SIGKILL');
+		await app.close();
+	}
+});
+
+test('a launch stops what its archived workstreams and the trash left running, never what another Malini runs', async () => {
+	test.setTimeout(120_000);
+	const first = await launchMalini();
+	const profile = first.root;
+	let archivedWorktree = '';
+	try {
+		const source = await createSourceRepo(first.root);
+		const seeded = await seedWorkstream(
+			first.page,
+			source,
+			'e2e-launch-leftover',
+			'Launch leftover',
+		);
+		archivedWorktree = seeded.worktree;
+		await invoke(first.page, 'repositories.archive-workstream', {
+			workstreamId: seeded.workstreamId,
+		});
+	} finally {
+		await first.quit();
+	}
+	const workstreams = dirname(archivedWorktree);
+	const runFrom = (folder: string): ChildProcess => {
+		const child = spawn(
+			process.execPath,
+			[
+				'-e',
+				'const parent = process.ppid; setInterval(() => process.ppid !== parent && process.exit(), 1000)',
+				join(folder, 'server.js'),
+			],
+			{ detached: true, stdio: 'ignore' },
+		);
+		child.unref();
+		return child;
+	};
+	const archived = runFrom(archivedWorktree);
+	const trashed = runFrom(join(workstreams, '.trash', 'e2e-launch-leftover-1'));
+	const anotherMalinis = runFrom(join(workstreams, '01JANOTHERMALINISWORKSTREAM'));
+	const app = await launchMalini({ profile });
+	try {
+		await expect.poll(() => archived.signalCode, { timeout: 15_000 }).toBe('SIGTERM');
+		await expect.poll(() => trashed.signalCode, { timeout: 15_000 }).toBe('SIGTERM');
+		await app.page.waitForTimeout(1_000);
+		expect(anotherMalinis.exitCode ?? anotherMalinis.signalCode).toBeNull();
+		expectCleanConsole(app);
+	} finally {
+		for (const child of [archived, trashed, anotherMalinis]) child.kill('SIGKILL');
 		await app.close();
 	}
 });
