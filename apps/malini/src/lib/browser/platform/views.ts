@@ -42,6 +42,7 @@ import {
 	typeInto,
 	untilSized,
 	uploadFiles,
+	visibleWidth,
 	waitFor,
 	within,
 	worktreeUploads,
@@ -307,11 +308,18 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			return this.rendered(entry, async () => {
 				const now = new Date();
 				if (part.selector === undefined && !part.fullPage) {
-					return saveScreenshot(await captureVisible(contents), contents.getURL(), worktree, now);
+					const image = await captureVisible(contents);
+					return saveScreenshot(
+						image,
+						await visibleWidth(contents),
+						contents.getURL(),
+						worktree,
+						now,
+					);
 				}
-				const { png, pageHeight } = await captureRegion(contents, part);
+				const { png, width, pageHeight } = await captureRegion(contents, part);
 				const image = this.deps.imageFromPng(png);
-				const file = await saveScreenshot(image, contents.getURL(), worktree, now);
+				const file = await saveScreenshot(image, width, contents.getURL(), worktree, now);
 				return pageHeight === undefined ? file : { ...file, pageHeight };
 			});
 		});

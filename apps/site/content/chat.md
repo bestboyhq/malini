@@ -237,6 +237,7 @@ Tools keep state of their own outside your files, and the sandbox opens general 
 Malini records each one in Settings, Agent access, and every later command keeps it.
 When a command needs anything else the sandbox blocks, Malini reads what it blocked from the macOS log, and the chat asks you to open just that.
 What Chrome and Electron look up and do without stays out of what the agent hears, so a command that worked never sends it to ask you.
+After a command that worked, the agent hears each block once per chat; after one that failed, it hears every block that command hit.
 The card lists each folder or socket the sandbox blocked while that command ran, such as Docker's, and what opening it lets a command do; what other commands hit stays off it.
 **Allow once** opens it for that command, and the same card comes back the next time it asks.
 **Always allow** keeps it open for the chat, the repository or every repository, until you revoke it in Settings, Agent access.

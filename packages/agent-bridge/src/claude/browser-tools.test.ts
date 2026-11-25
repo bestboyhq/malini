@@ -219,6 +219,32 @@ describe('malini MCP server', () => {
 		});
 	});
 
+	it('loads the browser tools a chat uses on most pages up front and leaves the rest to tool search', async () => {
+		const { call } = await connect(async () => ({ ok: true }));
+
+		const listed = await call('tools/list', {});
+		const tools =
+			'result' in listed && Array.isArray(listed.result['tools']) ? listed.result['tools'] : [];
+		const alwaysLoaded = tools
+			.filter((listedTool) => listedTool?._meta?.['anthropic/alwaysLoad'] === true)
+			.map(({ name }) => name);
+
+		expect(alwaysLoaded).toEqual([
+			'browser_open',
+			'browser_snapshot',
+			'browser_screenshot',
+			'browser_click',
+			'browser_type',
+			'browser_wait',
+			'browser_evaluate',
+			'browser_console',
+			'browser_reload',
+			'browser_resize',
+			'browser_close',
+		]);
+		expect(tools.length).toBeGreaterThan(alwaysLoaded.length);
+	});
+
 	it('types into a field, submitting only when asked, steps through history, resizes the tab and closes it', async () => {
 		const { call, requests } = await connect(async () => ({ ok: true }));
 

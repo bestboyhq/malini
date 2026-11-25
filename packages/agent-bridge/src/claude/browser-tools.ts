@@ -23,6 +23,7 @@ const DEFAULT_WAIT_SECONDS = 10;
 const MAX_WAIT_SECONDS = 30;
 const MAX_PAGE_SIZE = 3_840;
 const target = z.string().min(1);
+const ALWAYS_LOAD = { alwaysLoad: true };
 
 type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 
@@ -44,12 +45,14 @@ export function maliniTools(
 					.describe('The page to open, for example http://localhost:5173 or ./docs/report.html'),
 			},
 			({ url }) => run({ action: 'open', url }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_snapshot',
 			"Read the page open in Malini's browser as text: its headings, text, images and every control you can click or type into, each control with a ref such as @e3 that the other browser tools take as their selector. It reads into iframes too, and a control inside one gets a ref such as @f1e3. It is faster than a screenshot when you need what the page says or which element to act on. Take a new snapshot once the page changes: the refs of an older one stop working.",
 			{},
 			() => run({ action: 'snapshot' }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_screenshot',
@@ -63,12 +66,14 @@ export function maliniTools(
 			},
 			({ selector, fullPage }) =>
 				run({ action: 'screenshot', fullPage, ...(selector === undefined ? {} : { selector }) }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_click',
 			"Click an element in Malini's browser with the mouse and wait for the page to settle. Malini waits up to 5s for the element to show, scrolls it into view, and refuses when another element covers it, naming that element.",
 			{ selector: target.describe(TARGET) },
 			({ selector }) => run({ action: 'click', selector }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_hover',
@@ -85,6 +90,7 @@ export function maliniTools(
 				submit: z.boolean().default(false).describe('Press Enter after typing'),
 			},
 			({ selector, text, submit }) => run({ action: 'type', selector, text, submit }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_press',
@@ -132,6 +138,7 @@ export function maliniTools(
 					...(text === undefined ? {} : { text }),
 					...(selector === undefined ? {} : { selector }),
 				}),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_evaluate',
@@ -145,12 +152,14 @@ export function maliniTools(
 					),
 			},
 			({ script }) => run({ action: 'evaluate', script }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_console',
 			"Read the console messages and uncaught errors of the page open in Malini's browser since it loaded, newest last.",
 			{},
 			() => run({ action: 'console' }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_back',
@@ -169,6 +178,7 @@ export function maliniTools(
 			"Reload the page open in Malini's browser and wait for it to load.",
 			{},
 			() => run({ action: 'reload' }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_resize',
@@ -192,6 +202,7 @@ export function maliniTools(
 			},
 			({ width, height }) =>
 				run({ action: 'resize', width, ...(height === undefined ? {} : { height }) }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_upload',
@@ -224,6 +235,7 @@ export function maliniTools(
 			"Close the tab you opened in Malini's browser, its page included, once the user no longer needs to see it. Tabs the user opened stay. browser_open opens a new tab again.",
 			{},
 			() => run({ action: 'close' }),
+			ALWAYS_LOAD,
 		),
 	];
 	const preApproved = [...browserTools.map(({ name }) => name), ...PRE_APPROVED_PLATFORM_TOOLS];
@@ -231,7 +243,6 @@ export function maliniTools(
 		mcpServers: {
 			[MALINI_MCP_SERVER]: createSdkMcpServer({
 				name: MALINI_MCP_SERVER,
-				alwaysLoad: true,
 				tools: [...browserTools, ...platformTools(requestPlatform, addMcpServer)],
 			}),
 		},

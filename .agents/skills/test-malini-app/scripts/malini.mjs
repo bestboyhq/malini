@@ -56,7 +56,10 @@ export async function launch(topic, { foreground = false, executablePath, temp }
 		await page.waitForTimeout(REPAINT_MS);
 		const png = await app.evaluate(async ({ BrowserWindow }) => {
 			const window = BrowserWindow.getAllWindows()[0];
-			return window ? (await window.capturePage()).toPNG().toString('base64') : null;
+			if (!window) return null;
+			const { width } = window.getContentBounds();
+			const image = await window.capturePage();
+			return image.resize({ width, quality: 'best' }).toPNG().toString('base64');
 		});
 		if (!png) throw new Error('Malini has no window to capture');
 		mkdirSync(contextRoot, { recursive: true });
