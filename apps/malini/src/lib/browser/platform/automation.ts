@@ -410,10 +410,19 @@ export async function typeInto(
 	await settleAfterAction(contents);
 }
 
-export async function pressKey(contents: PageContents, chord: string): Promise<void> {
+export async function pressKey(
+	contents: PageContents,
+	chord: string,
+	holdSeconds: number,
+): Promise<void> {
 	const events = keyPresses(chord, MAC);
+	const release = events.findIndex((event) => event.type === 'keyUp');
 	const { chooser } = await catchingChooser(contents, true, async () => {
-		for (const event of events) await devtools(contents, 'Input.dispatchKeyEvent', event);
+		for (const [index, event] of events.entries()) {
+			// ponytail: a held key sends no autorepeat key-downs; send them every 33 ms once a page waits for repeats
+			if (index === release && holdSeconds > 0) await delay(holdSeconds * 1000);
+			await devtools(contents, 'Input.dispatchKeyEvent', event);
+		}
 		await settleAfterAction(contents);
 	});
 	if (chooser !== null) {

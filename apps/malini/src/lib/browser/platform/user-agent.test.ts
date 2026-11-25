@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chromeUserAgent } from './user-agent';
+import { chromeUserAgent, googleSignInUserAgent } from './user-agent';
 
 const CHROME =
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
@@ -11,5 +11,13 @@ describe('chromeUserAgent', () => {
 		CHROME,
 	])('reads as Chrome from %s', (electronUserAgent) => {
 		expect(chromeUserAgent(electronUserAgent)).toBe(CHROME);
+	});
+});
+
+describe('googleSignInUserAgent', () => {
+	it('names Chrome without a version', () => {
+		expect(googleSignInUserAgent(CHROME)).toBe(
+			'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari/537.36',
+		);
 	});
 });

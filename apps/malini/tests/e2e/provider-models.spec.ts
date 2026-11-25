@@ -472,10 +472,21 @@ test('typing in the picker finds an earlier Claude version, and a run uses it', 
 		await picker.click();
 		const models = page.getByRole('listbox', { name: 'Models' });
 		const earlier = models.getByRole('group', { name: 'Earlier versions' });
-		await expect(models.getByTestId('chat-model-option').first()).toBeVisible();
+		const firstRow = models.getByTestId('chat-model-option').first();
+		await expect(firstRow).toBeVisible();
 		await expect(earlier).toHaveCount(0);
 
 		const filter = page.getByRole('textbox', { name: 'Find models' });
+		const box = await firstRow.boundingBox();
+		if (!box) throw new Error('The first model row has no box');
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await filter.focus();
+		await filter.fill('4.5');
+		await expect(models.getByTestId('chat-model-option')).toHaveCount(0);
+		await filter.fill('');
+		await expect.poll(() => firstRow.evaluate((row) => row.matches(':hover'))).toBe(true);
+		await expect(filter).toBeFocused();
+
 		await filter.fill('opus');
 		await expect(earlier.getByTestId('chat-model-version')).toHaveText([
 			/^Opus 4\.8\s*May 2026/u,
@@ -514,7 +525,7 @@ test('typing in the picker finds an earlier Claude version, and a run uses it', 
 	}
 });
 
-test('a Go key lists Go models, runs them on the Go endpoint, and checks again', async () => {
+test('a Go key lists Go and Zen models, runs each where it is sold, and checks again', async () => {
 	test.setTimeout(180_000);
 	const catalog = await serveModelsDev({
 		opencode: {
@@ -522,6 +533,14 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 			models: {
 				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
 				'kimi-k4': catalogModel('kimi-k4', 'Kimi K4', '2026-10-20'),
+				'claude-opus-5-5': {
+					...catalogModel('claude-opus-5-5', 'Claude Opus 5.5', '2026-09-22'),
+					family: 'claude-opus',
+				},
+				'claude-opus-5': {
+					...catalogModel('claude-opus-5', 'Claude Opus 5', '2026-07-24'),
+					family: 'claude-opus',
+				},
 			},
 		},
 		'opencode-go': {
@@ -569,7 +588,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 				() => sessionEnvironments(app.home).find((entry) => entry.model === 'glm-6')?.env ?? null,
 			)
 			.toEqual({
-				ANTHROPIC_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/opencode$/u),
+				ANTHROPIC_BASE_URL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/opencode-go$/u),
 				ANTHROPIC_AUTH_TOKEN: expect.stringMatching(LOCAL_TOKEN),
 				ANTHROPIC_MODEL: 'glm-6',
 				ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-6',
@@ -617,15 +636,43 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await expect(panel).toBeHidden();
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'opencode')).toHaveText([/^HungerG Free/u, /^Hy4/u, /^GLM-6/u]);
+		await expect(modelOptions(page, 'opencode')).toHaveText([
+			/^HungerG Free/u,
+			/^Hy4/u,
+			/^GLM-6/u,
+			/^Kimi K4/u,
+		]);
 		const models = page.getByRole('listbox', { name: 'Models' });
-		await page.getByRole('textbox', { name: 'Find models' }).fill('hy');
+		await expect(
+			models.getByRole('group', { name: 'On Console credits' }).getByTestId('chat-model-option'),
+		).toHaveText([/^Kimi K4/u]);
+		const filter = page.getByRole('textbox', { name: 'Find models' });
+		await filter.fill('hy');
 		await expect(
 			models.getByRole('group', { name: 'Earlier versions' }).getByTestId('chat-model-version'),
 		).toHaveText([/^Hy3\s*Jul 2026/u]);
 		await captureFlow(app, 'provider-models-opencode-go-earlier-versions');
+		await filter.fill('opus');
+		await expect(
+			models.locator('[data-testid="chat-model-version"][data-provider="opencode"]'),
+		).toHaveText([/^Opus 5\s*Credits\s*Jul 2026/u]);
+		await models.getByRole('option', { name: /^Opus 5\.5/u }).hover();
+		await expect(page.getByRole('listbox', { name: 'Opus 5.5 runs on' })).toBeVisible();
+		await expect(runner(page, 'opencode')).toContainText('Console credits');
+		await captureFlow(app, 'provider-models-opencode-go-console-credits');
 		await page.keyboard.press('Escape');
 		await expect(models).toBeHidden();
+
+		await chooseModel(page, 'opencode', 'kimi-k4');
+		await sendPrompt(page, 'SEARCH the fixture repo again');
+		await expect
+			.poll(
+				() =>
+					sessionEnvironments(app.home).find((entry) => entry.model === 'kimi-k4')?.env[
+						'ANTHROPIC_BASE_URL'
+					] ?? '',
+			)
+			.toMatch(/^http:\/\/127\.0\.0\.1:\d+\/opencode$/u);
 
 		await page.evaluate(() => {
 			location.hash = '#/settings/providers';
@@ -636,16 +683,15 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await expect(card).toHaveAttribute('data-key-saved', 'true');
 		await expect(card).toContainText('Key saved. Your Go plan.');
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
-			/HungerG Free\s*Hy4\s*GLM-6\s*Hy3/u,
+			/HungerG Free\s*Hy4\s*GLM-6\s*Kimi K4\s*Opus 5\.5\s*Opus 5\s*Hy3/u,
 		);
-		await expect(card).not.toContainText('Kimi K4');
 		await captureFlow(app, 'provider-models-opencode-go-settings');
 
 		probe.answer(403);
 		await card.getByRole('button', { name: 'Check again' }).click();
 		await expect(card).toContainText('API key saved on this Mac.');
 		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
-			/GLM-6\s*Kimi K4/u,
+			/GLM-6\s*Kimi K4\s*Opus 5\.5\s*Opus 5/u,
 		);
 		await captureFlow(app, 'provider-models-opencode-go-checked-again');
 		expectCleanConsole(app);

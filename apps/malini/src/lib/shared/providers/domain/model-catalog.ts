@@ -57,6 +57,14 @@ export function allProviderModels(groups: readonly ProviderGroup[]): readonly Ag
 	return groups.flatMap((group) => group.models);
 }
 
+export function newestModels(lists: readonly (readonly AgentModelInfo[])[]): AgentModelInfo[] {
+	const byId = new Map<string, AgentModelInfo>();
+	for (const model of lists.flat()) if (!byId.has(model.id)) byId.set(model.id, model);
+	return [...byId.values()].sort((left, right) =>
+		(right.released ?? '').localeCompare(left.released ?? ''),
+	);
+}
+
 export function selectionModels(
 	groups: readonly ProviderGroup[],
 	selection: ModelSelection,
@@ -151,6 +159,10 @@ export function pickerRows(
 
 export function runs(runner: PickerRunner, selection: ModelSelection): boolean {
 	return runner.group.id === selection.provider && runner.model.id === selection.model;
+}
+
+export function usesCredits(runner: PickerRunner): boolean {
+	return runner.group.plan === 'go' && runner.model.plan === 'console';
 }
 
 export function rowRuns(row: PickerRow, selection: ModelSelection): boolean {

@@ -131,7 +131,7 @@ describe('ProviderKeys', () => {
 		});
 	});
 
-	it('lists the Go models and runs them on the Go endpoint when the key is on the Go plan', async () => {
+	it('lists Go and Zen models on the Go plan, and runs each on the endpoint that sells it', async () => {
 		const providers = new ProviderKeys(
 			openMigratedDatabase(':memory:'),
 			async () => cipher(),
@@ -140,16 +140,27 @@ describe('ProviderKeys', () => {
 		);
 		await providers.save('opencode', 'oc_sk_go');
 		const opencode = providers.list().find((provider) => provider.id === 'opencode');
+		const models = opencode?.models.map((model) => model.id) ?? [];
 		expect(opencode?.plan).toBe('go');
 		expect(opencode?.baseUrl).toBe('https://opencode.ai/inference/go/anthropic');
-		expect(opencode?.models.some((model) => model.id === 'hy4')).toBe(true);
-		expect(opencode?.models.some((model) => model.id === 'claude-opus-5-5')).toBe(false);
-		await expect(providers.upstream('opencode')).resolves.toEqual({
+		expect(models).toEqual(expect.arrayContaining(['hy4', 'gemini-4-argon', 'gemini-3.8-flash']));
+		expect(models.filter((id) => id === 'gemini-4-argon')).toHaveLength(1);
+		const plans = new Map(opencode?.models.map((model) => [model.id, model.plan]));
+		expect([plans.get('hy4'), plans.get('gemini-4-argon'), plans.get('gemini-3.8-flash')]).toEqual([
+			'go',
+			'go',
+			'console',
+		]);
+		await expect(providers.upstream('opencode-go')).resolves.toEqual({
 			baseUrl: 'https://opencode.ai/inference/go/anthropic',
 			apiKey: 'oc_sk_go',
 		});
+		await expect(providers.upstream('opencode')).resolves.toEqual({
+			baseUrl: 'https://opencode.ai/inference/anthropic',
+			apiKey: 'oc_sk_go',
+		});
 		await expect(providers.environment('opencode', 'hy4')).resolves.toEqual({
-			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/opencode',
+			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/opencode-go',
 			ANTHROPIC_AUTH_TOKEN: 'local-token',
 			ANTHROPIC_MODEL: 'hy4',
 			ANTHROPIC_DEFAULT_OPUS_MODEL: 'hy4',
@@ -157,8 +168,18 @@ describe('ProviderKeys', () => {
 			ANTHROPIC_DEFAULT_HAIKU_MODEL: 'hy4',
 			CLAUDE_CODE_SUBAGENT_MODEL: 'hy4',
 		});
+		await expect(providers.environment('opencode', 'gemini-4-argon')).resolves.toMatchObject({
+			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/opencode-go',
+		});
+		await expect(providers.environment('opencode', 'gemini-3.8-flash')).resolves.toMatchObject({
+			ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100/opencode',
+			ANTHROPIC_MODEL: 'gemini-3.8-flash',
+		});
 		providers.delete('opencode');
 		expect(openCodePlan(providers)).toBeNull();
+		await expect(providers.upstream('opencode-go')).rejects.toThrow(
+			'Unknown provider `opencode-go`',
+		);
 	});
 
 	it('keeps a key whose plan OpenCode would not say, and checks it again later', async () => {

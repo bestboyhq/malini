@@ -132,7 +132,10 @@ describe('malini MCP server', () => {
 						name: 'browser_press',
 						inputSchema: {
 							type: 'object',
-							properties: { key: { type: 'string' } },
+							properties: {
+								key: { type: 'string' },
+								holdSeconds: { type: 'number', minimum: 0, maximum: 30, default: 0 },
+							},
 							required: ['key'],
 						},
 					},
@@ -235,6 +238,7 @@ describe('malini MCP server', () => {
 			'browser_screenshot',
 			'browser_click',
 			'browser_type',
+			'browser_press',
 			'browser_wait',
 			'browser_evaluate',
 			'browser_console',
@@ -303,6 +307,7 @@ describe('malini MCP server', () => {
 		await call('tools/call', { name: 'browser_snapshot', arguments: {} });
 		await call('tools/call', { name: 'browser_hover', arguments: { selector: '@e3' } });
 		await call('tools/call', { name: 'browser_press', arguments: { key: 'Shift+Tab' } });
+		await call('tools/call', { name: 'browser_press', arguments: { key: 'w', holdSeconds: 2 } });
 		await call('tools/call', { name: 'browser_scroll', arguments: { y: 600 } });
 		await call('tools/call', { name: 'browser_scroll', arguments: { selector: '#footer' } });
 		await call('tools/call', { name: 'browser_wait', arguments: { text: 'Saved' } });
@@ -323,7 +328,8 @@ describe('malini MCP server', () => {
 		expect(requests).toEqual([
 			{ action: 'snapshot' },
 			{ action: 'hover', selector: '@e3' },
-			{ action: 'press', key: 'Shift+Tab' },
+			{ action: 'press', key: 'Shift+Tab', holdSeconds: 0 },
+			{ action: 'press', key: 'w', holdSeconds: 2 },
 			{ action: 'scroll', x: 0, y: 600 },
 			{ action: 'scroll', x: 0, y: 0, selector: '#footer' },
 			{ action: 'wait', seconds: 10, gone: false, text: 'Saved' },

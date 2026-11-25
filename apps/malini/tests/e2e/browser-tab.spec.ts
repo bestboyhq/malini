@@ -916,7 +916,7 @@ test('the agent resizes the browser tab you see by moving the divider, stops whe
 	}
 });
 
-test('the agent reads, clicks, types, hovers, presses, waits, scrolls, runs JavaScript, reads the console and captures a page you do not see, and your tab stays put', async () => {
+test('the agent reads, clicks, types, hovers, presses and holds keys, waits, scrolls, runs JavaScript, reads the console and captures a page you do not see, and your tab stays put', async () => {
 	test.setTimeout(180_000);
 	const server = createServer((_request, response) => {
 		response.writeHead(200, { 'content-type': 'text/html' });
@@ -928,13 +928,22 @@ test('the agent reads, clicks, types, hovers, presses, waits, scrolls, runs Java
 <p id="result"></p>
 <p><span id="hint">Why join</span> <span id="tip">Monthly notes</span></p>
 <p id="pressed"></p>
+<p id="held"></p>
 <div id="rest"></div>
 <script>
 console.log('form ready');
 document.getElementById('join').addEventListener('click', () => setTimeout(() => {
 	document.getElementById('result').textContent = 'Joined as ' + document.getElementById('email').value;
 }, 300));
-addEventListener('keydown', (event) => { document.getElementById('pressed').textContent = 'Pressed ' + event.key; });
+let downAt = 0;
+addEventListener('keydown', (event) => {
+	downAt = performance.now();
+	document.getElementById('pressed').textContent = 'Pressed ' + event.key;
+});
+addEventListener('keyup', (event) => {
+	const held = performance.now() - downAt >= 900 ? 'a second' : 'a moment';
+	document.getElementById('held').textContent = 'Held ' + event.key + ' for ' + held;
+});
 </script>`);
 	});
 	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
@@ -980,6 +989,12 @@ addEventListener('keydown', (event) => { document.getElementById('pressed').text
 			page,
 			{ action: 'evaluate', script: `document.getElementById('pressed').textContent` },
 			/^\s*Pressed K\s*$/u,
+		);
+		await agentBrowser(page, { action: 'press', key: 'w', holdSeconds: 1 }, 'Held w for 1s.');
+		await agentBrowser(
+			page,
+			{ action: 'evaluate', script: `document.getElementById('held').textContent` },
+			/^\s*Held w for a second\s*$/u,
 		);
 		await agentBrowser(
 			page,

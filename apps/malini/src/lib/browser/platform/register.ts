@@ -16,7 +16,7 @@ import { getWorkstream, listWorkstreams } from '$shared/repositories/repositorie
 import type { BrowserPlatform } from '../browser.platform';
 import { readBounds, readPick, readRequestId, readTab, readUrl } from './args';
 import {
-	askBeforeMediaAccess,
+	answerPermissionRequests,
 	browseAsChrome,
 	createElectronView,
 	watchRendererReset,
@@ -43,7 +43,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 			return null;
 		}
 	}, stills);
-	askBeforeMediaAccess(deps.getMainWindow);
+	answerPermissionRequests(deps.getMainWindow);
 	browseAsChrome();
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,

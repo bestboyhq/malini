@@ -28,6 +28,8 @@ import type { SkillRecord, SkillSource, TurnedOffSkills } from '$contract/skills
 import type { MaliniEditReview } from '$contract/approvals';
 import { MaliniError, SHARED_ERROR_VERDICTS, type ErrorVerdicts } from '$main/errors';
 
+const MAX_KEY_HOLD_SECONDS = 30;
+
 export type {
 	AgentQuestionAnswer,
 	AgentReasoningEffort,
@@ -488,7 +490,7 @@ export type BrowserRequestAction =
 	| { action: 'click'; selector: string }
 	| { action: 'hover'; selector: string }
 	| { action: 'type'; selector: string; text: string; submit: boolean }
-	| { action: 'press'; key: string }
+	| { action: 'press'; key: string; holdSeconds: number }
 	| { action: 'scroll'; x: number; y: number; selector?: string }
 	| { action: 'wait'; seconds: number; gone: boolean; text?: string; selector?: string }
 	| { action: 'evaluate'; script: string }
@@ -1253,8 +1255,16 @@ function decodeBrowserRequest(
 		case 'click':
 		case 'hover':
 			return { ok: true, value: { ...base, action, selector: f.string('selector') } };
-		case 'press':
-			return { ok: true, value: { ...base, action, key: f.string('key') } };
+		case 'press': {
+			const holdSeconds = f.optionalNumber('holdSeconds') ?? 0;
+			if (!(holdSeconds >= 0 && holdSeconds <= MAX_KEY_HOLD_SECONDS)) {
+				return {
+					ok: false,
+					error: `${type}: \`holdSeconds\` must be from 0 to ${MAX_KEY_HOLD_SECONDS}`,
+				};
+			}
+			return { ok: true, value: { ...base, action, key: f.string('key'), holdSeconds } };
+		}
 		case 'evaluate':
 			return { ok: true, value: { ...base, action, script: f.string('script') } };
 		case 'scroll':

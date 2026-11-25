@@ -256,7 +256,7 @@ export type BrowserRequest =
 			readonly text: string;
 			readonly submit: boolean;
 	  }
-	| { readonly action: 'press'; readonly key: string }
+	| { readonly action: 'press'; readonly key: string; readonly holdSeconds: number }
 	| {
 			readonly action: 'scroll';
 			readonly x: number;

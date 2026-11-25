@@ -103,7 +103,7 @@ export interface BrowserAutomation {
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo>;
-	press(tab: BrowserTabArgs, key: string): Promise<BrowserPageInfo>;
+	press(tab: BrowserTabArgs, key: string, holdSeconds: number): Promise<BrowserPageInfo>;
 	scroll(
 		tab: BrowserTabArgs,
 		by: { readonly x: number; readonly y: number; readonly selector?: string },
@@ -242,11 +242,10 @@ export async function answerBrowserRequest(
 				};
 			}
 			case 'press': {
-				const page = await browser.press(tab, request.key);
-				return {
-					ok: true,
-					text: `Pressed ${request.key}. The page is now ${describePage(page)}.`,
-				};
+				const { key, holdSeconds } = request;
+				const page = await browser.press(tab, key, holdSeconds);
+				const pressed = holdSeconds > 0 ? `Held ${key} for ${holdSeconds}s` : `Pressed ${key}`;
+				return { ok: true, text: `${pressed}. The page is now ${describePage(page)}.` };
 			}
 			case 'scroll': {
 				const { x, y, selector } = request;
