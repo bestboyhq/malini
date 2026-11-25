@@ -11296,5 +11296,1813 @@
 			"uuid": "6895cbbc-c77d-488d-bd72-ad538ec8bbc6",
 			"session_id": "e8ca3504-5704-4be5-9da8-528c65e2b26b"
 		}
+	],
+	"subagentHookRewrites": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "17795a40-8c21-4312-b3b0-9670dac8812b",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"model": "claude-sonnet-5-5",
+			"permissionMode": "auto",
+			"mcp_servers": [],
+			"uuid": "8b6efc2b-6f81-493e-b27c-eb3095891af1"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeEHN4PiF4ssBu2Uoc2",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+						"name": "Agent",
+						"input": {
+							"description": "Run five shell commands",
+							"subagent_type": "general-purpose",
+							"run_in_background": false,
+							"prompt": "In the current working directory, run these five commands, each in its own separate Bash call, one after another. Never put two in the same response; wait for each result before issuing the next: 1) `ls -la` 2) `wc -l probe.txt` 3) `cat probe.txt` 4) `head -c 3 probe.txt` 5) `tail -n 1 probe.txt`. Then report each command's output verbatim, concisely."
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 16900,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "726ef74c-f8b4-4e1a-b1b3-d6332f70434c",
+			"timestamp": "2026-11-24T23:45:03.850Z",
+			"request_id": "req_011ChNeEHHM9aBjLMHoeSdki",
+			"user_message_uuid": "c26e6c9d-77e7-4aa0-ab00-7a4f307ad5c1",
+			"user_message_uuids": ["c26e6c9d-77e7-4aa0-ab00-7a4f307ad5c1"]
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Agent",
+				"tool_input": {
+					"description": "Run five shell commands",
+					"prompt": "In the current working directory, run these five commands, each in its own separate Bash call, one after another. Never put two in the same response; wait for each result before issuing the next: 1) `ls -la` 2) `wc -l probe.txt` 3) `cat probe.txt` 4) `head -c 3 probe.txt` 5) `tail -n 1 probe.txt`. Then report each command's output verbatim, concisely.",
+					"subagent_type": "general-purpose",
+					"run_in_background": false
+				},
+				"tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "task_started",
+			"task_id": "ab72f091f9e6dbdf1",
+			"run_id": "0mwvcdzfw-b797a0fb",
+			"tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"description": "Run five shell commands",
+			"subagent_type": "general-purpose",
+			"is_backgrounded": false,
+			"spawn_depth": 1,
+			"task_type": "local_agent",
+			"prompt": "In the current working directory, run these five commands, each in its own separate Bash call, one after another. Never put two in the same response; wait for each result before issuing the next: 1) `ls -la` 2) `wc -l probe.txt` 3) `cat probe.txt` 4) `head -c 3 probe.txt` 5) `tail -n 1 probe.txt`. Then report each command's output verbatim, concisely.",
+			"uuid": "b7d871b2-3ca9-482f-bc2b-2b1c1de257ed",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "text",
+						"text": "In the current working directory, run these five commands, each in its own separate Bash call, one after another. Never put two in the same response; wait for each result before issuing the next: 1) `ls -la` 2) `wc -l probe.txt` 3) `cat probe.txt` 4) `head -c 3 probe.txt` 5) `tail -n 1 probe.txt`. Then report each command's output verbatim, concisely."
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "c91ded1a-2a50-473f-9c7a-f582865a35fa",
+			"timestamp": "2026-11-24T23:45:04.169Z",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeETdwaSf9ZtJca3FAP",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_018sC13pum3oZDjkQFDPqs8G",
+						"name": "Bash",
+						"input": {
+							"command": "ls -la"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 4707,
+					"cache_read_input_tokens": 8666,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 4707,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "f7c486e0-45ff-47da-9101-6d314c381fba",
+			"timestamp": "2026-11-24T23:45:06.914Z",
+			"request_id": "req_011ChNeETZjTUePeTpeq6QKS",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "ls -la"
+				},
+				"tool_use_id": "toolu_018sC13pum3oZDjkQFDPqs8G"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "permission_denied",
+			"tool_name": "Bash",
+			"tool_use_id": "toolu_018sC13pum3oZDjkQFDPqs8G",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"decision_reason_type": "classifier",
+			"decision_reason": "Classifier unavailable",
+			"message": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command ls -la\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"uuid": "36175320-3956-46c8-a697-51a4a67975cd",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PermissionDenied",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command ls -la"
+				},
+				"tool_use_id": "toolu_018sC13pum3oZDjkQFDPqs8G",
+				"reason": "Classifier unavailable"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "tool_result",
+						"content": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command ls -la\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+						"is_error": true,
+						"tool_use_id": "toolu_018sC13pum3oZDjkQFDPqs8G"
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "08bd7609-da4e-41af-bf1b-3f2557a4feb9",
+			"timestamp": "2026-11-24T23:45:07.459Z",
+			"tool_use_result": "Error: The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command ls -la\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"tool_result_meta": [
+				{
+					"id": "toolu_018sC13pum3oZDjkQFDPqs8G",
+					"non_execution_kind": "automode-unavailable",
+					"permission_decision": {
+						"decision": "reject",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeEhj2LgxXDpJe6beRB",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_015pqAiHkvG8zgj2K1fAStYJ",
+						"name": "Bash",
+						"input": {
+							"command": "command ls -la",
+							"description": "List files in current directory"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 1996,
+					"cache_read_input_tokens": 13373,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 1996,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 6,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "6658d8c8-e27b-4270-9610-91d89368037c",
+			"timestamp": "2026-11-24T23:45:09.073Z",
+			"request_id": "req_011ChNeEhd5Yzp7jpbT3CUXr",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command ls -la",
+					"description": "List files in current directory"
+				},
+				"tool_use_id": "toolu_015pqAiHkvG8zgj2K1fAStYJ"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_015pqAiHkvG8zgj2K1fAStYJ",
+						"type": "tool_result",
+						"content": "total 8\ndrwxr-xr-x@ 3 ada  wheel   96 Nov 25 00:44 .\ndrwx------@ 5 ada  wheel  160 Nov 25 00:44 ..\n-rw-r--r--@ 1 ada  wheel    9 Nov 25 00:44 probe.txt",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "d78f1389-1a35-4c1d-b690-41f2c73b5eef",
+			"timestamp": "2026-11-24T23:45:10.442Z",
+			"tool_result_meta": [
+				{
+					"id": "toolu_015pqAiHkvG8zgj2K1fAStYJ",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeEwMoypFwDBmtweKth",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01QfdbZ3CDP97zEHZcND6YmK",
+						"name": "Bash",
+						"input": {
+							"command": "wc -l probe.txt",
+							"description": "Count lines in probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 224,
+					"cache_read_input_tokens": 15369,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 224,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "03597dd4-2f50-4bbc-bb8d-03805314eee9",
+			"timestamp": "2026-11-24T23:45:11.592Z",
+			"request_id": "req_011ChNeEwHbs3UR9ifjXYwsT",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "wc -l probe.txt",
+					"description": "Count lines in probe.txt"
+				},
+				"tool_use_id": "toolu_01QfdbZ3CDP97zEHZcND6YmK"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "permission_denied",
+			"tool_name": "Bash",
+			"tool_use_id": "toolu_01QfdbZ3CDP97zEHZcND6YmK",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"decision_reason_type": "classifier",
+			"decision_reason": "Classifier unavailable",
+			"message": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command wc -l probe.txt\",\"description\":\"Count lines in probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"uuid": "1a704a57-c9cc-417d-a8f6-e2b1ba0bf85d",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PermissionDenied",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command wc -l probe.txt",
+					"description": "Count lines in probe.txt"
+				},
+				"tool_use_id": "toolu_01QfdbZ3CDP97zEHZcND6YmK",
+				"reason": "Classifier unavailable"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "tool_result",
+						"content": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command wc -l probe.txt\",\"description\":\"Count lines in probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+						"is_error": true,
+						"tool_use_id": "toolu_01QfdbZ3CDP97zEHZcND6YmK"
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "6233a40e-e028-4255-ad0c-279e560cf7a6",
+			"timestamp": "2026-11-24T23:45:12.056Z",
+			"tool_use_result": "Error: The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command wc -l probe.txt\",\"description\":\"Count lines in probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01QfdbZ3CDP97zEHZcND6YmK",
+					"non_execution_kind": "automode-unavailable",
+					"permission_decision": {
+						"decision": "reject",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeF3NyHiFCvfPnin13r",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01JveHP8ZFutunwcjzMCh394",
+						"name": "Bash",
+						"input": {
+							"command": "command wc -l probe.txt",
+							"description": "Count lines in probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 4,
+					"cache_creation_input_tokens": 507,
+					"cache_read_input_tokens": 15593,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 507,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "0307c511-08e4-4add-ae9b-0a8a68821c3a",
+			"timestamp": "2026-11-24T23:45:13.230Z",
+			"request_id": "req_011ChNeF3JFSJLzvvStN3Psa",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command wc -l probe.txt",
+					"description": "Count lines in probe.txt"
+				},
+				"tool_use_id": "toolu_01JveHP8ZFutunwcjzMCh394"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01JveHP8ZFutunwcjzMCh394",
+						"type": "tool_result",
+						"content": "       1 probe.txt",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "8061cc74-103d-4855-a098-523e728b729a",
+			"timestamp": "2026-11-24T23:45:14.148Z",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01JveHP8ZFutunwcjzMCh394",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeFCJyjUbJnzk7oBZJ2",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_018JAo5TAFbJzVbDiHWwNMzL",
+						"name": "Bash",
+						"input": {
+							"command": "cat probe.txt",
+							"description": "Print probe.txt contents"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 101,
+					"cache_read_input_tokens": 16100,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 101,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "a4417c20-92f7-4850-967a-3efdda300b44",
+			"timestamp": "2026-11-24T23:45:15.158Z",
+			"request_id": "req_011ChNeFCC3np2PyeBW1bWEz",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "cat probe.txt",
+					"description": "Print probe.txt contents"
+				},
+				"tool_use_id": "toolu_018JAo5TAFbJzVbDiHWwNMzL"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "permission_denied",
+			"tool_name": "Bash",
+			"tool_use_id": "toolu_018JAo5TAFbJzVbDiHWwNMzL",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"decision_reason_type": "classifier",
+			"decision_reason": "Classifier unavailable",
+			"message": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command cat probe.txt\",\"description\":\"Print probe.txt contents\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"uuid": "cba31914-3742-47dd-9a5f-1caba65ba3a8",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PermissionDenied",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command cat probe.txt",
+					"description": "Print probe.txt contents"
+				},
+				"tool_use_id": "toolu_018JAo5TAFbJzVbDiHWwNMzL",
+				"reason": "Classifier unavailable"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "tool_result",
+						"content": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command cat probe.txt\",\"description\":\"Print probe.txt contents\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+						"is_error": true,
+						"tool_use_id": "toolu_018JAo5TAFbJzVbDiHWwNMzL"
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "363809eb-7481-4d07-8cbb-e079e190288d",
+			"timestamp": "2026-11-24T23:45:15.520Z",
+			"tool_use_result": "Error: The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command cat probe.txt\",\"description\":\"Print probe.txt contents\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"tool_result_meta": [
+				{
+					"id": "toolu_018JAo5TAFbJzVbDiHWwNMzL",
+					"non_execution_kind": "automode-unavailable",
+					"permission_decision": {
+						"decision": "reject",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeFJAxrZLVZNfm6UVvB",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_011q3cbUJvzBmgVz8XZdJmiM",
+						"name": "Bash",
+						"input": {
+							"command": "command cat probe.txt",
+							"description": "Print probe.txt contents"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 4,
+					"cache_creation_input_tokens": 501,
+					"cache_read_input_tokens": 16201,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 501,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "5cb78a5d-c283-4276-9730-f5b290bf84c0",
+			"timestamp": "2026-11-24T23:45:16.523Z",
+			"request_id": "req_011ChNeFJ6FWWfkihzhxWA1g",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command cat probe.txt",
+					"description": "Print probe.txt contents"
+				},
+				"tool_use_id": "toolu_011q3cbUJvzBmgVz8XZdJmiM"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_011q3cbUJvzBmgVz8XZdJmiM",
+						"type": "tool_result",
+						"content": "one line",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "0a680424-6149-4a16-b898-3dd1801a33ce",
+			"timestamp": "2026-11-24T23:45:17.802Z",
+			"tool_result_meta": [
+				{
+					"id": "toolu_011q3cbUJvzBmgVz8XZdJmiM",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeFTvqLmvJNSeJwxqVo",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01NUBCWhB7PxkssRmaufNSDj",
+						"name": "Bash",
+						"input": {
+							"command": "head -c 3 probe.txt",
+							"description": "Print first 3 bytes of probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 92,
+					"cache_read_input_tokens": 16702,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 92,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "f972d8cb-3b60-4dae-9eee-3928c4a01b24",
+			"timestamp": "2026-11-24T23:45:19.114Z",
+			"request_id": "req_011ChNeFTnuPF4evz1YJ7LAo",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "head -c 3 probe.txt",
+					"description": "Print first 3 bytes of probe.txt"
+				},
+				"tool_use_id": "toolu_01NUBCWhB7PxkssRmaufNSDj"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "permission_denied",
+			"tool_name": "Bash",
+			"tool_use_id": "toolu_01NUBCWhB7PxkssRmaufNSDj",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"decision_reason_type": "classifier",
+			"decision_reason": "Classifier unavailable",
+			"message": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command head -c 3 probe.txt\",\"description\":\"Print first 3 bytes of probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"uuid": "682f162d-a714-478f-b408-68930817cf61",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PermissionDenied",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command head -c 3 probe.txt",
+					"description": "Print first 3 bytes of probe.txt"
+				},
+				"tool_use_id": "toolu_01NUBCWhB7PxkssRmaufNSDj",
+				"reason": "Classifier unavailable"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "tool_result",
+						"content": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command head -c 3 probe.txt\",\"description\":\"Print first 3 bytes of probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+						"is_error": true,
+						"tool_use_id": "toolu_01NUBCWhB7PxkssRmaufNSDj"
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "eb398a07-4f65-4615-9bc7-9859ad6786ef",
+			"timestamp": "2026-11-24T23:45:19.621Z",
+			"tool_use_result": "Error: The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command head -c 3 probe.txt\",\"description\":\"Print first 3 bytes of probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01NUBCWhB7PxkssRmaufNSDj",
+					"non_execution_kind": "automode-unavailable",
+					"permission_decision": {
+						"decision": "reject",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeFbgRRChwCFu3EzoaJ",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01P2DstVGreqRTKrGqyVp7mr",
+						"name": "Bash",
+						"input": {
+							"command": "command head -c 3 probe.txt",
+							"description": "Print first 3 bytes of probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 4,
+					"cache_creation_input_tokens": 521,
+					"cache_read_input_tokens": 16794,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 521,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "7a9b8736-5f7e-492c-928f-377933560353",
+			"timestamp": "2026-11-24T23:45:20.960Z",
+			"request_id": "req_011ChNeFbbhfjiUW5tb3srM8",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command head -c 3 probe.txt",
+					"description": "Print first 3 bytes of probe.txt"
+				},
+				"tool_use_id": "toolu_01P2DstVGreqRTKrGqyVp7mr"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01P2DstVGreqRTKrGqyVp7mr",
+						"type": "tool_result",
+						"content": "one",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "b50ab775-38c2-4bb1-8dfe-03b03e4add6b",
+			"timestamp": "2026-11-24T23:45:21.697Z",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01P2DstVGreqRTKrGqyVp7mr",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeFkXyF78BUYK6fqqMq",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01GwWHpsqZHg59jwmLr6AWfD",
+						"name": "Bash",
+						"input": {
+							"command": "tail -n 1 probe.txt",
+							"description": "Print last line of probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 101,
+					"cache_read_input_tokens": 17315,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 101,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "acb8328e-c20b-4628-b06b-c435eb1fa2cc",
+			"timestamp": "2026-11-24T23:45:22.963Z",
+			"request_id": "req_011ChNeFkT1v6CXV4z2GMcGs",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "tail -n 1 probe.txt",
+					"description": "Print last line of probe.txt"
+				},
+				"tool_use_id": "toolu_01GwWHpsqZHg59jwmLr6AWfD"
+			}
+		},
+		{
+			"type": "system",
+			"subtype": "permission_denied",
+			"tool_name": "Bash",
+			"tool_use_id": "toolu_01GwWHpsqZHg59jwmLr6AWfD",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"decision_reason_type": "classifier",
+			"decision_reason": "Classifier unavailable",
+			"message": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command tail -n 1 probe.txt\",\"description\":\"Print last line of probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"uuid": "b45ceb55-d1ae-4bae-bc8d-9fa93eab2254",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PermissionDenied",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command tail -n 1 probe.txt",
+					"description": "Print last line of probe.txt"
+				},
+				"tool_use_id": "toolu_01GwWHpsqZHg59jwmLr6AWfD",
+				"reason": "Classifier unavailable"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"type": "tool_result",
+						"content": "The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command tail -n 1 probe.txt\",\"description\":\"Print last line of probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+						"is_error": true,
+						"tool_use_id": "toolu_01GwWHpsqZHg59jwmLr6AWfD"
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "caba8090-f1c4-4f33-98ed-2169693a5f3b",
+			"timestamp": "2026-11-24T23:45:23.412Z",
+			"tool_use_result": "Error: The server-side auto mode classifier gave no verdict for Bash: a hook changed this call's input after auto mode reviewed it, so the review does not cover what would run. This is not a judgment that the action is unsafe. The hook produced this input: {\"command\":\"command tail -n 1 probe.txt\",\"description\":\"Print last line of probe.txt\"}. In your next response, issue the Bash call once more with exactly that input so auto mode reviews it. Put nothing else in that response but other calls whose denial quoted an input like this one. If it is denied again, do not retry; continue with other tasks and tell the user that auto mode could not check this Bash call because a hook or plugin changes it, and that they can turn that hook or plugin off (or ask their administrator to) or switch out of auto mode to approve it themselves. Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01GwWHpsqZHg59jwmLr6AWfD",
+					"non_execution_kind": "automode-unavailable",
+					"permission_decision": {
+						"decision": "reject",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeFstyzn9GuPx6uQTqu",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_013CrubdSsBigJZ1zBzTWtho",
+						"name": "Bash",
+						"input": {
+							"command": "command tail -n 1 probe.txt",
+							"description": "Print last line of probe.txt"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 4,
+					"cache_creation_input_tokens": 513,
+					"cache_read_input_tokens": 17416,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 513,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 16,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "236b450e-3f92-4794-b6bf-bbda9f8b2b84",
+			"timestamp": "2026-11-24T23:45:24.707Z",
+			"request_id": "req_011ChNeFspGwbdq9SHXYX1fV",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "Bash",
+				"tool_input": {
+					"command": "command tail -n 1 probe.txt",
+					"description": "Print last line of probe.txt"
+				},
+				"tool_use_id": "toolu_013CrubdSsBigJZ1zBzTWtho"
+			}
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_013CrubdSsBigJZ1zBzTWtho",
+						"type": "tool_result",
+						"content": "one line",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "265898c7-1ad1-4f3d-99e3-14c23983a1d2",
+			"timestamp": "2026-11-24T23:45:26.059Z",
+			"tool_result_meta": [
+				{
+					"id": "toolu_013CrubdSsBigJZ1zBzTWtho",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"hook": {
+				"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+				"transcript_path": "/Users/ada/.claude/projects/-work-repo/912f8c95-896a-485b-a044-d24eb6213ac1.jsonl",
+				"cwd": "/work/repo",
+				"prompt_id": "6b9475f8-0578-4b90-b289-514e329ca150",
+				"permission_mode": "auto",
+				"agent_id": "ab72f091f9e6dbdf1",
+				"agent_type": "general-purpose",
+				"effort": {
+					"level": "medium"
+				},
+				"hook_event_name": "PreToolUse",
+				"tool_name": "SubagentHandback",
+				"tool_input": {
+					"message": "All five commands ran, each in its own Bash call. A hook rewrote each command to start with `command`, so every call was refused once and succeeded on the retry. The retries used the rewritten input.\n\n1) `ls -la`\n```\ntotal 8\ndrwxr-xr-x@ 3 ada  wheel   96 Nov 25 00:44 .\ndrwx------@ 5 ada  wheel  160 Nov 25 00:44 ..\n-rw-r--r--@ 1 ada  wheel    9 Nov 25 00:44 probe.txt\n```\n2) `wc -l probe.txt`\n```\n       1 probe.txt\n```\n3) `cat probe.txt`\n```\none line\n```\n4) `head -c 3 probe.txt`\n```\none\n```\n5) `tail -n 1 probe.txt`\n```\none line\n```"
+				},
+				"tool_use_id": "toolu_01MgPYhScFiBGBz6bixi48Xh"
+			}
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeG5CP8ro4N64BEi5cq",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01MgPYhScFiBGBz6bixi48Xh",
+						"name": "SubagentHandback",
+						"input": {
+							"message": "All five commands ran, each in its own Bash call. A hook rewrote each command to start with `command`, so every call was refused once and succeeded on the retry. The retries used the rewritten input.\n\n1) `ls -la`\n```\ntotal 8\ndrwxr-xr-x@ 3 ada  wheel   96 Nov 25 00:44 .\ndrwx------@ 5 ada  wheel  160 Nov 25 00:44 ..\n-rw-r--r--@ 1 ada  wheel    9 Nov 25 00:44 probe.txt\n```\n2) `wc -l probe.txt`\n```\n       1 probe.txt\n```\n3) `cat probe.txt`\n```\none line\n```\n4) `head -c 3 probe.txt`\n```\none\n```\n5) `tail -n 1 probe.txt`\n```\none line\n```"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 98,
+					"cache_read_input_tokens": 17929,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 98,
+						"ephemeral_1h_input_tokens": 0
+					},
+					"output_tokens": 24,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "1b1f7045-24de-4638-a77c-3a4ce859cf2e",
+			"timestamp": "2026-11-24T23:45:28.624Z",
+			"request_id": "req_011ChNeG56w7jN6VfrFpozco",
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01MgPYhScFiBGBz6bixi48Xh",
+						"type": "tool_result",
+						"content": [
+							{
+								"type": "text",
+								"text": "{\"success\":true,\"message\":\"Report delivered to your caller.\"}"
+							}
+						]
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"agent_id": "ab72f091f9e6dbdf1",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "943862b2-d364-4be2-8181-6ead9ea5dc7f",
+			"timestamp": "2026-11-24T23:45:28.920Z",
+			"tool_result_meta": [
+				{
+					"id": "toolu_01MgPYhScFiBGBz6bixi48Xh",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			],
+			"subagent_type": "general-purpose",
+			"task_description": "Run five shell commands"
+		},
+		{
+			"type": "system",
+			"subtype": "task_updated",
+			"task_id": "ab72f091f9e6dbdf1",
+			"run_id": "0mwvcdzfw-b797a0fb",
+			"patch": {
+				"status": "completed",
+				"end_time": 1795563928925
+			},
+			"uuid": "5ede30ef-631c-4fbf-a0b1-16024e8bd314",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"type": "system",
+			"subtype": "task_notification",
+			"task_id": "ab72f091f9e6dbdf1",
+			"run_id": "0mwvcdzfw-b797a0fb",
+			"description": "Run five shell commands",
+			"tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+			"status": "completed",
+			"output_file": "/tmp/claude/work-repo/912f8c95-896a-485b-a044-d24eb6213ac1/tasks/ab72f091f9e6dbdf1.output",
+			"summary": "This agent's report was delivered to you as a message from \"ab72f091f9e6dbdf1\" (its SubagentHandback call). Read it there; it is not repeated here.\n",
+			"usage": {
+				"total_tokens": 18358,
+				"tool_uses": 10,
+				"duration_ms": 24760
+			},
+			"handback": "send",
+			"handback_report": {
+				"text": "All five commands ran, each in its own Bash call. A hook rewrote each command to start with `command`, so every call was refused once and succeeded on the retry. The retries used the rewritten input.\n\n1) `ls -la`\n```\ntotal 8\ndrwxr-xr-x@ 3 ada  wheel   96 Nov 25 00:44 .\ndrwx------@ 5 ada  wheel  160 Nov 25 00:44 ..\n-rw-r--r--@ 1 ada  wheel    9 Nov 25 00:44 probe.txt\n```\n2) `wc -l probe.txt`\n```\n       1 probe.txt\n```\n3) `cat probe.txt`\n```\none line\n```\n4) `head -c 3 probe.txt`\n```\none\n```\n5) `tail -n 1 probe.txt`\n```\none line\n```",
+				"toolUseId": "toolu_01MgPYhScFiBGBz6bixi48Xh"
+			},
+			"uuid": "3384e08c-75e5-4486-8306-fae00f2978ac",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+						"type": "tool_result",
+						"content": [
+							{
+								"type": "text",
+								"text": "  This agent's report was delivered to you as a message from \"ab72f091f9e6dbdf1\" (its SubagentHandback call). Read it there; it is not repeated here.\n  \nagentId: ab72f091f9e6dbdf1 (use SendMessage with to: 'ab72f091f9e6dbdf1', summary: '<5-10 word recap>' to continue this agent)\n<usage>subagent_tokens: 18358\ntool_uses: 10\nduration_ms: 24761</usage>"
+							}
+						]
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "4774f1b2-aea2-41d4-9120-374093432011",
+			"timestamp": "2026-11-24T23:45:28.927Z",
+			"tool_use_result": {
+				"status": "completed",
+				"prompt": "In the current working directory, run these five commands, each in its own separate Bash call, one after another. Never put two in the same response; wait for each result before issuing the next: 1) `ls -la` 2) `wc -l probe.txt` 3) `cat probe.txt` 4) `head -c 3 probe.txt` 5) `tail -n 1 probe.txt`. Then report each command's output verbatim, concisely.",
+				"agentId": "ab72f091f9e6dbdf1",
+				"agentType": "general-purpose",
+				"handback": "send",
+				"handbackReport": {
+					"text": "All five commands ran, each in its own Bash call. A hook rewrote each command to start with `command`, so every call was refused once and succeeded on the retry. The retries used the rewritten input.\n\n1) `ls -la`\n```\ntotal 8\ndrwxr-xr-x@ 3 ada  wheel   96 Nov 25 00:44 .\ndrwx------@ 5 ada  wheel  160 Nov 25 00:44 ..\n-rw-r--r--@ 1 ada  wheel    9 Nov 25 00:44 probe.txt\n```\n2) `wc -l probe.txt`\n```\n       1 probe.txt\n```\n3) `cat probe.txt`\n```\none line\n```\n4) `head -c 3 probe.txt`\n```\none\n```\n5) `tail -n 1 probe.txt`\n```\none line\n```",
+					"toolUseId": "toolu_01MgPYhScFiBGBz6bixi48Xh"
+				},
+				"toolsUsed": ["Bash", "SubagentHandback"],
+				"harnessNoteCount": 1,
+				"harnessTailCount": 0,
+				"harnessSectionHash": "1b31b63ace42fcb0",
+				"content": [
+					{
+						"type": "text",
+						"text": "This agent's report was delivered to you as a message from \"ab72f091f9e6dbdf1\" (its SubagentHandback call). Read it there; it is not repeated here.\n"
+					}
+				],
+				"resolvedModel": "claude-sonnet-5-5",
+				"totalDurationMs": 24761,
+				"totalTokens": 18358,
+				"totalToolUseCount": 10,
+				"usage": {
+					"output_tokens_details": {
+						"thinking_tokens": 0
+					},
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 98,
+					"cache_read_input_tokens": 17929,
+					"output_tokens": 329,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": "standard",
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 98
+					},
+					"inference_geo": "global",
+					"iterations": [],
+					"speed": "standard",
+					"fallback_credit": null
+				},
+				"toolStats": {
+					"readCount": 0,
+					"searchCount": 0,
+					"bashCount": 10,
+					"editFileCount": 0,
+					"linesAdded": 0,
+					"linesRemoved": 0,
+					"otherToolCount": 0
+				},
+				"canContinueAgent": true
+			},
+			"tool_result_meta": [
+				{
+					"id": "toolu_01L1bAbQQVJ9b8zS9nicNnNY",
+					"permission_decision": {
+						"decision": "accept",
+						"source": "config",
+						"reason_type": "classifier"
+					}
+				}
+			]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeGHUaHkkX61mpvjGaF",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": "I'm noting that the subagent report says a hook rewrote some commands. That's just information from the report, so I'll summarize it in one line.\n\n",
+						"signature": "CAQSkwYKEAgUGAI4AUIIdGhpbmtpbmcSDJRQJ4NaFqPFB5Yl8BoMWQPBVvAyXWC64TJTIjAuge/dpIwqUXG6nMNaPGYdVtZLUyjFMqn7FGg9psKY73gGTgLh9M4gNrZChdmG9AkqsAVskiFfYg8cPbBqGN5vK/Vg/8S1LKa9tIY2SPj+8t/5ZCz7m52CaWgJvDa9kHJUzMSprSK36JkLwHXZG/fwKWybzEl00MRKMclFpzAT406NJdFzLNa9UnM+a1w8o4bR5CIcw818yDijozEsJqrBfP6GudYuhU6SHlDTCTe7nnC7FyaoCRKszTeXamuwjS46ZVok/p8XA2hf4bhTiZBzNcDFSfqGSOT5GVfeDkJxyIp4bUYe0+0hUJO6K0Dz6n6gq+n9nusuRt8bZC7LwrqHbDZRA+BhztvHjHA3x3QbU5ZwdIx40Yv6EslGsWIeNMEIkMhfgqYMopZxvoDzQbZQ9PNyDkfy3Y7yj4FsyBekHxQRcDUbSnhM95bmL8QzlHHChpuUrBWmPD+4LF99VEdFHoY2PVRovcmZoBFV9lcCMIbjZbxwZ+d9Sg3yWUq+5MJ5a6N3BSUVbx85sECGH3+SVFfxjmF1zYvTlEkLo/MA4krHv81ZTvYOt+JNMMzFD2pn649Ax4v3jFsCat/YAVQUAm6aIHL+bytRk5g46V0ljedCdRo+ZfS0ukIsqZlJG5qRdjLtRlxF1PVrs26R0occvSwurWH8/Gu23O3iauC7AHXCh18v+sflsdpbsZIrFCRpjAC0nYihs2gsKw4z2OUFzzUVDnYXCx7eoFh+1V8F3fyJSQf9P0slwfauEfMXQyMuCUwRx7Y5k2p5XmMiomdVhmq4Z1cbQR5d8WC+x3KGCwIjKYu54X3Zo4KZDx27YH6HC3tcQVhs9HqSrtVOlcIuZcKlJ1l9PvrOEKrZU5zHMGDFtgUSdsOujnZaGDpo9UZ3HnuaKeGh/JW3IDymO7ppKQqZtpd1bT4bcZ8243KHc3uA4COjZZoq7cRL4SjP4aexY1xFrwKihTDwOiFbBL9ETDjPGAE="
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 3446,
+					"cache_read_input_tokens": 16900,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 3446
+					},
+					"output_tokens": 6,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "045f5eb4-1c09-44c0-bbfc-383fbb040b26",
+			"timestamp": "2026-11-24T23:45:31.202Z",
+			"request_id": "req_011ChNeGHPcUpnUVZp2FHEwQ",
+			"thinking_duration_ms": 1444,
+			"thinking_display": "summarized"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"model": "claude-sonnet-5-5",
+				"id": "msg_011ChNeGHUaHkkX61mpvjGaF",
+				"type": "message",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "The subagent ran all five commands, and `probe.txt` is a single 9-byte line, \"one line\". Here are the outputs:\n\n- `ls -la` showed only `probe.txt`.\n- `wc -l` gave 1.\n- `cat` gave \"one line\".\n- `head -c 3` gave \"one\".\n- `tail -n 1` gave \"one line\".\n\nIt also said a hook rewrote each command to start with `command`. Each call was refused once and then succeeded when the subagent retried it with the rewritten input."
+					}
+				],
+				"container": null,
+				"stop_reason": null,
+				"stop_sequence": null,
+				"stop_details": null,
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 3446,
+					"cache_read_input_tokens": 16900,
+					"cache_creation": {
+						"ephemeral_5m_input_tokens": 0,
+						"ephemeral_1h_input_tokens": 3446
+					},
+					"output_tokens": 6,
+					"service_tier": "standard",
+					"inference_geo": "global",
+					"speed": "standard"
+				},
+				"input_transformations": [],
+				"diagnostics": null,
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"uuid": "67ef70d1-6509-46a5-a42b-1560f535d13d",
+			"timestamp": "2026-11-24T23:45:31.205Z",
+			"request_id": "req_011ChNeGHPcUpnUVZp2FHEwQ"
+		},
+		{
+			"duration_api_ms": 28671,
+			"stop_reason": "end_turn",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1",
+			"total_cost_usd": 0.0743203,
+			"usage": {
+				"input_tokens": 4,
+				"cache_creation_input_tokens": 3446,
+				"cache_read_input_tokens": 33800,
+				"output_tokens": 471,
+				"output_tokens_details": {
+					"thinking_tokens": 42
+				},
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 3446,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "global",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {
+				"claude-sonnet-5-5": {
+					"inputTokens": 34,
+					"outputTokens": 1654,
+					"cacheReadInputTokens": 205258,
+					"cacheCreationInputTokens": 12807,
+					"webSearchRequests": 0,
+					"costUSD": 0.0743203,
+					"contextWindow": 1000000,
+					"maxOutputTokens": 128000,
+					"thinkingTokens": 70,
+					"cacheCreationEphemeral5mInputTokens": 9361,
+					"cacheCreationEphemeral1hInputTokens": 3446,
+					"canonicalModel": "claude-sonnet-5-5",
+					"provider": "firstParty",
+					"costBasis": "list"
+				}
+			},
+			"permission_denials": [
+				{
+					"tool_name": "Bash",
+					"tool_use_id": "toolu_018sC13pum3oZDjkQFDPqs8G",
+					"tool_input": {
+						"command": "command ls -la"
+					}
+				},
+				{
+					"tool_name": "Bash",
+					"tool_use_id": "toolu_01QfdbZ3CDP97zEHZcND6YmK",
+					"tool_input": {
+						"command": "command wc -l probe.txt",
+						"description": "Count lines in probe.txt"
+					}
+				},
+				{
+					"tool_name": "Bash",
+					"tool_use_id": "toolu_018JAo5TAFbJzVbDiHWwNMzL",
+					"tool_input": {
+						"command": "command cat probe.txt",
+						"description": "Print probe.txt contents"
+					}
+				},
+				{
+					"tool_name": "Bash",
+					"tool_use_id": "toolu_01NUBCWhB7PxkssRmaufNSDj",
+					"tool_input": {
+						"command": "command head -c 3 probe.txt",
+						"description": "Print first 3 bytes of probe.txt"
+					}
+				},
+				{
+					"tool_name": "Bash",
+					"tool_use_id": "toolu_01GwWHpsqZHg59jwmLr6AWfD",
+					"tool_input": {
+						"command": "command tail -n 1 probe.txt",
+						"description": "Print last line of probe.txt"
+					}
+				}
+			],
+			"terminal_reason": "completed",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 1,
+				"requested": {
+					"background": 0,
+					"foreground": 1,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 1,
+				"spawned_by_subagents": 0,
+				"completed": 1,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {
+					"general-purpose": 1
+				}
+			},
+			"safety_stops": 0,
+			"is_error": false,
+			"num_turns": 2,
+			"subtype": "success",
+			"api_error_status": null,
+			"result": "The subagent ran all five commands, and `probe.txt` is a single 9-byte line, \"one line\". Here are the outputs:\n\n- `ls -la` showed only `probe.txt`.\n- `wc -l` gave 1.\n- `cat` gave \"one line\".\n- `head -c 3` gave \"one\".\n- `tail -n 1` gave \"one line\".\n\nIt also said a hook rewrote each command to start with `command`. Each call was refused once and then succeeded when the subagent retried it with the rewritten input.",
+			"ttft_ms": 2148,
+			"type": "result",
+			"duration_ms": 29508,
+			"uuid": "c5669bbf-16cc-4925-abaa-7535512dfaf0",
+			"begun_message_ids": ["msg_011ChNeEHN4PiF4ssBu2Uoc2", "msg_011ChNeGHUaHkkX61mpvjGaF"],
+			"ttft_stream_ms": 733,
+			"time_to_request_ms": 24,
+			"first_content_frame_ms": 734,
+			"user_message_uuid": "c26e6c9d-77e7-4aa0-ab00-7a4f307ad5c1",
+			"user_message_uuids": ["c26e6c9d-77e7-4aa0-ab00-7a4f307ad5c1"],
+			"request_sent_wall_ms": 1795563901727,
+			"first_request_input_tokens": 16902,
+			"first_request_cache_read_input_tokens": 16900,
+			"queued_turn_count": 0,
+			"result_index": 0,
+			"model_usage_since_last_result": {
+				"claude-sonnet-5-5": {
+					"inputTokens": 34,
+					"outputTokens": 1654,
+					"cacheReadInputTokens": 205258,
+					"cacheCreationInputTokens": 12807,
+					"webSearchRequests": 0,
+					"costUSD": 0.0743203,
+					"contextWindow": 1000000,
+					"maxOutputTokens": 128000,
+					"thinkingTokens": 70,
+					"cacheCreationEphemeral5mInputTokens": 9361,
+					"cacheCreationEphemeral1hInputTokens": 3446,
+					"canonicalModel": "claude-sonnet-5-5",
+					"provider": "firstParty",
+					"costBasis": "list"
+				}
+			},
+			"credential_expires_at": "2026-12-22T16:59:08.442Z"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "9b14efb7-bb5d-4fac-8338-760e45fbe002",
+			"session_id": "912f8c95-896a-485b-a044-d24eb6213ac1"
+		}
 	]
 }

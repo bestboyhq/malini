@@ -20,7 +20,12 @@ import { HOOK_CONTEXT_CHARACTERS, previousConversation } from './compaction.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
 import type { SandboxDenial } from '../sandbox.js';
 import type { SandboxDenialSource } from '../sandbox-denials.js';
-import { AutoModeOutage, SANDBOX_BLOCKED, UNCHECKED_CALL_REASON } from './permissions.js';
+import {
+	AutoModeOutage,
+	HOOK_CHANGED_CALL_REASON,
+	SANDBOX_BLOCKED,
+	UNCHECKED_CALL_REASON,
+} from './permissions.js';
 import { sentBack, type ReplyChecker } from './reply-check.js';
 import { SessionSecrets, sessionSecretsFolder } from './secrets.js';
 import { ClaudeSession, claudeEnvironment } from './session.js';
@@ -2190,6 +2195,59 @@ describe('ClaudeSession', () => {
 
 			expect(claude.runs[0]?.hookOutputs).toEqual([RETRY]);
 			expect(claude.runs[0]?.permissionModes).toEqual([]);
+		});
+
+		it('lets the block stand when the agent sends the call the hook changed again', async () => {
+			const recorded = recordedScript('hookRewrite');
+			const resent = recorded
+				.slice(3, 6)
+				.map((step) =>
+					typeof step !== 'string' && 'hook' in step
+						? { hook: { ...step.hook, tool_use_id: 'toolu_01Resent' } }
+						: step,
+				);
+			const script = [...recorded.slice(0, 6), ...resent, ...recorded.slice(6)];
+			const { session, claude } = harness([script], { outage: new AutoModeOutage([]) });
+
+			await session.sendPrompt('Run ls.', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.hookOutputs).toEqual([RETRY]);
+		});
+
+		it('asks about every call a hook changes once three in a run were retried without asking', async () => {
+			const { session, claude, events } = harness([recordedScript('subagentHookRewrites')], {
+				outage: new AutoModeOutage([]),
+				onEvent: allowing,
+			});
+
+			await session.sendPrompt('Run five commands.', 'run-1', profile('agent', 'auto'));
+
+			expect(ofType(events, 'approval.requested')).toMatchObject(
+				[
+					['toolu_01NUBCWhB7PxkssRmaufNSDj', 'command head -c 3 probe.txt'],
+					['toolu_01GwWHpsqZHg59jwmLr6AWfD', 'command tail -n 1 probe.txt'],
+				].map(([id, command]) => ({
+					approvalId: `approval-${id}`,
+					reason: HOOK_CHANGED_CALL_REASON,
+					toolName: 'Bash',
+					input: { command },
+					autoModeRule: `Bash(${command})`,
+				})),
+			);
+			expect(ofType(events, 'approval.requested').some((event) => event.autoModeUnavailable)).toBe(
+				false,
+			);
+			expect(claude.runs[0]?.hookOutputs).toEqual([
+				RETRY,
+				RETRY,
+				RETRY,
+				RETRY,
+				RETRY_ALLOWED,
+				RETRY,
+				RETRY_ALLOWED,
+			]);
+			expect(claude.runs[0]?.permissionModes).toEqual([]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 		});
 
 		it('falls back to acceptEdits once retrying does not help, and asks for the rest', async () => {

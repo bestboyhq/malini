@@ -199,6 +199,9 @@ Calls that wait in other chats show as one **calls waiting** row above the compo
 
 A hook of yours that rewrites a command, such as RTK's, makes auto mode refuse the call once, since its review no longer covers what runs.
 Malini lets Claude send the rewritten call again at once, and it never counts as an outage.
+Each such call costs one more model call, so a turn gets three of these retries, subagents included.
+After that, the chat asks about each rewritten call, and the card names the hook as the cause.
+Turn the hook off, or leave auto mode, to stop the cards.
 
 A chat also answers for the automations it runs.
 When an automation it ran in another workstream asks for permission or asks a question, the request takes this chat's composer slot, named after the automation.
