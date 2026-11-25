@@ -1,15 +1,15 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type {
-		WidgetData,
-		WidgetDefinition,
-		WidgetNeed,
-		WidgetReading,
-		WidgetRow,
-		WidgetScope,
-		WidgetSize,
-		WidgetSpan,
-		WidgetState,
+	import {
+		type WidgetData,
+		type WidgetDefinition,
+		type WidgetNeed,
+		type WidgetReading,
+		type WidgetRow,
+		type WidgetScope,
+		type WidgetSize,
+		type WidgetSpan,
+		type WidgetState,
 	} from '$contract/widgets';
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -20,12 +20,10 @@
 	import {
 		WIDGET_STATE_NAMES,
 		deltaOf,
-		needAction,
 		runsLabel,
 		tileName,
 		widgetValue,
 	} from '$lib/widgets/domain/widget-text';
-	import { commandKeyHeld } from '$shared/shell/command-key.svelte';
 	import WidgetChart from './WidgetChart.svelte';
 
 	interface Props {
@@ -39,7 +37,8 @@
 		titleHref?: string | undefined;
 		author?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
-		onneed?: ((need: WidgetNeed, inNewChat: boolean) => void) | undefined;
+		onconnect?: (() => Promise<void>) | undefined;
+		oncancelconnect?: (() => void) | undefined;
 	}
 
 	let {
@@ -53,7 +52,8 @@
 		titleHref,
 		author,
 		onopen,
-		onneed,
+		onconnect,
+		oncancelconnect,
 	}: Props = $props();
 
 	type Pointer = Readonly<{ x: number; y: number }>;
@@ -95,6 +95,7 @@
 	const HOT_SHARE = 85;
 
 	let pointer = $state<Pointer | null>(null);
+	let connecting = $state(false);
 
 	const data = $derived(reading?.data ?? sample);
 	const shown = $derived(shownSpan(span, columns));
@@ -144,6 +145,13 @@
 		const names = data?.chart?.series.flatMap((series) => series.label ?? []) ?? [];
 		const kind = data?.chart?.kind === 'bar' ? 'Bar chart' : 'Line chart';
 		return names.length === 0 ? kind : `${kind} of ${names.join(', ')}`;
+	}
+
+	async function connect(): Promise<void> {
+		if (!onconnect || connecting) return;
+		connecting = true;
+		await onconnect();
+		connecting = false;
 	}
 
 	function onPointerMove(event: PointerEvent): void {
@@ -359,26 +367,29 @@
 {/snippet}
 
 {#snippet needState(wanted: WidgetNeed)}
-	{@const action = needAction(widget, wanted)}
-	<p class="text-fg-tertiary text-2xs line-clamp-2 leading-4 break-words">{reading?.error}</p>
-	{#if action && onneed}
-		{@const asks = wanted === 'add'}
-		{@const inNewChat = asks && commandKeyHeld()}
+	{#if connecting}
+		<p class="text-fg-tertiary text-2xs flex items-center gap-1.5 leading-4">
+			<BusyIcon size={12} />
+			Finish in your browser.
+		</p>
 		<span class="pointer-events-auto mt-2 flex" data-widget-chrome>
-			<Tooltip
-				content="Hold ⌘ to add it in a new chat"
-				placement="top"
-				suppressed={!asks || inNewChat}
-			>
+			<Button variant="secondary" size="md" onclick={() => oncancelconnect?.()}>Cancel</Button>
+		</span>
+	{:else}
+		<p class="text-fg-tertiary text-2xs line-clamp-2 leading-4 break-words">{reading?.error}</p>
+		{#if onconnect}
+			<span class="pointer-events-auto mt-2 flex min-w-0" data-widget-chrome>
 				<Button
 					variant="secondary"
-					size="xs"
-					onclick={(event) => onneed?.(wanted, asks && event.metaKey)}
+					size="md"
+					class="min-w-0"
+					ariaLabel="Connect {wanted.connect}"
+					onclick={connect}
 				>
-					{inNewChat ? `${action} in a new chat` : action}
+					Connect
 				</Button>
-			</Tooltip>
-		</span>
+			</span>
+		{/if}
 	{/if}
 {/snippet}
 

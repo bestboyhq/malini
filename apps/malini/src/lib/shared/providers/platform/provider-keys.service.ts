@@ -1,4 +1,5 @@
 import type {
+	AgentModelInfo,
 	AgentPlanUsage,
 	ModelProviderRecord,
 	ProviderAccount,
@@ -90,7 +91,7 @@ export class ProviderKeys {
 					name: provider.name,
 					kind: provider.kind,
 					baseUrl: sellers[0].baseUrl,
-					models: newestModels(sellers.map((seller) => seller.models)),
+					models: newestModels(sellers.length > 1 ? sellers.map(soldOn) : [sellers[0].models]),
 					keySaved: provider.sealedKey !== null,
 					account: provider.kind === 'chatgpt' ? this.#chatgpt.account() : null,
 					plan: provider.plan,
@@ -262,4 +263,9 @@ export class ProviderKeys {
 		if (!provider) throw new ProviderError('not-found', `Unknown provider \`${providerId}\``);
 		return provider;
 	}
+}
+
+function soldOn(seller: StoredProvider): AgentModelInfo[] {
+	const plan: ProviderPlan = seller.id === OPENCODE_GO_PROVIDER_ID ? 'go' : 'console';
+	return seller.models.map((model) => ({ ...model, plan }));
 }

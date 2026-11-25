@@ -1878,27 +1878,6 @@ const connectMcp = (serverName) => {
 	if (changed) write({ type: 'bridge.mcp_server', protocolVersion: version, server: changed });
 };
 const mcpSignInDelayMs = Number(env.FAKE_BRIDGE_MCP_SIGN_IN_DELAY_MS || 300);
-const mcpTools = env.FAKE_BRIDGE_MCP_TOOLS ? JSON.parse(env.FAKE_BRIDGE_MCP_TOOLS) : {};
-const mcpToolOutcome = ({ serverName, tool }) => {
-	const server = deniedMcpServers().includes(serverName)
-		? undefined
-		: mcpServers.find((entry) => entry.name === serverName);
-	if (!server) return { kind: 'missing' };
-	if (server.status === 'needs-auth') return { kind: 'needs-auth' };
-	if (server.status === 'disabled') return { kind: 'off' };
-	if (server.status !== 'connected') {
-		return { kind: 'failed', error: server.error || serverName + ' did not connect' };
-	}
-	const listed = (mcpTools[serverName] || []).find((entry) => entry.name === tool);
-	if (!listed) return { kind: 'no-tool' };
-	if (listed.readOnly !== true) return { kind: 'not-read-only' };
-	return listed.outcome || { kind: 'output', text: listed.output ?? '' };
-};
-const recordMcpCall = (entry) =>
-	fs.appendFileSync(
-		nodePath.join(env.HOME || '/tmp', 'malini-mcp-calls.jsonl'),
-		JSON.stringify(entry) + '\n',
-	);
 const mcpSignIns = new Map();
 const handle = (command) => {
 	switch (command.cmd) {
@@ -2222,17 +2201,6 @@ const handle = (command) => {
 				protocolVersion: version,
 				id: command.id,
 				folders: command.on ? command.folders : switched,
-			});
-			return ack(command.id);
-		}
-		case 'call_mcp_tool': {
-			const { cwd, serverName, tool, arguments: args } = command;
-			recordMcpCall({ cwd, serverName, tool, arguments: args });
-			write({
-				type: 'bridge.mcp_tool_result',
-				protocolVersion: version,
-				id: command.id,
-				outcome: mcpToolOutcome(command),
 			});
 			return ack(command.id);
 		}

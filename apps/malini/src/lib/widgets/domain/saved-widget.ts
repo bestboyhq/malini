@@ -1,7 +1,7 @@
 import {
 	parseWidgetData,
-	WIDGET_NEEDS,
 	type WidgetDefinition,
+	type WidgetNeed,
 	type WidgetReading,
 	type WidgetSource,
 } from '$contract/widgets';
@@ -50,21 +50,45 @@ function definitionOf(value: unknown): WidgetDefinition | null {
 
 function sourceOf(value: unknown): WidgetSource | null {
 	if (!isFields(value)) return null;
+	const select = text(value['select']);
 	const path = text(value['github']) ?? (value['kind'] === 'github' ? text(value['path']) : null);
-	if (path !== null) return { kind: 'github', path, select: text(value['select']) };
-	const mcp = mcpOf(isFields(value['mcp']) ? value['mcp'] : value);
-	if (mcp !== null) return { ...mcp, select: text(value['select']) };
-	const run = text(value['command']) ?? (value['kind'] === 'command' ? text(value['run']) : null);
-	if (run !== null) return { kind: 'command', run };
+	if (path !== null) return { kind: 'github', path, select };
+	const request = isFields(value['http']) ? value['http'] : value['kind'] === 'http' ? value : null;
+	const http = request === null ? null : httpOf(request);
+	if (http !== null) return { ...http, select };
+	const line = value['kind'] === 'retired' ? text(value['line']) : retiredLine(value);
+	if (line !== null) return { kind: 'retired', line };
 	return value['kind'] === 'plan' ? { kind: 'plan' } : null;
 }
 
-function mcpOf(value: Fields): Omit<Extract<WidgetSource, { kind: 'mcp' }>, 'select'> | null {
-	const server = text(value['server']);
-	const tool = text(value['tool']);
-	if (server === null || tool === null) return null;
-	const args = isFields(value['arguments']) ? value['arguments'] : {};
-	return { kind: 'mcp', server, tool, arguments: args, url: text(value['url']) };
+function httpOf(value: Fields): Omit<Extract<WidgetSource, { kind: 'http' }>, 'select'> | null {
+	const url = text(value['url']);
+	if (url === null) return null;
+	const method = text(value['method'])?.toUpperCase() === 'POST' ? 'POST' : 'GET';
+	const headers = isFields(value['headers']) ? Object.entries(value['headers']) : [];
+	return {
+		kind: 'http',
+		url,
+		method,
+		headers: Object.fromEntries(
+			headers.filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+		),
+		body: isFields(value['body']) ? value['body'] : null,
+		oauth: isFields(value['oauth']) ? { scopes: textList(value['oauth']['scopes']) } : null,
+	};
+}
+
+function textList(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter(isText) : [];
+}
+
+function retiredLine(value: Fields): string | null {
+	const run = text(value['command']);
+	if (run !== null) return `Runs ${run}`;
+	const mcp = isFields(value['mcp']) ? value['mcp'] : {};
+	const server = text(mcp['server']);
+	const tool = text(mcp['tool']);
+	return server === null || tool === null ? null : `${server} · ${tool}`;
 }
 
 function readingOf(value: unknown, widgetId: string): WidgetReading | null {
@@ -76,10 +100,15 @@ function readingOf(value: unknown, widgetId: string): WidgetReading | null {
 		data: parseWidgetData(value['data']),
 		readAt: text(value['readAt']),
 		error: text(value['error']),
-		need: WIDGET_NEEDS.find((need) => need === value['need']) ?? null,
+		need: needOf(value['need']),
 		attemptedAt: text(value['attemptedAt']),
 		reading: value['reading'] === true,
 	};
+}
+
+function needOf(value: unknown): WidgetNeed | null {
+	const site = isFields(value) ? text(value['connect']) : null;
+	return site === null ? null : { connect: site };
 }
 
 function parsed(output: string | null): Fields {

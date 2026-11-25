@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { WidgetBoard } from '../../src/contract/widgets';
+import { apiRequests, finishSignIn, startFakeApi } from './fake-api';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 import {
 	captureFlow,
@@ -9,7 +10,9 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	openedUrls,
 	openWorkstream,
+	recordBrowser,
 } from './harness';
 
 const WORKSTREAM = 'e2e-widgets';
@@ -43,17 +46,8 @@ async function centre(locator: Locator): Promise<{ x: number; y: number }> {
 
 test('shared widgets wait under the board, Add puts one first, drag and Alt+Arrow move it, the corner resizes it, Remove puts it back, and a change on main reaches it', async () => {
 	test.setTimeout(150_000);
-	const app = await launchMalini({
-		env: {
-			MALINI_WIDGETS_CHECK_MS: '1000',
-			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify([
-				{ name: 'calendar', status: 'connected', source: 'user', toolCount: 1 },
-			]),
-			FAKE_BRIDGE_MCP_TOOLS: JSON.stringify({
-				calendar: [{ name: 'countdown', readOnly: true, output: '{"days":12}' }],
-			}),
-		},
-	});
+	const api = await startFakeApi({ '/countdown?event=launch': { days: 12 } });
+	const app = await launchMalini({ env: { MALINI_WIDGETS_CHECK_MS: '1000' } });
 	try {
 		const source = join(app.root, 'hutch');
 		writeWidget(source, 'reviews', {
@@ -66,7 +60,10 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 			title: 'Launch',
 			icon: 'checklist',
 			source: {
-				mcp: { server: 'calendar', tool: 'countdown', arguments: { event: 'launch' } },
+				http: {
+					url: `${api.url}/countdown?event=launch`,
+					oauth: {},
+				},
 				select: '{value: .days, unit: "days"}',
 			},
 		});
@@ -80,6 +77,7 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 			},
 		);
 		github.answerGet(PULLS, { value: 3, unit: 'open', caption: 'waiting for review' });
+		await recordBrowser(app);
 		await openWorkstream(page, WORKSTREAM);
 
 		const board = page.getByRole('region', { name: 'Widgets' });
@@ -95,7 +93,19 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 		await expect(reviews).toContainText('3', { timeout: 20_000 });
 		await shelf.getByRole('button', { name: 'Add Launch' }).click();
 		const launch = board.getByRole('article', { name: 'Launch, 2 by 1' });
+		const connect = launch.getByRole('button', { name: `Connect ${api.site}` });
+		await expect(connect).toBeVisible({ timeout: 20_000 });
+		expect(apiRequests(api)).toEqual([]);
+		await captureFlow(app, 'widgets-connect');
+		await connect.click();
+		await expect.poll(() => openedUrls(app)).toHaveLength(1);
+		const [authorize = ''] = await openedUrls(app);
+		await finishSignIn(authorize);
+		await expect(connect).toHaveCount(0, { timeout: 20_000 });
 		await expect(launch).toContainText('12', { timeout: 20_000 });
+		expect(apiRequests(api).map(({ headers }) => headers.authorization)).toEqual([
+			'Bearer token-1',
+		]);
 		await expect(shelf).toHaveCount(0);
 		await expect.poll(() => order(page)).toEqual(['launch', 'reviews', 'plan']);
 
@@ -159,5 +169,6 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		await api.close();
 	}
 });

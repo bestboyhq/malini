@@ -110,6 +110,7 @@ export interface AgentModelInfo {
 	efforts: AgentReasoningEffort[];
 	family?: string;
 	released?: string;
+	plan?: ProviderPlan;
 }
 
 export type ModelProviderKind = 'claude' | 'anthropic' | 'chatgpt';

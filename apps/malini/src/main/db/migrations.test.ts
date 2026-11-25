@@ -70,6 +70,7 @@ const ALL_TABLES = [
 	'shell_runs',
 	'skill_choices',
 	'widget_boards',
+	'widget_connections',
 	'widget_placements',
 	'widget_readings',
 	'workstream_commit_runs',

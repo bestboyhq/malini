@@ -145,6 +145,12 @@ describe('ProviderKeys', () => {
 		expect(opencode?.baseUrl).toBe('https://opencode.ai/inference/go/anthropic');
 		expect(models).toEqual(expect.arrayContaining(['hy4', 'gemini-4-argon', 'gemini-3.8-flash']));
 		expect(models.filter((id) => id === 'gemini-4-argon')).toHaveLength(1);
+		const plans = new Map(opencode?.models.map((model) => [model.id, model.plan]));
+		expect([plans.get('hy4'), plans.get('gemini-4-argon'), plans.get('gemini-3.8-flash')]).toEqual([
+			'go',
+			'go',
+			'console',
+		]);
 		await expect(providers.upstream('opencode-go')).resolves.toEqual({
 			baseUrl: 'https://opencode.ai/inference/go/anthropic',
 			apiKey: 'oc_sk_go',

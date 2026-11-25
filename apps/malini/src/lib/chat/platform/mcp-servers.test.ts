@@ -100,19 +100,6 @@ describe('McpServerListings', () => {
 		authorizeMcpServer: async () => null,
 		reconnectMcpServer: async () => undefined,
 		cancelMcpAuthorization: async () => undefined,
-		callMcpTool: async (
-			cwd: string,
-			serverName: string,
-			tool: string,
-			args: Readonly<Record<string, unknown>>,
-			plugins: readonly string[],
-		) =>
-			serverName === 'linear'
-				? {
-						kind: 'output' as const,
-						text: JSON.stringify({ cwd, serverName, tool, args, plugins }),
-					}
-				: { kind: 'missing' as const },
 	};
 	const events = recordingEventBus();
 	const listings = new McpServerListings({
@@ -128,31 +115,6 @@ describe('McpServerListings', () => {
 	afterEach(() => {
 		switches.length = 0;
 		watched.length = 0;
-	});
-
-	it('calls an MCP tool in a folder with the plugin folders of the extensions', async () => {
-		await expect(
-			listings.callTool('/work/one', 'linear', 'list_issues', { team: 'core' }),
-		).resolves.toEqual({
-			kind: 'output',
-			text: JSON.stringify({
-				cwd: '/work/one',
-				serverName: 'linear',
-				tool: 'list_issues',
-				args: { team: 'core' },
-				plugins: ['/extensions/linear'],
-			}),
-		});
-	});
-
-	it('calls a server turned off in Malini off, and one it does not know missing', async () => {
-		writeFileSync(settingsFile, JSON.stringify({ deniedMcpServers: [{ serverName: 'gmail' }] }));
-		await expect(listings.callTool('/work/one', 'gmail', 'search', {})).resolves.toEqual({
-			kind: 'off',
-		});
-		await expect(listings.callTool('/work/one', 'sentry', 'issues', {})).resolves.toEqual({
-			kind: 'missing',
-		});
 	});
 
 	it('answers from what it saw last time while the folder connects again', async () => {
