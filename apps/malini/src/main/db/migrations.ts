@@ -2124,12 +2124,10 @@ ALTER TABLE widget_readings ADD COLUMN need TEXT CHECK (need IN ('add', 'sign-in
 	`
 ALTER TABLE widget_readings DROP COLUMN need;
 ALTER TABLE widget_readings ADD COLUMN need TEXT;
-CREATE TABLE widget_key_origins (
-  board TEXT NOT NULL COLLATE NOCASE,
-  name TEXT NOT NULL,
-  origin TEXT NOT NULL,
-  allowed_at TEXT NOT NULL,
-  PRIMARY KEY (board, name, origin)
+CREATE TABLE widget_connections (
+  origin TEXT PRIMARY KEY,
+  sealed BLOB NOT NULL,
+  connected_at TEXT NOT NULL
 );
 `,
 ];

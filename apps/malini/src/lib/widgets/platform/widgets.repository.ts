@@ -198,45 +198,36 @@ export function recordFailedRead(
 	);
 }
 
-export function allowedKeys(db: MaliniDatabase, board: string, origin: string): Set<string> {
-	return new Set(
-		all<{ name: string }>(
+export function getConnection(db: MaliniDatabase, origin: string): Uint8Array | null {
+	return (
+		get<{ sealed: Uint8Array }>(
 			db,
-			'SELECT name FROM widget_key_origins WHERE board = ? AND origin = ?',
-			board,
+			'SELECT sealed FROM widget_connections WHERE origin = ?',
 			origin,
-		).map(({ name }) => name),
+		)?.sealed ?? null
 	);
 }
 
-export function allowKeys(
-	db: MaliniDatabase,
-	board: string,
-	origin: string,
-	names: readonly string[],
-): void {
-	const at = nowIso8601();
-	db.transaction(() => {
-		for (const name of names) {
-			run(
-				db,
-				'INSERT OR IGNORE INTO widget_key_origins (board, name, origin, allowed_at) VALUES (?, ?, ?, ?)',
-				board,
-				name,
-				origin,
-				at,
-			);
-		}
-	});
+export function saveConnection(db: MaliniDatabase, origin: string, sealed: Uint8Array): void {
+	run(
+		db,
+		`INSERT INTO widget_connections (origin, sealed, connected_at) VALUES (?, ?, ?)
+		 ON CONFLICT(origin) DO UPDATE SET sealed = excluded.sealed`,
+		origin,
+		sealed,
+		nowIso8601(),
+	);
+}
+
+export function deleteConnection(db: MaliniDatabase, origin: string): void {
+	run(db, 'DELETE FROM widget_connections WHERE origin = ?', origin);
 }
 
 function storedNeed(text: string | null): WidgetNeed | null {
 	try {
 		const need = parseJsonColumn(text);
-		const missing = isRecord(need) ? need['missing'] : null;
-		return Array.isArray(missing) && missing.every((name) => typeof name === 'string')
-			? { missing }
-			: null;
+		const connect = isRecord(need) ? need['connect'] : null;
+		return typeof connect === 'string' ? { connect } : null;
 	} catch {
 		return null;
 	}

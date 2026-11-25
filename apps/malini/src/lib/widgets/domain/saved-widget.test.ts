@@ -25,11 +25,11 @@ describe('savedWidget', () => {
 	it('takes the saved widget and its first reading from the result', () => {
 		const source = {
 			kind: 'http',
-			url: 'https://us.posthog.com/api/projects/1/query/',
+			url: 'https://eu.posthog.com/api/projects/1/query/',
 			method: 'POST',
-			headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+			headers: { Accept: 'application/json' },
 			body: { query: { kind: 'HogQLQuery', query: 'select 1' } },
-			keyUrl: 'https://us.posthog.com/settings/user-api-keys',
+			oauth: { scopes: ['query:read'] },
 			select: '.results',
 		};
 		const output = JSON.stringify({
@@ -44,8 +44,8 @@ describe('savedWidget', () => {
 			reading: {
 				board: 'b',
 				data: null,
-				error: 'Needs POSTHOG_KEY. Malini sends it only to us.posthog.com.',
-				need: { missing: ['POSTHOG_KEY'] },
+				error: 'Reads eu.posthog.com as you.',
+				need: { connect: 'eu.posthog.com' },
 			},
 		});
 		const saved = savedWidget(INPUT, output);
@@ -57,7 +57,7 @@ describe('savedWidget', () => {
 		});
 		expect(saved.reading).toMatchObject({
 			widgetId: 'open-prs',
-			need: { missing: ['POSTHOG_KEY'] },
+			need: { connect: 'eu.posthog.com' },
 			reading: false,
 		});
 	});
@@ -73,7 +73,7 @@ describe('savedWidget', () => {
 			method: 'POST',
 			headers: {},
 			body: null,
-			keyUrl: null,
+			oauth: null,
 			select: '.x',
 		});
 	});

@@ -613,11 +613,10 @@ describe('malini MCP server', () => {
 		};
 		const http = {
 			http: {
-				url: 'https://us.posthog.com/api/projects/1234/query/',
+				url: 'https://eu.posthog.com/api/projects/1234/query/',
 				method: 'POST',
-				headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
 				body: { query: { kind: 'HogQLQuery', query: 'select count() from events' } },
-				keyUrl: 'https://us.posthog.com/settings/user-api-keys',
+				oauth: { scopes: ['query:read'] },
 			},
 			select: '{value: .results[0][0]}',
 		};

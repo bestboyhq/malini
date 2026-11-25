@@ -143,7 +143,8 @@ export async function registerModules(
 		runner: processRunner,
 		environment: () => buildSpawnEnvironment(),
 		fetch: (url, init) => net.fetch(url, init),
-		secrets,
+		openExternal: (url) => shellHost.openExternal(url),
+		sealer: shellHost,
 		log,
 	});
 

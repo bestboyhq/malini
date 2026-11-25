@@ -287,7 +287,7 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 		),
 		tool(
 			'widgets_save',
-			'Save a widget: a tile on the user\'s widget board that keeps numbers in view, such as deploys, open pull requests or test coverage. Use it whenever the user asks for a widget or for numbers to keep an eye on, never an HTML page: a widget names where its data comes from, and Malini draws it. Malini keeps it in the user\'s own widgets, not in this worktree, puts it first on their board at two columns by one row and reads it at once; the user drags and resizes it there. Its source gives WidgetData JSON, and Malini picks the drawing from its fields: `value` with `unit`, `caption` and `delta` is a big number, `percent` a ring, `state` and `history` a status mark and a run strip, `rows` bars or a list, and `chart` a line or bar chart, `{"kind": "line" or "bar", "labels": [...], "series": [{"label": ..., "values": [...]}]}` with at most 3 series of 120 points. A trend gets a `chart` with the latest `value` beside it; a number that only matters now gets `value` alone. An `http` source is one request to a service\'s own API, such as PostHog\'s query API, with a fixed `method`, `headers` and JSON `body`, and its optional jq `select` turns the answer into WidgetData; send the same request once yourself with curl first to see that answer. A key goes only in a header, as `${NAME}`, the name of a secret: ask for it with `secrets_request` before you save, ask for a key that can only read, and give `keyUrl`, the page where a teammate makes their own. Malini sends a key only to the site of the widget you saved it with, and a teammate pastes their own key on the tile. A `github` source is a `gh api` GET path with an optional jq `select`. Widgets run no scripts and call no MCP tools. An id the repository shares from its default branch is refused: change that file in this checkout and open a pull request instead. The user makes a widget a default for the repository from its menu. It needs no approval. Returns the saved widget and its first reading.',
+			'Save a widget: a tile on the user\'s widget board that keeps numbers in view, such as deploys, open pull requests or test coverage. Use it whenever the user asks for a widget or for numbers to keep an eye on, never an HTML page: a widget names where its data comes from, and Malini draws it. Malini keeps it in the user\'s own widgets, not in this worktree, puts it first on their board at two columns by one row and reads it at once; the user drags and resizes it there. Its source gives WidgetData JSON, and Malini picks the drawing from its fields: `value` with `unit`, `caption` and `delta` is a big number, `percent` a ring, `state` and `history` a status mark and a run strip, `rows` bars or a list, and `chart` a line or bar chart, `{"kind": "line" or "bar", "labels": [...], "series": [{"label": ..., "values": [...]}]}` with at most 3 series of 120 points. A trend gets a `chart` with the latest `value` beside it; a number that only matters now gets `value` alone. An `http` source is one request to a service\'s own API, such as PostHog\'s query API, with a fixed `method`, `headers` and JSON `body`, and its optional jq `select` turns the answer into WidgetData. An API that needs a sign-in gets `oauth` with the read-only `scopes` the request needs, such as `query:read`: each person who sees the tile presses Connect on it once and approves Malini in their browser, and Malini sends their token only to that URL\'s site. You cannot send that signed-in request yourself, so learn the answer\'s shape from the service\'s API docs or its MCP server first. Never put a key or a token in `headers`, and never ask the user for one: Malini refuses an `Authorization` or `Cookie` header, and an API whose site has no OAuth sign-in Malini can use cannot back a widget. When the first reading has `need.connect`, tell the user to press Connect on the tile. A `github` source is a `gh api` GET path with an optional jq `select`. Widgets run no scripts and call no MCP tools. An id the repository shares from its default branch is refused: change that file in this checkout and open a pull request instead. The user makes a widget a default for the repository from its menu. It needs no approval. Returns the saved widget and its first reading.',
 			{
 				id: z
 					.string()
@@ -323,18 +323,24 @@ export function platformTools(request: PlatformToolRequester, addMcpServer: McpS
 									headers: z
 										.record(z.string(), z.string())
 										.optional()
-										.describe(
-											'Request headers. Put a key in a value as ${NAME}, the name of one of the user\'s secrets, for example "Bearer ${POSTHOG_KEY}"',
-										),
+										.describe('Request headers that carry no sign-in, such as Accept'),
 									body: z
 										.record(z.string(), z.unknown())
 										.optional()
 										.describe('The JSON object a POST sends'),
-									keyUrl: z
-										.url()
+									oauth: z
+										.strictObject({
+											scopes: z
+												.array(z.string().min(1))
+												.max(20)
+												.optional()
+												.describe(
+													'The read-only OAuth scopes the request needs, for example ["query:read"]',
+												),
+										})
 										.optional()
 										.describe(
-											'The page where a teammate makes their own key for this API, for example https://us.posthog.com/settings/user-api-keys',
+											"Sign in to the URL's site with OAuth as whoever sees the tile. Leave it out for an API that needs no sign-in",
 										),
 								})
 								.describe('The request that gives the data'),

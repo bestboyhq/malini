@@ -74,8 +74,12 @@ function httpOf(value: Fields): Omit<Extract<WidgetSource, { kind: 'http' }>, 's
 			headers.filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
 		),
 		body: isFields(value['body']) ? value['body'] : null,
-		keyUrl: text(value['keyUrl']),
+		oauth: isFields(value['oauth']) ? { scopes: textList(value['oauth']['scopes']) } : null,
 	};
+}
+
+function textList(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter(isText) : [];
 }
 
 function retiredLine(value: Fields): string | null {
@@ -103,8 +107,8 @@ function readingOf(value: unknown, widgetId: string): WidgetReading | null {
 }
 
 function needOf(value: unknown): WidgetNeed | null {
-	if (!isFields(value) || !Array.isArray(value['missing'])) return null;
-	return { missing: value['missing'].filter(isText) };
+	const site = isFields(value) ? text(value['connect']) : null;
+	return site === null ? null : { connect: site };
 }
 
 function parsed(output: string | null): Fields {

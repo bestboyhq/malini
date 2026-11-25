@@ -1,13 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-	fillWidgetKeys,
-	parseWidgetData,
-	widgetSite,
-	type WidgetData,
-	type WidgetSource,
-} from '$contract/widgets';
+import { parseWidgetData, widgetSite, type WidgetData, type WidgetSource } from '$contract/widgets';
 import { describeError } from '$main/errors';
 import { DownloadError, readBounded, type Fetch } from '$main/fs/download';
 import { runBounded, type ProcessRunner } from '$main/process/runner';
@@ -26,7 +20,8 @@ export type SourceDeps = Readonly<{
 	fetch: Fetch;
 }>;
 
-export type SourceOutcome = Readonly<{ data: WidgetData }> | Readonly<{ error: string }>;
+export type SourceOutcome =
+	Readonly<{ data: WidgetData }> | Readonly<{ error: string; refused: boolean }>;
 
 type HttpSource = Extract<WidgetSource, { kind: 'http' }>;
 
@@ -34,12 +29,17 @@ export async function readWidgetSource(
 	source: WidgetSource,
 	checkout: string,
 	deps: SourceDeps,
-	keys: Readonly<Record<string, string>>,
+	token: string | null,
 ): Promise<SourceOutcome> {
 	try {
-		return widgetData(await sourceOutput(source, checkout, deps, keys));
+		return widgetData(await sourceOutput(source, checkout, deps, token));
 	} catch (error) {
-		return { error: masked(describeError(error), keys).trim().slice(0, ERROR_MAX_LENGTH) };
+		const shown =
+			token === null ? describeError(error) : describeError(error).replaceAll(token, '[secret]');
+		return {
+			error: shown.trim().slice(0, ERROR_MAX_LENGTH),
+			refused: error instanceof WidgetError && error.kind === 'signed-out',
+		};
 	}
 }
 
@@ -47,13 +47,13 @@ async function sourceOutput(
 	source: WidgetSource,
 	checkout: string,
 	deps: SourceDeps,
-	keys: Readonly<Record<string, string>>,
+	token: string | null,
 ): Promise<string> {
 	switch (source.kind) {
 		case 'github':
 			return githubOutput(source.path, source.select, checkout, deps);
 		case 'http': {
-			const answer = await httpOutput(source, deps.fetch, keys);
+			const answer = await httpOutput(source, deps.fetch, token);
 			return source.select === null ? answer : selected(answer, source.select, deps);
 		}
 		case 'retired':
@@ -81,15 +81,10 @@ async function githubOutput(
 	return result.stdout;
 }
 
-async function httpOutput(
-	source: HttpSource,
-	fetch: Fetch,
-	keys: Readonly<Record<string, string>>,
-): Promise<string> {
+async function httpOutput(source: HttpSource, fetch: Fetch, token: string | null): Promise<string> {
 	const site = widgetSite(source.url);
-	const headers = new Headers(
-		Object.entries(source.headers).map(([name, value]) => [name, fillWidgetKeys(value, keys)]),
-	);
+	const headers = new Headers(Object.entries(source.headers));
+	if (token !== null) headers.set('authorization', `Bearer ${token}`);
 	if (source.body !== null && !headers.has('content-type')) {
 		headers.set('content-type', 'application/json');
 	}
@@ -105,6 +100,9 @@ async function httpOutput(
 		const answer = (await readBounded(response, ANSWER_MAX_BYTES)).toString('utf8');
 		if (response.status >= 300 && response.status < 400) {
 			throw failed(`${site} redirected the request. Save the address it redirects to.`);
+		}
+		if (response.status === 401 && token !== null) {
+			throw new WidgetError('signed-out', `${site} answered 401.${detail(answer)}`);
 		}
 		if (!response.ok) throw failed(`${site} answered ${response.status}.${detail(answer)}`);
 		return answer;
@@ -144,22 +142,17 @@ function widgetData(output: string): SourceOutcome {
 	try {
 		parsed = JSON.parse(output);
 	} catch {
-		return { error: 'The source did not print JSON.' };
+		return { error: 'The source did not print JSON.', refused: false };
 	}
 	const data = parseWidgetData(parsed);
-	return data === null ? { error: 'The source printed JSON, but not an object.' } : { data };
+	return data === null
+		? { error: 'The source printed JSON, but not an object.', refused: false }
+		: { data };
 }
 
 function detail(answer: string): string {
 	const flat = answer.replace(/\s+/gu, ' ').trim();
 	return flat === '' ? '' : ` ${flat.slice(0, ANSWER_DETAIL_MAX_LENGTH)}`;
-}
-
-function masked(text: string, keys: Readonly<Record<string, string>>): string {
-	return Object.values(keys).reduce(
-		(shown, value) => (value === '' ? shown : shown.replaceAll(value, '[secret]')),
-		text,
-	);
 }
 
 function lastLine(text: string): string {

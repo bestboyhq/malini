@@ -3,6 +3,10 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Strip } from '$hyper-ui/components/strip';
 	import { Icon } from '$hyper-ui/icons';
+	import {
+		cancelWidgetConnectCommand,
+		connectWidgetCommand,
+	} from '$lib/widgets/application/commands/connect-widget.command';
 	import { placeWidgetCommand } from '$lib/widgets/application/commands/place-widget.command';
 	import { removeWidgetCommand } from '$lib/widgets/application/commands/remove-widget.command';
 	import { watchWidgetsHook } from '$lib/widgets/application/hooks/watch-widgets.hook';
@@ -61,7 +65,16 @@
 		<div class="bg-surface-50 border-surface-50-border rounded-xl border-[0.5px] px-4 pt-4 pb-3">
 			<div bind:clientWidth={width}>
 				<div style:width="{cells(span.columns)}px" style:height="{cells(span.rows)}px">
-					<WidgetTile {widget} {reading} {span} columns={grid.columns} />
+					<WidgetTile
+						{widget}
+						{reading}
+						{span}
+						columns={grid.columns}
+						onconnect={blocked === null
+							? () => connectWidgetCommand(workstreamId, widgetId)
+							: undefined}
+						oncancelconnect={cancelWidgetConnectCommand}
+					/>
 				</div>
 			</div>
 			<p class="text-fg-tertiary text-2xs mt-3 min-w-0 truncate font-mono leading-4">

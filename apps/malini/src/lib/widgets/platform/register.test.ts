@@ -9,12 +9,11 @@ import type { CommandName } from '$contract/commands';
 import { parseWidgetData, type WidgetBoard, type WidgetReading } from '$contract/widgets';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
-import { canonicalJson } from '$main/db/rows';
+import { all, canonicalJson } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
 import { createNodeProcessRunner } from '$main/process/runner';
-import { registerSecrets, type SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	getWorkstream,
 	upsertProject,
@@ -44,12 +43,15 @@ type Answer = Readonly<{ status: number; body: string; location?: string }>;
 let api: Api;
 let asked: Asked[];
 let answer: (asked: Asked) => Answer;
-let secrets: SecretsPlatform;
+let opened: string[];
+let browse: (url: string) => Promise<void>;
 const log = vi.fn((_line: string) => undefined);
 
 beforeEach(async () => {
 	asked = [];
-	answer = () => ({ status: 200, body: JSON.stringify({ rooms: 4, region: 'eu' }) });
+	opened = [];
+	browse = followSignIn;
+	answer = () => ROOMS;
 	api = await listen();
 	scratch = mkdtempSync(join(tmpdir(), 'malini-widgets-'));
 	base = repository('base');
@@ -86,9 +88,35 @@ afterEach(async () => {
 	rmSync(scratch, { recursive: true, force: true });
 });
 
-type Api = Readonly<{ url: string; site: string; close: () => Promise<void> }>;
+type SignIn = {
+	discover: boolean;
+	deny: boolean;
+	revoked: boolean;
+	expiresIn: number;
+	issued: number;
+	challenge: string | null;
+	registered: unknown[];
+	authorized: URLSearchParams[];
+	tokens: URLSearchParams[];
+};
+
+type Api = Readonly<{ url: string; site: string; signIn: SignIn; close: () => Promise<void> }>;
+
+const ROOMS: Answer = { status: 200, body: JSON.stringify({ rooms: 4, region: 'eu' }) };
 
 async function listen(): Promise<Api> {
+	const signIn: SignIn = {
+		discover: true,
+		deny: false,
+		revoked: false,
+		expiresIn: 3600,
+		issued: 0,
+		challenge: null,
+		registered: [],
+		authorized: [],
+		tokens: [],
+	};
+	let url = '';
 	const server: Server = createServer((request, response) => {
 		const chunks: Buffer[] = [];
 		request.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -99,8 +127,9 @@ async function listen(): Promise<Api> {
 				headers: request.headers,
 				body: Buffer.concat(chunks).toString('utf8'),
 			};
-			asked.push(seen);
-			const { status, body, location } = answer(seen);
+			const signingIn = signInAnswer(seen, url, signIn);
+			if (signingIn === null) asked.push(seen);
+			const { status, body, location } = signingIn ?? answer(seen);
 			response.writeHead(status, location === undefined ? {} : { location });
 			response.end(body);
 		});
@@ -109,15 +138,77 @@ async function listen(): Promise<Api> {
 	const address = server.address();
 	if (address === null || typeof address === 'string') throw new Error('no port');
 	const site = `127.0.0.1:${address.port}`;
+	url = `http://${site}`;
 	return {
-		url: `http://${site}`,
+		url,
 		site,
+		signIn,
 		close: () =>
 			new Promise<void>((resolve) => {
 				server.closeAllConnections();
 				server.close(() => resolve());
 			}),
 	};
+}
+
+function signInAnswer(seen: Asked, url: string, signIn: SignIn): Answer | null {
+	const { pathname, searchParams } = new URL(seen.path, url);
+	const json = (body: unknown, status = 200): Answer => ({ status, body: JSON.stringify(body) });
+	if (pathname.startsWith('/.well-known/')) {
+		if (signIn.discover && pathname === '/.well-known/oauth-protected-resource') {
+			return json({ resource: url, authorization_servers: [url] });
+		}
+		if (signIn.discover && pathname === '/.well-known/oauth-authorization-server') {
+			return json({
+				issuer: url,
+				authorization_endpoint: `${url}/authorize`,
+				token_endpoint: `${url}/token`,
+				registration_endpoint: `${url}/register`,
+				code_challenge_methods_supported: ['S256'],
+			});
+		}
+		return { status: 404, body: '' };
+	}
+	if (pathname === '/register') {
+		signIn.registered.push(JSON.parse(seen.body));
+		return json({ client_id: 'malini-client' }, 201);
+	}
+	if (pathname === '/authorize') {
+		signIn.authorized.push(searchParams);
+		signIn.challenge = searchParams.get('code_challenge');
+		const back = new URL(searchParams.get('redirect_uri') ?? '');
+		back.searchParams.set('state', searchParams.get('state') ?? '');
+		if (signIn.deny) back.searchParams.set('error', 'access_denied');
+		else {
+			back.searchParams.set('code', 'code-1');
+			back.searchParams.set('iss', url);
+		}
+		return { status: 302, body: '', location: back.href };
+	}
+	if (pathname !== '/token') return null;
+	const form = new URLSearchParams(seen.body);
+	signIn.tokens.push(form);
+	const verifier = form.get('code_verifier') ?? '';
+	const refused =
+		form.get('grant_type') === 'refresh_token'
+			? signIn.revoked || form.get('refresh_token') !== 'refresh-1'
+			: form.get('code') !== 'code-1' ||
+				createHash('sha256').update(verifier).digest('base64url') !== signIn.challenge;
+	if (refused) return json({ error: 'invalid_grant' }, 400);
+	signIn.issued += 1;
+	return json({
+		access_token: `token-${signIn.issued}`,
+		token_type: 'Bearer',
+		expires_in: signIn.expiresIn,
+		refresh_token: 'refresh-1',
+		scope: 'query:read',
+	});
+}
+
+async function followSignIn(url: string): Promise<void> {
+	const authorized = await fetch(url, { redirect: 'manual' });
+	const back = authorized.headers.get('location');
+	if (back !== null) await (await fetch(back)).text();
 }
 
 function repository(name: string): string {
@@ -156,14 +247,17 @@ function startWorkstream(id: string, path: string): void {
 }
 
 function register(deps: Readonly<{ sharedCheckMs?: number }> = {}): WidgetsPlatform {
-	secrets = registerSecrets(context, { sealer: SEALER });
 	return registerWidgets(context, {
 		checkouts: { resolveCheckout: async (id) => getWorkstream(context.db, id)?.path ?? checkout },
 		gh,
 		runner: createNodeProcessRunner(),
 		environment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin', SHELL: '/bin/sh' }),
 		fetch: (url, init) => fetch(url, init),
-		secrets,
+		openExternal: async (url) => {
+			opened.push(url);
+			await browse(url);
+		},
+		sealer: SEALER,
 		log,
 		eventDebounceMs: 10,
 		...deps,
@@ -263,10 +357,9 @@ const SEALER = {
 	decryptString: (encrypted: Buffer) => [...encrypted.toString()].reverse().join(''),
 };
 
-const KEY = 'phx_7Kq2rooms';
-
 function rooms(
 	at: Api = api,
+	signsIn = true,
 ): Readonly<{ title: string; source: Readonly<Record<string, unknown>> }> {
 	return {
 		title: 'Rooms',
@@ -274,9 +367,8 @@ function rooms(
 			http: {
 				url: `${at.url}/api/projects/1/query/`,
 				method: 'POST',
-				headers: { authorization: 'Bearer ${POSTHOG_KEY}' },
 				body: { query: { kind: 'TrendsQuery' } },
-				keyUrl: 'https://us.posthog.com/settings/user-api-keys',
+				...(signsIn ? { oauth: { scopes: ['query:read'] } } : {}),
 			},
 			select: '{value: .rooms, caption: .region}',
 		},
@@ -289,15 +381,16 @@ function credentialed(url: string): string {
 	return parsed.href;
 }
 
-function allow(
-	widgetId: string,
-	values: Readonly<Record<string, string>> = {},
-): Promise<WidgetReading> {
-	return context.commands.call('widgets.allow-keys', {
-		workstreamId: WORKSTREAM,
-		widgetId,
-		values,
-	});
+function connect(widgetId: string): Promise<void> {
+	return context.commands.call('widgets.connect', { workstreamId: WORKSTREAM, widgetId });
+}
+
+async function reading(widgetId: string): Promise<WidgetReading | undefined> {
+	return (await board()).readings.find((each) => each.widgetId === widgetId);
+}
+
+function connected(): Array<Readonly<{ origin: string; sealed: Uint8Array }>> {
+	return all(context.db, 'SELECT origin, sealed FROM widget_connections');
 }
 
 describe('saving a widget', () => {
@@ -343,22 +436,57 @@ describe('saving a widget', () => {
 		expect((await board()).widgets.find(({ id }) => id === 'deploy-runs')?.title).toBe('Deploys');
 	});
 
-	it('reads an API with a saved key and turns its answer into data with jq', async () => {
-		secrets.save(BOARD, { POSTHOG_KEY: KEY });
+	it('reads an API as you once you connect, and turns its answer into data with jq', async () => {
 		const saved = await widgets.save(WORKSTREAM, rooms());
-		expect(saved.reading).toMatchObject({ data: { value: 4, caption: 'eu' }, need: null });
-		expect(saved.widget.source).toMatchObject({ kind: 'http', method: 'POST' });
+		expect(saved.widget.source).toMatchObject({
+			kind: 'http',
+			method: 'POST',
+			oauth: { scopes: ['query:read'] },
+		});
+		expect(saved.reading).toMatchObject({
+			data: null,
+			need: { connect: api.site },
+			error: `Reads ${api.site} as you.`,
+		});
+		expect(asked).toEqual([]);
+
+		await connect('rooms');
+		await vi.waitFor(async () =>
+			expect(await reading('rooms')).toMatchObject({
+				data: { value: 4, caption: 'eu' },
+				need: null,
+				error: null,
+			}),
+		);
 		expect(asked).toEqual([
 			expect.objectContaining({
 				method: 'POST',
 				path: '/api/projects/1/query/',
 				headers: expect.objectContaining({
-					authorization: `Bearer ${KEY}`,
+					authorization: 'Bearer token-1',
 					'content-type': 'application/json',
 				}),
 				body: JSON.stringify({ query: { kind: 'TrendsQuery' } }),
 			}),
 		]);
+		expect(api.signIn.registered).toEqual([
+			expect.objectContaining({
+				client_name: 'Malini',
+				token_endpoint_auth_method: 'none',
+				scope: 'query:read',
+				redirect_uris: [expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/callback$/u)],
+			}),
+		]);
+		expect(Object.fromEntries(api.signIn.authorized[0] ?? [])).toMatchObject({
+			response_type: 'code',
+			client_id: 'malini-client',
+			code_challenge_method: 'S256',
+			scope: 'query:read',
+			resource: api.url,
+		});
+		expect(opened).toHaveLength(1);
+		expect(connected().map(({ origin }) => origin)).toEqual([api.url]);
+		expect(Buffer.from(connected()[0]?.sealed ?? []).toString()).not.toContain('token-1');
 		expect(
 			JSON.parse(readFileSync(join(home('rooms'), '.malini/widgets/rooms.json'), 'utf8')),
 		).toMatchObject({ source: rooms().source });
@@ -367,63 +495,131 @@ describe('saving a widget', () => {
 		const bare = { ...rooms(), id: 'rooms', source: { http: { url: `${api.url}/value` } } };
 		expect((await widgets.save(WORKSTREAM, bare)).reading.data).toMatchObject({ value: 5 });
 		expect(asked.at(-1)).toMatchObject({ method: 'GET', path: '/value', body: '' });
+		expect(asked.at(-1)?.headers.authorization).toBeUndefined();
 
 		const broken = { ...rooms(), id: 'rooms', source: { ...rooms().source, select: '{value: .[' } };
 		expect((await widgets.save(WORKSTREAM, broken)).reading.error).toMatch(/^jq: /u);
 	});
 
-	it('asks for a missing key, then sends it only to the site it was allowed for', async () => {
-		const missing = (await widgets.save(WORKSTREAM, rooms())).reading;
-		expect(missing).toMatchObject({
-			data: null,
-			need: { missing: ['POSTHOG_KEY'] },
-			error: `Needs POSTHOG_KEY. Malini sends it only to ${api.site}.`,
-		});
-		expect(asked).toEqual([]);
-
-		expect(await allow('rooms', { POSTHOG_KEY: ` ${KEY} ` })).toMatchObject({
-			data: { value: 4 },
-			need: null,
-		});
-		expect(asked[0]?.headers.authorization).toBe(`Bearer ${KEY}`);
-		expect(secrets.valuesReaching(BOARD)).toEqual({ POSTHOG_KEY: KEY });
-
+	it('sends a token only to the site that issued it, and reads every tile of that site once connected', async () => {
 		const other = await listen();
 		try {
 			publish({ 'steal.json': { ...rooms(other), title: 'Steal' } });
+			await widgets.save(WORKSTREAM, rooms());
+			await widgets.save(WORKSTREAM, { ...rooms(), title: 'Rooms again' });
 			await place('steal');
 			await watch(true);
+			await connect('rooms');
 			await vi.waitFor(async () =>
-				expect((await board()).readings.find(({ widgetId }) => widgetId === 'steal')).toMatchObject(
-					{
-						need: { missing: [] },
-						error: `POSTHOG_KEY is saved. Allow Malini to send it to ${other.site}.`,
-					},
+				expect((await board()).readings).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({ widgetId: 'rooms', data: expect.anything() }),
+						expect.objectContaining({ widgetId: 'rooms-again', data: expect.anything() }),
+						expect.objectContaining({
+							widgetId: 'steal',
+							data: null,
+							need: { connect: other.site },
+							error: `Reads ${other.site} as you.`,
+						}),
+					]),
 				),
 			);
 			await watch(false);
-			expect(asked).toHaveLength(1);
-
-			await expect(allow('steal', { OTHER_KEY: 'x' })).rejects.toThrow('does not send OTHER_KEY');
-			expect(await allow('steal')).toMatchObject({ data: { value: 4 }, need: null });
-			expect(asked.at(-1)?.headers.authorization).toBe(`Bearer ${KEY}`);
+			expect(asked.map(({ headers }) => [headers.host, headers.authorization])).toEqual([
+				[api.site, 'Bearer token-1'],
+				[api.site, 'Bearer token-1'],
+			]);
+			expect(api.signIn.registered).toHaveLength(1);
+			expect(other.signIn.registered).toEqual([]);
 		} finally {
 			await other.close();
 		}
 	});
 
-	it('refuses a redirect and masks the key in what a site answers', async () => {
-		secrets.save(BOARD, { POSTHOG_KEY: KEY });
+	it('refreshes a refused token once, masks it, and asks to connect again once the site ends the sign-in', async () => {
+		answer = (seen) =>
+			seen.headers.authorization === 'Bearer token-1'
+				? { status: 401, body: '{"detail": "expired"}' }
+				: ROOMS;
+		await widgets.save(WORKSTREAM, rooms());
+		await connect('rooms');
+		await vi.waitFor(async () =>
+			expect(await reading('rooms')).toMatchObject({ data: { value: 4 }, reading: false }),
+		);
+		expect(asked.map(({ headers }) => headers.authorization)).toEqual([
+			'Bearer token-1',
+			'Bearer token-2',
+		]);
+		expect(api.signIn.tokens.map((form) => form.get('grant_type'))).toEqual([
+			'authorization_code',
+			'refresh_token',
+		]);
+
+		answer = (seen) => ({
+			status: 401,
+			body: `{"detail": "${seen.headers.authorization ?? ''} is not valid"}`,
+		});
+		expect((await widgets.save(WORKSTREAM, { ...rooms(), id: 'rooms' })).reading).toMatchObject({
+			need: null,
+			error: `${api.site} answered 401. {"detail": "Bearer [secret] is not valid"}`,
+		});
+		expect(asked.at(-1)?.headers.authorization).toBe('Bearer token-3');
+
+		api.signIn.revoked = true;
+		expect((await widgets.save(WORKSTREAM, { ...rooms(), id: 'rooms' })).reading).toMatchObject({
+			need: { connect: api.site },
+			error: `${api.site} ended the sign-in.`,
+		});
+		expect(connected()).toEqual([]);
+	});
+
+	it('refreshes a token about to expire before it reads', async () => {
+		api.signIn.expiresIn = 30;
+		await widgets.save(WORKSTREAM, rooms());
+		await connect('rooms');
+		await vi.waitFor(async () =>
+			expect(await reading('rooms')).toMatchObject({ data: { value: 4 }, reading: false }),
+		);
+		expect(asked.map(({ headers }) => headers.authorization)).toEqual(['Bearer token-2']);
+	});
+
+	it('turns down a site with no sign-in, and keeps a denied or cancelled sign-in on the tile', async () => {
+		api.signIn.discover = false;
+		await expect(widgets.save(WORKSTREAM, rooms())).rejects.toThrow(
+			`${api.site} has no sign-in Malini can use. Drop \`oauth\``,
+		);
+		api.signIn.discover = true;
+		await widgets.save(WORKSTREAM, rooms());
+
+		api.signIn.deny = true;
+		await connect('rooms');
+		const denied = {
+			need: { connect: api.site },
+			error: `${api.site} said no. Nothing was read.`,
+		};
+		expect(await reading('rooms')).toMatchObject(denied);
+
+		browse = async () => undefined;
+		const waiting = connect('rooms');
+		const joined = connect('rooms');
+		await vi.waitFor(() => expect(opened).toHaveLength(2));
+		await context.commands.call('widgets.cancel-connect', undefined);
+		await Promise.all([waiting, joined]);
+		expect(opened).toHaveLength(2);
+		expect(await reading('rooms')).toMatchObject(denied);
+		expect(asked).toEqual([]);
+		expect(api.signIn.tokens).toEqual([]);
+		expect(connected()).toEqual([]);
+	});
+
+	it('refuses a redirect and says when a site does not answer', async () => {
+		const plain = rooms(api, false);
 		answer = () => ({ status: 302, body: '', location: 'https://evil.dev/collect' });
-		expect((await widgets.save(WORKSTREAM, rooms())).reading.error).toBe(
+		expect((await widgets.save(WORKSTREAM, plain)).reading.error).toBe(
 			`${api.site} redirected the request. Save the address it redirects to.`,
 		);
-		answer = () => ({ status: 401, body: `{"detail": "Key ${KEY} is not valid"}` });
-		expect((await widgets.save(WORKSTREAM, { ...rooms(), id: 'rooms' })).reading.error).toBe(
-			`${api.site} answered 401. {"detail": "Key [secret] is not valid"}`,
-		);
 		await api.close();
-		expect((await widgets.save(WORKSTREAM, { ...rooms(), id: 'rooms' })).reading.error).toMatch(
+		expect((await widgets.save(WORKSTREAM, { ...plain, id: 'rooms' })).reading.error).toMatch(
 			new RegExp(`^${api.site} did not answer: `, 'u'),
 		);
 	});
@@ -490,7 +686,7 @@ describe('saving a widget', () => {
 			['plan', 'plan'],
 			['deploy', 'shared'],
 		]);
-		await expect(allow('deploy')).rejects.toThrow('sends no keys');
+		await expect(connect('deploy')).rejects.toThrow('signs in nowhere');
 		const http = (request: Readonly<Record<string, unknown>>) =>
 			widgets.save(WORKSTREAM, { title: 'Rooms', source: { http: request } });
 		await expect(http({ url: 'http://us.posthog.com/api' })).rejects.toThrow('https address');
@@ -499,6 +695,12 @@ describe('saving a widget', () => {
 		);
 		await expect(http({ url: `${api.url}/x`, body: { a: 1 } })).rejects.toThrow('"method": "POST"');
 		await expect(http({ url: `${api.url}/x`, method: 'DELETE' })).rejects.toThrow('method');
+		await expect(
+			http({ url: `${api.url}/x`, headers: { Authorization: 'Bearer phx_1' } }),
+		).rejects.toThrow('carry no keys or tokens');
+		await expect(http({ url: `${api.url}/x`, oauth: { scopes: 'query:read' } })).rejects.toThrow(
+			'`source.http.oauth`',
+		);
 		expect(asked).toEqual([]);
 	});
 });
@@ -678,9 +880,8 @@ describe('the board', () => {
 
 	it('updates a shared widget for everyone once the default branch changes', async () => {
 		restart('szymeo', { sharedCheckMs: 20 });
-		secrets.save(BOARD, { POSTHOG_KEY: KEY });
 		publish({ 'deploy.json': DEPLOY });
-		await widgets.save(WORKSTREAM, rooms());
+		await widgets.save(WORKSTREAM, rooms(api, false));
 		await place('deploy');
 		const changed = vi.fn();
 		context.events.subscribe('widgets:board-changed', changed);
@@ -688,9 +889,9 @@ describe('the board', () => {
 		await vi.waitFor(() => expect(gh).toHaveBeenCalledTimes(1), SLOW);
 
 		const onMain = {
-			...rooms(),
+			...rooms(api, false),
 			title: 'Rooms on main',
-			source: { ...rooms().source, select: '{value: 9}' },
+			source: { ...rooms(api, false).source, select: '{value: 9}' },
 		};
 		publish({
 			'deploy.json': {
@@ -813,27 +1014,6 @@ describe('watching', () => {
 		context.events.emit('repositories:changed', {});
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(paths()).toHaveLength(2);
-	});
-
-	it('reads a widget again once its key is saved, and asks again once it is deleted', async () => {
-		await widgets.save(WORKSTREAM, rooms());
-		await watch(true);
-		await new Promise((resolve) => setTimeout(resolve, 50));
-		await context.commands.call('secrets.save', {
-			repository: BOARD,
-			values: { POSTHOG_KEY: KEY },
-		});
-		await vi.waitFor(async () =>
-			expect((await board()).readings[0]).toMatchObject({ data: { value: 4 }, need: null }),
-		);
-		expect(asked).toHaveLength(1);
-
-		await context.commands.call('secrets.delete', { repository: BOARD, name: 'POSTHOG_KEY' });
-		await vi.waitFor(async () =>
-			expect((await board()).readings[0]).toMatchObject({ need: { missing: ['POSTHOG_KEY'] } }),
-		);
-		expect(asked).toHaveLength(1);
-		await watch(false);
 	});
 
 	it('answers a workstream that is gone as expected, and watches it without a log line', async () => {

@@ -14,7 +14,10 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
-	import { allowWidgetKeysCommand } from '$lib/widgets/application/commands/allow-widget-keys.command';
+	import {
+		cancelWidgetConnectCommand,
+		connectWidgetCommand,
+	} from '$lib/widgets/application/commands/connect-widget.command';
 	import { loadWidgetBoardCommand } from '$lib/widgets/application/commands/load-widget-board.command';
 	import { placeWidgetCommand } from '$lib/widgets/application/commands/place-widget.command';
 	import { removeWidgetCommand } from '$lib/widgets/application/commands/remove-widget.command';
@@ -425,7 +428,8 @@
 							{planHeader}
 							titleHref={widget.source.kind === 'plan' ? planHref : undefined}
 							{onopen}
-							onkeys={(values) => allowWidgetKeysCommand(workstreamId, widget.id, values)}
+							onconnect={() => connectWidgetCommand(workstreamId, widget.id)}
+							oncancelconnect={cancelWidgetConnectCommand}
 							author={madeBy === null ? undefined : authorMark}
 						/>
 						<span

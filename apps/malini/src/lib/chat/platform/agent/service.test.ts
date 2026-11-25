@@ -1035,11 +1035,11 @@ describe('platform requests from the agent', () => {
 						source: http
 							? {
 									kind: 'http',
-									url: 'https://us.posthog.com/api/projects/1234/query/',
+									url: 'https://eu.posthog.com/api/projects/1234/query/',
 									method: 'GET',
-									headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+									headers: {},
 									body: null,
-									keyUrl: null,
+									oauth: { scopes: ['query:read'] },
 									select: null,
 								}
 							: { kind: 'github', path: 'repos/{owner}/{repo}/actions/runs', select: null },
@@ -1090,8 +1090,8 @@ describe('platform requests from the agent', () => {
 			title: 'Events',
 			source: {
 				http: {
-					url: 'https://us.posthog.com/api/projects/1234/query/',
-					headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+					url: 'https://eu.posthog.com/api/projects/1234/query/',
+					oauth: { scopes: ['query:read'] },
 				},
 			},
 		};

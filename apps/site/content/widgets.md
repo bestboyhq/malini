@@ -87,9 +87,8 @@ A widget is one JSON object, in Malini for your own and in `.malini/widgets/<id>
 	"scope": "shared",
 	"source": {
 		"http": {
-			"url": "https://us.posthog.com/api/projects/12345/query/",
+			"url": "https://eu.posthog.com/api/projects/12345/query/",
 			"method": "POST",
-			"headers": { "Authorization": "Bearer ${POSTHOG_KEY}" },
 			"body": {
 				"query": {
 					"kind": "TrendsQuery",
@@ -97,7 +96,7 @@ A widget is one JSON object, in Malini for your own and in `.malini/widgets/<id>
 					"dateRange": { "date_from": "-14d" }
 				}
 			},
-			"keyUrl": "https://us.posthog.com/settings/user-api-keys"
+			"oauth": { "scopes": ["query:read"] }
 		},
 		"select": "{value: .results[0].count, unit: \"views\", chart: {kind: \"line\", labels: .results[0].labels, series: [{label: \"Views\", values: .results[0].data}]}}"
 	},
@@ -118,21 +117,23 @@ The source is one of two kinds:
 Widgets run no scripts and call no MCP tools.
 A widget from an older Malini that runs a command or calls an MCP tool shows **Widgets read APIs now, not scripts or MCP tools.** until your agent moves it to an API.
 
-### Keys
+### Sign-in
 
-A key goes only in a header value, as `${NAME}`, the name of a [secret](/malini/docs/agent-tools.md#secrets).
-The widget file holds the name, never the key, so a widget on the default branch is safe to share.
-Each person saves their own key, and `keyUrl` is the page where they make one.
+An `http` source with `oauth` reads the API as you.
+Press **Connect** on the tile, sign in to the service in your browser, and the tile reads.
+Nobody pastes a key, and the widget file holds no secret, so a widget on the default branch is safe to share.
 
-- Malini sends a key only to a site you allowed it for.
-  A widget your agent saves allows its own site for the keys it names.
-- A widget that names a key you did not save asks for it on the tile.
-  **Save** keeps it in your keychain, for the repository, and allows the widget's site.
-- A widget that sends a key you saved to a site you did not allow it for says so, and **Allow** with the site's name allows it.
-  This is how a teammate's widget that sends your `POSTHOG_KEY` to another site gets nothing until you allow it.
-- The key decides what the widget can do.
-  Make a key that can only read, such as a PostHog personal API key with only `query:read`.
-- Every error from a site shows the key as `[secret]`.
+- `oauth.scopes` lists what the widget asks for, such as `query:read`.
+  Ask for read scopes only: the service, not Malini, decides what the sign-in can do.
+- Malini finds the service's sign-in the way MCP clients do, from `/.well-known/oauth-protected-resource` and the sign-in server it names.
+  It registers itself with that server, signs in with PKCE, and gets the answer back on `127.0.0.1`.
+  A service with no such sign-in cannot back a tile, and the agent cannot save one that names it.
+- Malini keeps the sign-in sealed with your Mac's keychain, one per site, for every board.
+  It is never a [secret](/malini/docs/agent-tools.md#secrets), so no agent command sees it.
+- Malini sends the token only to the site of the widget's `url`.
+  It renews the token before it runs out, and once more when the site answers 401.
+- `headers` carry no sign-in: a widget with an `Authorization`, `Proxy-Authorization` or `Cookie` header is refused.
+- Every error from a site shows the token as `[secret]`.
 
 Either way, the source gives one JSON object, and Malini draws what it finds there:
 
@@ -162,20 +163,21 @@ A warning sign in the tile's header says why the read failed.
 The last numbers stay across restarts, so a board opens full.
 
 Adding a widget to your board allows it to read.
-A repository widget reads what the default branch says, with your own keys and your own GitHub sign-in.
-It reaches nothing but the site it names, or GitHub, as you.
+A repository widget reads what the default branch says, with your own sign-ins.
+It reaches nothing but the site it names and that site's sign-in server, or GitHub, as you.
 
 ### When a tile needs you
 
-A widget that needs a key says which one, and the site Malini sends it to.
+A widget that signs in says which site it reads, as you.
 
-- **Needs POSTHOG_KEY**: paste the key in the tile's field and press **Save**.
-  **Get a key** opens the widget's `keyUrl` in your browser.
-- **POSTHOG_KEY is saved**: the key is in your keychain, but not for this site.
-  **Allow us.posthog.com** sends it there from now on.
+- **Reads eu.posthog.com as you.** Press **Connect** and sign in in your browser.
+  The chat's widget card has the same button.
+- **Finish in your browser.** Malini waits 10 minutes for the sign-in, and **Cancel** stops it.
+- **Needs query:read on eu.posthog.com.** The widget asks for more than your sign-in has.
+  **Connect** signs in again for the scopes you have and the ones it asks for.
 
-Once you save or allow the key, the tile reads at once.
-A key you save in Settings, Secrets or on a chat's card reads the tile again too, and a key you delete there takes its numbers away.
+One sign-in reads every widget on that site, so the other tiles read at once too.
+A sign-in the service ends, or one you revoke there, shows **Connect** again.
 A widget that still runs a script or calls an MCP tool shows no numbers, only that widgets read APIs now: ask the agent to move it to one.
 `select` needs `jq`, which macOS 15 and later ship.
 

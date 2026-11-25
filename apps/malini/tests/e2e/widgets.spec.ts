@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { WidgetBoard } from '../../src/contract/widgets';
-import { startFakeApi } from './fake-api';
+import { apiRequests, finishSignIn, startFakeApi } from './fake-api';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 import {
 	captureFlow,
@@ -10,7 +10,9 @@ import {
 	git,
 	invoke,
 	launchMalini,
+	openedUrls,
 	openWorkstream,
+	recordBrowser,
 } from './harness';
 
 const WORKSTREAM = 'e2e-widgets';
@@ -60,7 +62,7 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 			source: {
 				http: {
 					url: `${api.url}/countdown?event=launch`,
-					headers: { 'x-api-key': '${CALENDAR_KEY}' },
+					oauth: {},
 				},
 				select: '{value: .days, unit: "days"}',
 			},
@@ -75,7 +77,7 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 			},
 		);
 		github.answerGet(PULLS, { value: 3, unit: 'open', caption: 'waiting for review' });
-		await invoke(page, 'secrets.save', { repository: null, values: { CALENDAR_KEY: 'cal_4d1e' } });
+		await recordBrowser(app);
 		await openWorkstream(page, WORKSTREAM);
 
 		const board = page.getByRole('region', { name: 'Widgets' });
@@ -91,16 +93,19 @@ test('shared widgets wait under the board, Add puts one first, drag and Alt+Arro
 		await expect(reviews).toContainText('3', { timeout: 20_000 });
 		await shelf.getByRole('button', { name: 'Add Launch' }).click();
 		const launch = board.getByRole('article', { name: 'Launch, 2 by 1' });
-		await expect(launch).toContainText(
-			`CALENDAR_KEY is saved. Allow Malini to send it to ${api.site}.`,
-			{ timeout: 20_000 },
-		);
-		expect(api.requests).toEqual([]);
-		await captureFlow(app, 'widgets-allow-key');
-		await launch.getByRole('button', { name: `Allow ${api.site}` }).click();
-		await expect(launch.getByRole('button', { name: `Allow ${api.site}` })).toHaveCount(0);
+		const connect = launch.getByRole('button', { name: `Connect ${api.site}` });
+		await expect(connect).toBeVisible({ timeout: 20_000 });
+		expect(apiRequests(api)).toEqual([]);
+		await captureFlow(app, 'widgets-connect');
+		await connect.click();
+		await expect.poll(() => openedUrls(app)).toHaveLength(1);
+		const [authorize = ''] = await openedUrls(app);
+		await finishSignIn(authorize);
+		await expect(connect).toHaveCount(0, { timeout: 20_000 });
 		await expect(launch).toContainText('12', { timeout: 20_000 });
-		expect(api.requests.map(({ headers }) => headers['x-api-key'])).toEqual(['cal_4d1e']);
+		expect(apiRequests(api).map(({ headers }) => headers.authorization)).toEqual([
+			'Bearer token-1',
+		]);
 		await expect(shelf).toHaveCount(0);
 		await expect.poll(() => order(page)).toEqual(['launch', 'reviews', 'plan']);
 

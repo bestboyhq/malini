@@ -9,6 +9,7 @@ import {
 	WIDGETS_FOLDER,
 	type WidgetDefinition,
 	type WidgetMethod,
+	type WidgetOAuth,
 	type WidgetOrigin,
 	type WidgetRefresh,
 	type WidgetScope,
@@ -30,6 +31,11 @@ const WIDGET_ERROR_VERDICTS = {
 	'source-failed': 'expected',
 	'workstream-gone': 'expected',
 	'shared-widget': 'expected',
+	'no-sign-in': 'expected',
+	'sign-in-denied': 'expected',
+	'sign-in-cancelled': 'expected',
+	'sign-in-failed': 'expected',
+	'signed-out': 'expected',
 } as const satisfies ErrorVerdicts;
 
 type WidgetErrorKind = keyof typeof WIDGET_ERROR_VERDICTS;
@@ -52,6 +58,9 @@ const BODY_MAX_LENGTH = 16 * 1024;
 const HEADERS_MAX = 20;
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,100}$/u;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const SIGN_IN_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie']);
+const SCOPES_MAX = 20;
+const OAUTH_SCOPE = /^[\x21\x23-\x5B\x5D-\x7E]{1,200}$/u;
 const FILE_MAX_BYTES = 64 * 1024;
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u;
 const LINE_BREAK = /[\n\r\u2028\u2029]/u;
@@ -187,14 +196,14 @@ function widgetFileText(widget: WidgetDefinition): string {
 function sourceFile(source: WidgetSource): Readonly<Record<string, unknown>> {
 	if (source.kind === 'github') return { github: source.path, ...selectFile(source.select) };
 	if (source.kind !== 'http') return {};
-	const { url, method, headers, body, keyUrl } = source;
+	const { url, method, headers, body, oauth } = source;
 	return {
 		http: {
 			url,
 			method,
 			...(Object.keys(headers).length === 0 ? {} : { headers }),
 			...(body === null ? {} : { body }),
-			...(keyUrl === null ? {} : { keyUrl }),
+			...(oauth === null ? {} : { oauth }),
 		},
 		...selectFile(source.select),
 	};
@@ -254,8 +263,22 @@ function httpRequest(value: unknown): Omit<Extract<WidgetSource, { kind: 'http' 
 		method,
 		headers: optional(value['headers'], requestHeaders) ?? {},
 		body,
-		keyUrl: optional(value['keyUrl'], webUrl),
+		oauth: optional(value['oauth'], oauth),
 	};
+}
+
+function oauth(value: unknown): WidgetOAuth {
+	const scopes = isRecord(value) ? (value['scopes'] ?? []) : null;
+	if (
+		!Array.isArray(scopes) ||
+		scopes.length > SCOPES_MAX ||
+		!scopes.every((scope) => typeof scope === 'string' && OAUTH_SCOPE.test(scope))
+	) {
+		throw bad(
+			`\`source.http.oauth\` must be an object with up to ${SCOPES_MAX} \`scopes\`, such as \`{ "scopes": ["query:read"] }\``,
+		);
+	}
+	return { scopes: [...new Set<string>(scopes)] };
 }
 
 function apiUrl(value: unknown): string {
@@ -282,6 +305,11 @@ function requestHeaders(value: unknown): Readonly<Record<string, string>> {
 	}
 	return Object.fromEntries(
 		Object.entries(value).map(([name, text]) => {
+			if (SIGN_IN_HEADERS.has(name.toLowerCase())) {
+				throw bad(
+					'`source.http.headers` carry no keys or tokens. Give `source.http.oauth` and Malini signs in',
+				);
+			}
 			if (
 				!HEADER_NAME.test(name) ||
 				typeof text !== 'string' ||

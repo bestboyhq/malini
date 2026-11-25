@@ -1,9 +1,8 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import type { SavedSecret } from '../../src/contract/secrets';
 import type { WidgetBoard } from '../../src/contract/widgets';
-import { startFakeApi, type FakeApi } from './fake-api';
+import { apiRequests, finishSignIn, startFakeApi, type FakeApi } from './fake-api';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 import {
 	captureFlow,
@@ -13,8 +12,10 @@ import {
 	invoke,
 	listSessions,
 	launchMalini,
+	openedUrls,
 	openWorkstream,
 	promptsOf,
+	recordBrowser,
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
@@ -86,33 +87,30 @@ test('a widget the agent saves lands first on the board at two by one, where its
 	}
 });
 
-test('a widget whose key is missing asks for it on its tile, links to where to get one, and reads once it is saved', async () => {
+test('a widget that signs in shows Connect on its tile and its chat card, Cancel stops the sign-in, and once the browser finishes it both read with its own token', async () => {
 	test.setTimeout(120_000);
-	const api = await startFakeApi({
-		'/rooms': { value: 8, caption: 'open now' },
-	});
+	const api = await startFakeApi({ '/rooms': { value: 8, caption: 'open now' } });
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const { workstreamId } = await seedWorkstream(
 			page,
 			await createSourceRepo(app.root),
-			'e2e-widget-key',
-			'Widget key',
+			'e2e-widget-connect',
+			'Widget connect',
 		);
 		await openWorkstream(page, workstreamId);
-		const source = {
-			http: {
-				url: `${api.url}/rooms`,
-				headers: { authorization: 'Bearer ${ROOMS_KEY}' },
-				keyUrl: `${api.url}/keys`,
-			},
-		};
+		await recordBrowser(app);
 		writeFileSync(
 			join(app.home, 'malini-tool.json'),
 			JSON.stringify({
 				tool: 'widgets_save',
-				input: { id: 'rooms', title: 'Rooms', icon: 'users', source },
+				input: {
+					id: 'rooms',
+					title: 'Rooms',
+					icon: 'users',
+					source: { http: { url: `${api.url}/rooms`, oauth: { scopes: ['rooms:read'] } } },
+				},
 			}),
 		);
 
@@ -120,44 +118,38 @@ test('a widget whose key is missing asks for it on its tile, links to where to g
 		const tile = page
 			.getByRole('region', { name: 'Widgets' })
 			.getByRole('article', { name: 'Rooms, 2 by 1' });
-		await expect(tile).toContainText(`Needs ROOMS_KEY. Malini sends it only to ${api.site}.`, {
-			timeout: 20_000,
-		});
-		const save = tile.getByRole('button', { name: 'Save' });
-		await expect(save).toBeDisabled();
-		expect(api.requests).toEqual([]);
-		await captureFlow(app, 'widget-needs-key');
+		const connect = tile.getByRole('button', { name: `Connect ${api.site}` });
+		await expect(connect).toBeVisible({ timeout: 20_000 });
+		await expect(tile).toContainText(`Reads ${api.site} as you.`);
+		expect(apiRequests(api)).toEqual([]);
+		await captureFlow(app, 'widget-connect');
 
-		await app.electronApp.evaluate(({ shell }) => {
-			const opened: string[] = [];
-			Reflect.set(globalThis, '__openedUrls', opened);
-			shell.openExternal = async (url) => {
-				opened.push(url);
-			};
-		});
-		await tile.getByRole('button', { name: 'Get a key' }).click();
-		await expect
-			.poll(() =>
-				app.electronApp.evaluate(() => {
-					const opened: unknown = Reflect.get(globalThis, '__openedUrls');
-					return Array.isArray(opened) ? opened.map(String) : [];
-				}),
-			)
-			.toEqual([`${api.url}/keys`]);
+		await connect.click();
+		await expect(tile).toContainText('Finish in your browser.');
+		await expect.poll(() => openedUrls(app)).toHaveLength(1);
+		await tile.getByRole('button', { name: 'Cancel' }).click();
+		await expect(connect).toBeVisible();
+		await expect(tile).not.toContainText('Finish in your browser.');
 
-		await tile.getByLabel('ROOMS_KEY').fill('rk_live_8f2a');
-		await save.click();
+		const card = page.getByRole('region', { name: 'Rooms widget' });
+		await card.getByRole('button', { name: `Connect ${api.site}` }).click();
+		await expect(card).toContainText('Finish in your browser.');
+		await expect.poll(() => openedUrls(app)).toHaveLength(2);
+		const [, authorize = ''] = await openedUrls(app);
+		const asked = new URL(authorize);
+		expect(`${asked.origin}${asked.pathname}`).toBe(`${api.url}/authorize`);
+		expect(asked.searchParams.get('scope')).toBe('rooms:read');
+		expect(asked.searchParams.get('code_challenge_method')).toBe('S256');
+		await captureFlow(app, 'widget-connecting');
+		await finishSignIn(authorize);
+
 		await expect(tile).toContainText('open now', { timeout: 20_000 });
-		await expect(tile.getByLabel('ROOMS_KEY')).toHaveCount(0);
+		await expect(card.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('open now');
+		await expect(page.getByRole('button', { name: `Connect ${api.site}` })).toHaveCount(0);
 		expect(
-			api.requests.flatMap(({ path, headers }) =>
-				path === '/rooms' ? [headers.authorization] : [],
-			),
-		).toEqual(['Bearer rk_live_8f2a']);
-		expect(
-			(await invoke<SavedSecret[]>(page, 'secrets.list', undefined)).map(({ name }) => name),
-		).toEqual(['ROOMS_KEY']);
-		await captureFlow(app, 'widget-key-saved');
+			apiRequests(api).map(({ path, headers }) => `${path} ${headers.authorization ?? ''}`),
+		).toEqual(['/rooms Bearer token-1']);
+		await captureFlow(app, 'widget-connected');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

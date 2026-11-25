@@ -1797,7 +1797,7 @@ type WidgetData = Readonly<{
 	url: string | null;
 }>;
 
-type WidgetNeed = Readonly<{ missing: readonly string[] }>;
+type WidgetNeed = Readonly<{ connect: string }>;
 
 type WidgetReading = Readonly<{
 	board: string;

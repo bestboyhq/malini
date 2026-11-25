@@ -1,5 +1,4 @@
 import type {
-	AllowWidgetKeysArgs,
 	PlaceWidgetArgs,
 	ResizeWidgetArgs,
 	ShareWidgetArgs,
@@ -36,8 +35,12 @@ class WidgetsService {
 		await invoke('widgets.pin-plan', { repositoryFullName });
 	}
 
-	async allowKeys(args: AllowWidgetKeysArgs): Promise<void> {
-		await invoke('widgets.allow-keys', args);
+	async connect(args: WidgetArgs): Promise<void> {
+		await invoke('widgets.connect', args);
+	}
+
+	async cancelConnect(): Promise<void> {
+		await invoke('widgets.cancel-connect', undefined);
 	}
 
 	async watch(workstreamId: string, watching: boolean): Promise<void> {

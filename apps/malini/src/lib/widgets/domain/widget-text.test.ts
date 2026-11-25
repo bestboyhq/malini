@@ -8,9 +8,9 @@ const POSTHOG: WidgetSource = {
 	kind: 'http',
 	url: 'https://us.posthog.com/api/projects/1/query/?refresh=true',
 	method: 'POST',
-	headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+	headers: {},
 	body: { query: { kind: 'HogQLQuery', query: 'select 1' } },
-	keyUrl: null,
+	oauth: { scopes: ['query:read'] },
 	select: null,
 };
 

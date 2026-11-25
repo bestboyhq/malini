@@ -13,8 +13,6 @@ export type WidgetsPlatform = Readonly<{
 
 const WORKSTREAM_ID_MAX_LENGTH = 200;
 
-const KEYS_MAX = 10;
-
 const GITHUB_REPOSITORY = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/u;
 
 export function registerWidgets(context: MainContext, deps: WidgetsDeps): WidgetsPlatform {
@@ -48,9 +46,11 @@ export function registerWidgets(context: MainContext, deps: WidgetsDeps): Widget
 		boards.pinPlan(repository);
 	});
 
-	commands.define('widgets.allow-keys', (args: unknown) =>
-		boards.allowKeys(workstreamId(args), widgetId(args), keyValues(args)),
+	commands.define('widgets.connect', (args: unknown) =>
+		boards.connect(workstreamId(args), widgetId(args)),
 	);
+
+	commands.define('widgets.cancel-connect', () => boards.cancelConnect());
 
 	commands.define('widgets.watch', (args: unknown) => {
 		const watching = field(args, 'watching');
@@ -80,19 +80,6 @@ function widgetId(args: unknown): string {
 	const value = field(args, 'widgetId');
 	if (!isWidgetId(value)) throw invalid('`widgetId` must be a widget id');
 	return value;
-}
-
-function keyValues(args: unknown): Readonly<Record<string, string>> {
-	const value = field(args, 'values');
-	const entries = isRecord(value) ? Object.entries(value) : [];
-	if (
-		!isRecord(value) ||
-		entries.length > KEYS_MAX ||
-		!entries.every((entry): entry is [string, string] => typeof entry[1] === 'string')
-	) {
-		throw invalid(`\`values\` must map up to ${KEYS_MAX} key names to the keys`);
-	}
-	return Object.fromEntries(entries);
 }
 
 function index(args: unknown): number {
