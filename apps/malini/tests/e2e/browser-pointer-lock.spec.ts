@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { KeyboardInputEvent, MouseInputEvent } from 'electron';
 import {
+	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
 	launchMalini,
@@ -12,9 +13,14 @@ import {
 } from './harness';
 
 const GAME_PAGE = `<!doctype html><title>Game</title>
-<style>html, body, canvas { margin: 0; width: 100%; height: 100%; display: block; }</style>
-<canvas></canvas><script>
+<style>
+:root { color-scheme: light dark; font: 24px system-ui; }
+html, body, canvas { margin: 0; width: 100%; height: 100%; display: block; }
+p { position: fixed; inset: 45% 0 auto; margin: 0; text-align: center; pointer-events: none; }
+</style>
+<canvas></canvas><p>Click to play</p><script>
 const canvas = document.querySelector('canvas');
+const state = document.querySelector('p');
 canvas.addEventListener('click', () =>
 	canvas.requestPointerLock().catch((error) => {
 		document.title = 'Refused: ' + error.name;
@@ -22,6 +28,7 @@ canvas.addEventListener('click', () =>
 );
 document.addEventListener('pointerlockchange', () => {
 	document.title = document.pointerLockElement === canvas ? 'Locked' : 'Unlocked';
+	state.textContent = document.pointerLockElement === canvas ? 'Cursor locked. Press Escape' : 'Cursor unlocked';
 });
 </script>`;
 
@@ -75,6 +82,7 @@ test('a game locks the cursor when you click it, and Escape unlocks it', async (
 			{ type: 'mouseUp', ...point, button: 'left', clickCount: 1 },
 		]);
 		await expect(inspector.getByRole('tab', { name: 'Locked', exact: true })).toBeVisible();
+		await captureFlow(app, 'browser-pointer-locked');
 
 		await send([
 			{ type: 'keyDown', keyCode: 'Escape' },
