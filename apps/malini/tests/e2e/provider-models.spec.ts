@@ -527,8 +527,13 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		'opencode-go': {
 			id: 'opencode-go',
 			models: {
-				hy4: catalogModel('hy4', 'Hy4', '2026-10-31'),
+				'hungerg-free': {
+					...catalogModel('hungerg-free', 'HungerG Free', '2026-11-24'),
+					cost: { input: 0, output: 0 },
+				},
+				hy4: { ...catalogModel('hy4', 'Hy4', '2026-10-31'), family: 'hy' },
 				'glm-6': catalogModel('glm-6', 'GLM-6', '2026-10-30'),
+				hy3: { ...catalogModel('hy3', 'Hy3', '2026-07-06'), family: 'hy' },
 			},
 		},
 	});
@@ -612,9 +617,19 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await expect(panel).toBeHidden();
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'opencode')).toHaveText([/^Hy4/u, /^GLM-6/u]);
+		await expect(modelOptions(page, 'opencode')).toHaveText([
+			/^HungerG Free/u,
+			/^Hy4/u,
+			/^GLM-6/u,
+		]);
+		const models = page.getByRole('listbox', { name: 'Models' });
+		await page.getByRole('textbox', { name: 'Find models' }).fill('hy');
+		await expect(
+			models.getByRole('group', { name: 'Earlier versions' }).getByTestId('chat-model-version'),
+		).toHaveText([/^Hy3\s*Jul 2026/u]);
+		await captureFlow(app, 'provider-models-opencode-go-earlier-versions');
 		await page.keyboard.press('Escape');
-		await expect(page.getByRole('listbox', { name: 'Models' })).toBeHidden();
+		await expect(models).toBeHidden();
 
 		await page.evaluate(() => {
 			location.hash = '#/settings/providers';
@@ -624,7 +639,9 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		const card = page.getByTestId('provider-opencode');
 		await expect(card).toHaveAttribute('data-key-saved', 'true');
 		await expect(card).toContainText('Key saved. Your Go plan.');
-		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(/Hy4\s*GLM-6/u);
+		await expect(card.getByRole('list', { name: 'OpenCode models' })).toHaveText(
+			/HungerG Free\s*Hy4\s*GLM-6\s*Hy3/u,
+		);
 		await expect(card).not.toContainText('Kimi K4');
 		await captureFlow(app, 'provider-models-opencode-go-settings');
 
