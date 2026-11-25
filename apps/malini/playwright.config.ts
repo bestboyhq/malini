@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
 	testDir: 'tests/e2e',
+	globalSetup: './tests/e2e/unpack-electron.ts',
 	timeout: 30_000,
 	fullyParallel: true,
 	workers: process.env['CI'] ? 2 : '33%',
