@@ -35,6 +35,7 @@ async function* turn() {
 const approvedRetries = new Set();
 const uncheckedRetries = new Map();
 const askedInputs = new Map();
+const rewrittenRetries = new Set();
 const retryKey = (name, input) =>
 	`${name}\u0000${name === 'Bash' ? input.command : JSON.stringify(input)}`;
 const RETRY = { hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true } };
@@ -140,10 +141,16 @@ const run = query({
 					hooks: [
 						async (input) => {
 							steps.push({ hook: input });
-							const rewritten =
-								askedInputs.get(input.tool_use_id) !== retryKey(input.tool_name, input.tool_input);
-							if (input.reason === 'Classifier unavailable' && rewritten) return RETRY;
-							if (input.reason === 'Classifier unavailable') return retryUnchecked(input);
+							const key = retryKey(input.tool_name, input.tool_input);
+							const asked = askedInputs.get(input.tool_use_id) ?? key;
+							const unchecked = input.reason === 'Classifier unavailable';
+							if (unchecked && asked !== key) {
+								if (rewrittenRetries.has(asked) || rewrittenRetries.has(key)) return {};
+								if (rewrittenRetries.size < 3) {
+									rewrittenRetries.add(key);
+									return RETRY;
+								}
+							} else if (unchecked) return retryUnchecked(input);
 							if (process.env.DECISION === 'deny') return {};
 							approvedRetries.add(retryKey(input.tool_name, input.tool_input));
 							return RETRY;

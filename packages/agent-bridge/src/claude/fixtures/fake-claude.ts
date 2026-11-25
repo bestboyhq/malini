@@ -61,6 +61,7 @@ export type RecordedScenario =
 	| 'classifierBlip'
 	| 'classifierOutage'
 	| 'hookRewrite'
+	| 'subagentHookRewrites'
 	| 'compact'
 	| 'usageLimit'
 	| 'rateLimit'

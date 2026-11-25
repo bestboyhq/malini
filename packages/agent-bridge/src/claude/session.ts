@@ -69,6 +69,7 @@ import {
 	confineCommands,
 	disallowedTools,
 	hiddenPaths,
+	HOOK_CHANGED_CALL_REASON,
 	isMaliniTool,
 	leavesTheSandbox,
 	steerToMalini,
@@ -121,6 +122,7 @@ const SIGN_IN_HOOK_TIMEOUT_S = AUTHORIZATION_WINDOW_MS / 1000 + 60;
 const RETRY_BLOCKED_CALL = {
 	hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true },
 } as const;
+const QUIET_REWRITE_RETRIES = 3;
 const RUN_IT_INSIDE_FIRST =
 	'Malini has not seen this command run in its sandbox in this chat. Run it again without dangerouslyDisableSandbox: the sandbox may allow what it needs now, and when it blocks something, Malini asks the user to open just that.';
 const KEPT_BLOCKED_MESSAGE =
@@ -1098,12 +1100,14 @@ export class ClaudeSession implements ProviderHandle {
 			const asked = active.askedInputs.has(input.tool_use_id)
 				? retryKey(input.tool_name, active.askedInputs.get(input.tool_use_id))
 				: key;
-			if (unchecked && asked !== key) {
-				if (active.rewrittenRetries.has(asked)) return {};
-				active.rewrittenRetries.add(key);
-				return RETRY_BLOCKED_CALL;
-			}
-			if (unchecked && (await this.#retriedUnchecked(active, key, signal))) {
+			const rewritten = unchecked && asked !== key;
+			if (rewritten) {
+				if (active.rewrittenRetries.has(asked) || active.rewrittenRetries.has(key)) return {};
+				if (active.rewrittenRetries.size < QUIET_REWRITE_RETRIES) {
+					active.rewrittenRetries.add(key);
+					return RETRY_BLOCKED_CALL;
+				}
+			} else if (unchecked && (await this.#retriedUnchecked(active, key, signal))) {
 				return RETRY_BLOCKED_CALL;
 			}
 			const { cwd } = this.#context;
@@ -1115,12 +1119,16 @@ export class ClaudeSession implements ProviderHandle {
 				.requestApproval({
 					runId: active.runId,
 					approvalId,
-					reason: unchecked ? UNCHECKED_CALL_REASON : `Blocked by auto mode: ${category}`,
+					reason: rewritten
+						? HOOK_CHANGED_CALL_REASON
+						: unchecked
+							? UNCHECKED_CALL_REASON
+							: `Blocked by auto mode: ${category}`,
 					toolName: input.tool_name,
 					input: toolInput,
 					permission: permissionDescriptor(input.tool_name, toolInput, cwd, undefined),
 					autoModeRule: rule,
-					...(unchecked ? { autoModeUnavailable: true } : {}),
+					...(unchecked && !rewritten ? { autoModeUnavailable: true } : {}),
 					signal,
 				})
 				.finally(() => this.#blockedCallRules.delete(approvalId));

@@ -495,6 +495,8 @@ export const AUTO_MODE_UNAVAILABLE = 'Classifier unavailable';
 export const AUTO_MODE_STOPPED = 'Auto mode unavailable';
 export const UNCHECKED_CALL_REASON =
 	"Auto mode couldn't check this call: Anthropic's safety check is down.";
+export const HOOK_CHANGED_CALL_REASON =
+	"Auto mode couldn't check this call: a hook in your Claude Code settings changes it after the check.";
 
 export class AutoModeOutage {
 	#until = 0;
