@@ -9,9 +9,10 @@ import {
 import { rememberMediaAnswers } from './media-permission';
 import { MALINI_WORLD_ID, type PageEvents, type PageView } from './page';
 import { isAllowedNavigation } from './url';
-import { chromeUserAgent } from './user-agent';
+import { chromeUserAgent, googleSignInUserAgent } from './user-agent';
 
 export const BROWSER_PARTITION = 'persist:malini-browser';
+const GOOGLE_SIGN_IN_PAGES = 'https://accounts.google.com/*';
 const MAX_FAVICON_BYTES = 64 * 1024;
 const ERR_ABORTED = -3;
 const ERROR_PAGE_FOLLOWS_THEME =
@@ -162,7 +163,14 @@ async function faviconDataUrl(partition: Session, url: string | undefined): Prom
 
 export function browseAsChrome(): void {
 	const partition = session.fromPartition(BROWSER_PARTITION);
-	partition.setUserAgent(chromeUserAgent(partition.getUserAgent()));
+	const userAgent = chromeUserAgent(partition.getUserAgent());
+	const signInUserAgent = googleSignInUserAgent(userAgent);
+	partition.setUserAgent(userAgent);
+	partition.webRequest.onBeforeSendHeaders(
+		{ urls: [GOOGLE_SIGN_IN_PAGES] },
+		({ requestHeaders }, callback) =>
+			callback({ requestHeaders: { ...requestHeaders, 'User-Agent': signInUserAgent } }),
+	);
 }
 
 export function answerPermissionRequests(getWindow: () => BrowserWindow | null): void {

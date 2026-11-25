@@ -190,8 +190,8 @@ describe('browser requests from the agent', () => {
 				if (selector === '#menu') throw new BrowserDialogOpen(DELETE_PLAN, false);
 				return PRICING;
 			},
-			press: async ({ workstreamId }, key) => {
-				calls.push(`press ${workstreamId} ${key}`);
+			press: async ({ workstreamId }, key, holdSeconds) => {
+				calls.push(`press ${workstreamId} ${key} ${holdSeconds}`);
 				if (key === 'Delete') throw new BrowserDialogOpen(DELETE_PLAN, true);
 				return PRICING;
 			},
@@ -298,10 +298,11 @@ describe('browser requests from the agent', () => {
 		bridge.send(browserRequest('req-27', { action: 'hover', selector: '#menu' }));
 		bridge.send(browserRequest('req-28', { action: 'dialog', accept: false }));
 		bridge.send(browserRequest('req-29', { action: 'dialog', accept: true }));
+		bridge.send(browserRequest('req-30', { action: 'press', key: 'w', holdSeconds: 2 }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'browser_result');
-		await waitFor(() => results().length === 29, 5_000, 'twenty-nine browser results');
+		await waitFor(() => results().length === 30, 5_000, 'thirty browser results');
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
@@ -321,7 +322,7 @@ describe('browser requests from the agent', () => {
 			'close ws-1 chat-sess-1',
 			'snapshot ws-1',
 			'hover ws-1 @e1',
-			'press ws-1 Escape',
+			'press ws-1 Escape 0',
 			'scroll ws-1 {"x":0,"y":600}',
 			'scroll ws-1 {"x":0,"y":120,"selector":".list"}',
 			'wait ws-1 {"seconds":5,"gone":false,"text":"Saved"}',
@@ -331,10 +332,11 @@ describe('browser requests from the agent', () => {
 			'resize ws-1 640 844',
 			`upload ws-1 ${worktree} #avatar ./a.png`,
 			`upload ws-1 ${worktree} @f1e2 a.png b.pdf`,
-			'press ws-1 Delete',
+			'press ws-1 Delete 0',
 			'hover ws-1 #menu',
 			'dialog ws-1 false',
 			'dialog ws-1 true',
+			'press ws-1 w 2',
 		]);
 		expect(answerTo('req-1')).toEqual({
 			cmd: 'browser_result',
@@ -406,6 +408,10 @@ describe('browser requests from the agent', () => {
 		expect(answerTo('req-16')).toMatchObject({
 			ok: true,
 			text: 'Pressed Escape. The page is now http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-30')).toMatchObject({
+			ok: true,
+			text: 'Held w for 2s. The page is now http://localhost:5173/ ("Pricing").',
 		});
 		expect(answerTo('req-17')).toMatchObject({
 			ok: true,

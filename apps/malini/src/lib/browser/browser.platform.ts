@@ -130,7 +130,7 @@ export interface BrowserPlatform {
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo>;
-	press(tab: BrowserTabArgs, key: string): Promise<BrowserPageInfo>;
+	press(tab: BrowserTabArgs, key: string, holdSeconds: number): Promise<BrowserPageInfo>;
 	scroll(
 		tab: BrowserTabArgs,
 		by: { readonly x: number; readonly y: number; readonly selector?: string },

@@ -14,26 +14,26 @@ The agent drives the same browser tabs you see in the inspector, and the tabs it
 A tab shows up as soon as the agent starts opening its page, and a page that does not load says why, such as `ERR_CONNECTION_REFUSED` while your dev server starts.
 Pages see a plain Chrome: its user agent names neither Malini nor Electron, so a site that sends desktop apps elsewhere shows its web page.
 
-| Tool                 | What it does                                                                                  |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| `browser_open`       | Opens a web page or a file from the worktree.                                                 |
-| `browser_snapshot`   | Reads the page and its iframes as text, with a ref such as `@e3` for each element it can use. |
-| `browser_screenshot` | Captures the view, the whole page, or one element.                                            |
-| `browser_click`      | Clicks an element with the mouse.                                                             |
-| `browser_hover`      | Moves the mouse over an element, for menus and tooltips.                                      |
-| `browser_type`       | Types into a field or picks an option, optionally pressing Enter.                             |
-| `browser_press`      | Presses a key or a shortcut, such as `Escape` or `Meta+a`.                                    |
-| `browser_scroll`     | Scrolls the page or the element under the mouse.                                              |
-| `browser_wait`       | Waits for text or an element to show or go, or for a number of seconds.                       |
-| `browser_evaluate`   | Runs JavaScript in the page and returns the result.                                           |
-| `browser_console`    | Reads what the page logged to its console since it loaded.                                    |
-| `browser_upload`     | Picks files from the worktree for a file field, or for the button that opens a file chooser.  |
-| `browser_dialog`     | Answers the alert or confirm dialog the page waits on: OK or Cancel.                          |
-| `browser_back`       | Goes back one page.                                                                           |
-| `browser_forward`    | Goes forward one page.                                                                        |
-| `browser_reload`     | Reloads the page.                                                                             |
-| `browser_resize`     | Sets the page's width, and its height while you do not see the tab.                           |
-| `browser_close`      | Closes the tab it opened, and its page.                                                       |
+| Tool                 | What it does                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `browser_open`       | Opens a web page or a file from the worktree.                                                  |
+| `browser_snapshot`   | Reads the page and its iframes as text, with a ref such as `@e3` for each element it can use.  |
+| `browser_screenshot` | Captures the view, the whole page, or one element.                                             |
+| `browser_click`      | Clicks an element with the mouse.                                                              |
+| `browser_hover`      | Moves the mouse over an element, for menus and tooltips.                                       |
+| `browser_type`       | Types into a field or picks an option, optionally pressing Enter.                              |
+| `browser_press`      | Presses a key or a shortcut, such as `Escape` or `Meta+a`, or holds a key down, as games need. |
+| `browser_scroll`     | Scrolls the page or the element under the mouse.                                               |
+| `browser_wait`       | Waits for text or an element to show or go, or for a number of seconds.                        |
+| `browser_evaluate`   | Runs JavaScript in the page and returns the result.                                            |
+| `browser_console`    | Reads what the page logged to its console since it loaded.                                     |
+| `browser_upload`     | Picks files from the worktree for a file field, or for the button that opens a file chooser.   |
+| `browser_dialog`     | Answers the alert or confirm dialog the page waits on: OK or Cancel.                           |
+| `browser_back`       | Goes back one page.                                                                            |
+| `browser_forward`    | Goes forward one page.                                                                         |
+| `browser_reload`     | Reloads the page.                                                                              |
+| `browser_resize`     | Sets the page's width, and its height while you do not see the tab.                            |
+| `browser_close`      | Closes the tab it opened, and its page.                                                        |
 
 Every tool works while you do not see the tab, look at another workstream, or keep Malini behind other windows.
 The agent names an element by a ref from its last `browser_snapshot` or by a CSS selector.

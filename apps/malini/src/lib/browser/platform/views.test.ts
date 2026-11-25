@@ -986,7 +986,7 @@ describe('BrowserViews', () => {
 		const { contents } = viewAt(0);
 		expect(contents.throttled).toBe(false);
 
-		await browser.press(TAB, 'Shift+Tab');
+		await browser.press(TAB, 'Shift+Tab', 0);
 		await browser.hover(TAB, '@e2');
 		contents.scriptOutcomes.push(
 			{ x: 0, y: 0, height: 3_000, viewport: { width: 1_280, height: 800 } },
@@ -998,7 +998,7 @@ describe('BrowserViews', () => {
 			y: 600,
 			height: 3_000,
 		});
-		await expect(browser.press(TAB, 'Hyper+K')).rejects.toThrow(
+		await expect(browser.press(TAB, 'Hyper+K', 0)).rejects.toThrow(
 			'`Hyper+K` is not a key Malini knows.',
 		);
 

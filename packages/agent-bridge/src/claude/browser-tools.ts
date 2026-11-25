@@ -94,7 +94,7 @@ export function maliniTools(
 		),
 		tool(
 			'browser_press',
-			"Press a key or a key combination in Malini's browser, on the element that has focus.",
+			"Press a key or a key combination in Malini's browser, on the element that has focus, and wait for the page to settle. To drive a game that reads held keys, click the game first, then hold the key for some seconds.",
 			{
 				key: z
 					.string()
@@ -102,8 +102,15 @@ export function maliniTools(
 					.describe(
 						'A key name or a single character, with modifiers joined by +, for example Escape, Enter, Tab, Shift+Tab, ArrowDown, Meta+K or a',
 					),
+				holdSeconds: z
+					.number()
+					.min(0)
+					.max(MAX_WAIT_SECONDS)
+					.default(0)
+					.describe('How long to hold the key down before releasing it, for example 2'),
 			},
-			({ key }) => run({ action: 'press', key }),
+			({ key, holdSeconds }) => run({ action: 'press', key, holdSeconds }),
+			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_scroll',

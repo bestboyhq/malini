@@ -392,13 +392,17 @@ describe('browser requests', () => {
 		}
 		for (const target of [
 			{ action: 'hover', selector: '@e3' },
-			{ action: 'press', key: 'Meta+K' },
+			{ action: 'press', key: 'w', holdSeconds: 2.5 },
 		]) {
 			expect(decodeControlFrame({ ...frame, ...target })).toEqual({
 				ok: true,
 				value: { ...frame, ...target },
 			});
 		}
+		expect(decodeControlFrame({ ...frame, action: 'press', key: 'Meta+K' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'press', key: 'Meta+K', holdSeconds: 0 },
+		});
 		expect(decodeControlFrame({ ...frame, action: 'scroll', y: 600 })).toEqual({
 			ok: true,
 			value: { ...frame, action: 'scroll', x: 0, y: 600 },
@@ -459,6 +463,12 @@ describe('browser requests', () => {
 			error: 'bridge.browser_request: `seconds` must be above zero',
 		});
 		expect(decodeControlFrame({ ...frame, action: 'press' })).toMatchObject({ ok: false });
+		for (const holdSeconds of [-1, 31]) {
+			expect(decodeControlFrame({ ...frame, action: 'press', key: 'w', holdSeconds })).toEqual({
+				ok: false,
+				error: 'bridge.browser_request: `holdSeconds` must be from 0 to 30',
+			});
+		}
 		expect(decodeControlFrame({ ...frame, action: 'evaluate' })).toMatchObject({ ok: false });
 		expect(decodeControlFrame({ ...frame, action: 'open' })).toEqual({
 			ok: false,

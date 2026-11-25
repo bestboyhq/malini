@@ -333,8 +333,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return this.act(tab, (contents) => hoverTarget(contents, selector));
 	}
 
-	press(tab: BrowserTabArgs, key: string): Promise<BrowserPageInfo> {
-		return this.act(tab, (contents) => pressKey(contents, key));
+	press(tab: BrowserTabArgs, key: string, holdSeconds: number): Promise<BrowserPageInfo> {
+		return this.act(tab, (contents) => pressKey(contents, key, holdSeconds));
 	}
 
 	type(

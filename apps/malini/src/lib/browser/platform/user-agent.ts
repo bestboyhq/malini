@@ -4,3 +4,7 @@ export function chromeUserAgent(electronUserAgent: string): string {
 		.replace(/ Electron\/\S+/u, '')
 		.replace(/Chrome\/(\d+)\S*/u, 'Chrome/$1.0.0.0');
 }
+
+export function googleSignInUserAgent(userAgent: string): string {
+	return userAgent.replace(/Chrome\/\S+/u, 'Chrome');
+}
