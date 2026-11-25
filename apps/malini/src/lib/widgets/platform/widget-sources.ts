@@ -2,74 +2,67 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+	fillWidgetKeys,
 	parseWidgetData,
+	widgetSite,
 	type WidgetData,
-	type WidgetNeed,
 	type WidgetSource,
 } from '$contract/widgets';
 import { describeError } from '$main/errors';
+import { DownloadError, readBounded, type Fetch } from '$main/fs/download';
 import { runBounded, type ProcessRunner } from '$main/process/runner';
 import type { RepositoriesPlatform } from '$shared/repositories/repositories.platform';
 import { WidgetError } from './widget-files';
 
 export const SOURCE_TIMEOUT_MS = 20_000;
 const ERROR_MAX_LENGTH = 300;
-
-export type McpToolOutcome =
-	| Readonly<{ kind: 'output'; text: string }>
-	| Readonly<{ kind: 'missing' | 'needs-auth' | 'off' | 'no-tool' | 'not-read-only' }>
-	| Readonly<{ kind: 'failed'; error: string }>;
-
-export type McpToolCaller = (
-	cwd: string,
-	server: string,
-	tool: string,
-	args: Readonly<Record<string, unknown>>,
-) => Promise<McpToolOutcome>;
+const ANSWER_MAX_BYTES = 5 * 1024 * 1024;
+const ANSWER_DETAIL_MAX_LENGTH = 160;
 
 export type SourceDeps = Readonly<{
 	gh: RepositoriesPlatform['gh'];
 	runner: ProcessRunner;
 	environment: () => Readonly<Record<string, string>>;
-	mcp: McpToolCaller;
+	fetch: Fetch;
 }>;
 
-export type SourceOutcome =
-	Readonly<{ data: WidgetData }> | Readonly<{ error: string; need: WidgetNeed | null }>;
+export type SourceOutcome = Readonly<{ data: WidgetData }> | Readonly<{ error: string }>;
 
-type McpSource = Extract<WidgetSource, { kind: 'mcp' }>;
-
-class SourceNeed extends WidgetError {
-	readonly need: WidgetNeed;
-
-	constructor(need: WidgetNeed, message: string) {
-		super('source-failed', message);
-		this.need = need;
-	}
-}
+type HttpSource = Extract<WidgetSource, { kind: 'http' }>;
 
 export async function readWidgetSource(
 	source: WidgetSource,
 	checkout: string,
 	deps: SourceDeps,
+	keys: Readonly<Record<string, string>>,
 ): Promise<SourceOutcome> {
 	try {
-		return widgetData(await sourceOutput(source, checkout, deps));
+		return widgetData(await sourceOutput(source, checkout, deps, keys));
 	} catch (error) {
-		return {
-			error: describeError(error).trim().slice(0, ERROR_MAX_LENGTH),
-			need: error instanceof SourceNeed ? error.need : null,
-		};
+		return { error: masked(describeError(error), keys).trim().slice(0, ERROR_MAX_LENGTH) };
 	}
 }
 
-function sourceOutput(source: WidgetSource, checkout: string, deps: SourceDeps): Promise<string> {
-	if (source.kind === 'github') return githubOutput(source.path, source.select, checkout, deps);
-	if (source.kind === 'mcp') return mcpOutput(source, checkout, deps);
-	if (source.kind === 'command') {
-		throw failed('Widgets read MCP servers now, not scripts. Ask the agent to move this one.');
+async function sourceOutput(
+	source: WidgetSource,
+	checkout: string,
+	deps: SourceDeps,
+	keys: Readonly<Record<string, string>>,
+): Promise<string> {
+	switch (source.kind) {
+		case 'github':
+			return githubOutput(source.path, source.select, checkout, deps);
+		case 'http': {
+			const answer = await httpOutput(source, deps.fetch, keys);
+			return source.select === null ? answer : selected(answer, source.select, deps);
+		}
+		case 'retired':
+			throw failed(
+				'Widgets read APIs now, not scripts or MCP tools. Ask the agent to move this one.',
+			);
+		case 'plan':
+			throw failed('Malini draws the plan itself.');
 	}
-	throw failed('Malini draws the plan itself.');
 }
 
 async function githubOutput(
@@ -88,24 +81,40 @@ async function githubOutput(
 	return result.stdout;
 }
 
-async function mcpOutput(source: McpSource, checkout: string, deps: SourceDeps): Promise<string> {
-	const { server, tool } = source;
-	const outcome = await deps.mcp(checkout, server, tool, source.arguments);
-	switch (outcome.kind) {
-		case 'output':
-			return source.select === null ? outcome.text : selected(outcome.text, source.select, deps);
-		case 'missing':
-			throw new SourceNeed('add', `${server} is not one of your MCP servers.`);
-		case 'needs-auth':
-			throw new SourceNeed('sign-in', `${server} needs you to sign in.`);
-		case 'off':
-			throw new SourceNeed('turn-on', `${server} is turned off.`);
-		case 'no-tool':
-			throw failed(`${server} has no tool \`${tool}\`.`);
-		case 'not-read-only':
-			throw failed(`\`${tool}\` can change data, so a widget cannot run it.`);
-		case 'failed':
-			throw failed(outcome.error);
+async function httpOutput(
+	source: HttpSource,
+	fetch: Fetch,
+	keys: Readonly<Record<string, string>>,
+): Promise<string> {
+	const site = widgetSite(source.url);
+	const headers = new Headers(
+		Object.entries(source.headers).map(([name, value]) => [name, fillWidgetKeys(value, keys)]),
+	);
+	if (source.body !== null && !headers.has('content-type')) {
+		headers.set('content-type', 'application/json');
+	}
+	const signal = AbortSignal.timeout(SOURCE_TIMEOUT_MS);
+	try {
+		const response = await fetch(source.url, {
+			method: source.method,
+			headers,
+			...(source.body === null ? {} : { body: JSON.stringify(source.body) }),
+			redirect: 'manual',
+			signal,
+		});
+		const answer = (await readBounded(response, ANSWER_MAX_BYTES)).toString('utf8');
+		if (response.status >= 300 && response.status < 400) {
+			throw failed(`${site} redirected the request. Save the address it redirects to.`);
+		}
+		if (!response.ok) throw failed(`${site} answered ${response.status}.${detail(answer)}`);
+		return answer;
+	} catch (error) {
+		if (error instanceof WidgetError) throw error;
+		if (signal.aborted) throw failed(`${site} did not answer within 20 s.`);
+		if (error instanceof DownloadError && error.kind === 'too-large') {
+			throw failed(`${site} answered with more than 5 MB.`);
+		}
+		throw failed(`${site} did not answer: ${describeError(error)}`);
 	}
 }
 
@@ -135,12 +144,22 @@ function widgetData(output: string): SourceOutcome {
 	try {
 		parsed = JSON.parse(output);
 	} catch {
-		return { error: 'The source did not print JSON.', need: null };
+		return { error: 'The source did not print JSON.' };
 	}
 	const data = parseWidgetData(parsed);
-	return data === null
-		? { error: 'The source printed JSON, but not an object.', need: null }
-		: { data };
+	return data === null ? { error: 'The source printed JSON, but not an object.' } : { data };
+}
+
+function detail(answer: string): string {
+	const flat = answer.replace(/\s+/gu, ' ').trim();
+	return flat === '' ? '' : ` ${flat.slice(0, ANSWER_DETAIL_MAX_LENGTH)}`;
+}
+
+function masked(text: string, keys: Readonly<Record<string, string>>): string {
+	return Object.values(keys).reduce(
+		(shown, value) => (value === '' ? shown : shown.replaceAll(value, '[secret]')),
+		text,
+	);
 }
 
 function lastLine(text: string): string {

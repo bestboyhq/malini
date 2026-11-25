@@ -5,7 +5,6 @@
 	import { cubicOut } from 'svelte/easing';
 	import type {
 		WidgetDefinition,
-		WidgetNeed,
 		WidgetPlacement,
 		WidgetReading,
 		WidgetSize,
@@ -15,6 +14,7 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { motionOff } from '$hyper-ui/motion/motion-off';
+	import { allowWidgetKeysCommand } from '$lib/widgets/application/commands/allow-widget-keys.command';
 	import { loadWidgetBoardCommand } from '$lib/widgets/application/commands/load-widget-board.command';
 	import { placeWidgetCommand } from '$lib/widgets/application/commands/place-widget.command';
 	import { removeWidgetCommand } from '$lib/widgets/application/commands/remove-widget.command';
@@ -43,7 +43,6 @@
 		onopen: (url: string) => void;
 		onnew?: ((prompt: string, inNewChat: boolean) => void) | undefined;
 		onshare?: ((widget: WidgetDefinition, inNewChat: boolean) => void) | undefined;
-		onneed?: ((widget: WidgetDefinition, need: WidgetNeed, inNewChat: boolean) => void) | undefined;
 		plan?: Snippet<[WidgetSize]> | undefined;
 		planHeader?: Snippet | undefined;
 		planHref?: string | undefined;
@@ -63,8 +62,7 @@
 
 	type Sizing = Readonly<{ widgetId: string; span: WidgetSpan }>;
 
-	let { workstreamId, onopen, onnew, onshare, onneed, plan, planHeader, planHref }: Props =
-		$props();
+	let { workstreamId, onopen, onnew, onshare, plan, planHeader, planHref }: Props = $props();
 
 	const DRAG_THRESHOLD = 4;
 	const SETTLE_MS = 150;
@@ -427,7 +425,7 @@
 							{planHeader}
 							titleHref={widget.source.kind === 'plan' ? planHref : undefined}
 							{onopen}
-							onneed={onneed && ((need, inNewChat) => onneed(widget, need, inNewChat))}
+							onkeys={(values) => allowWidgetKeysCommand(workstreamId, widget.id, values)}
 							author={madeBy === null ? undefined : authorMark}
 						/>
 						<span

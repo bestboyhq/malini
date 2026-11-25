@@ -1,18 +1,22 @@
-import { isEventChannel } from '$contract/events';
-import type { McpServerReport } from '$contract/mcp-servers';
+import { isEventChannel, SECRETS_DELETED_CHANNEL, SECRETS_SAVED_CHANNEL } from '$contract/events';
 import {
 	PLAN_WIDGET_ID,
 	PLAN_WIDGET_SPAN,
 	WIDGET_DEFAULT_SPAN,
+	widgetKeyNames,
+	widgetSite,
 	type WidgetBoard,
 	type WidgetDefinition,
+	type WidgetNeed,
 	type WidgetPlacement,
 	type WidgetReading,
+	type WidgetSource,
 	type WidgetSpan,
 } from '$contract/widgets';
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
 import { isRecord } from '$main/db/rows';
+import type { SecretsPlatform } from '$lib/secrets/secrets.platform';
 import {
 	getProject,
 	getWorkstream,
@@ -31,7 +35,7 @@ import {
 	readWidgetFiles,
 	widgetPath,
 } from './widget-files';
-import { readWidgetSource, type McpToolCaller, type SourceDeps } from './widget-sources';
+import { readWidgetSource, type SourceDeps } from './widget-sources';
 import {
 	copyWidgetFile,
 	deleteMine,
@@ -44,6 +48,8 @@ import {
 	type SharedBase,
 } from './widget-store';
 import {
+	allowedKeys,
+	allowKeys,
 	forgetReading,
 	getReading,
 	listPlacements,
@@ -64,7 +70,8 @@ export type WidgetsDeps = Readonly<{
 	gh: RepositoriesPlatform['gh'];
 	runner: SourceDeps['runner'];
 	environment: () => Readonly<Record<string, string>>;
-	mcp: McpToolCaller;
+	fetch: SourceDeps['fetch'];
+	secrets: Pick<SecretsPlatform, 'valuesReaching' | 'save'>;
 	log: (line: string) => void;
 	eventDebounceMs?: number;
 	sharedCheckMs?: number;
@@ -73,6 +80,12 @@ export type WidgetsDeps = Readonly<{
 export type SavedWidget = Readonly<{ widget: WidgetDefinition; reading: WidgetReading }>;
 
 type Location = Readonly<{ board: string; repository: string | null; github: boolean }>;
+
+type HttpSource = Extract<WidgetSource, { kind: 'http' }>;
+
+type Keys =
+	| Readonly<{ values: Readonly<Record<string, string>> }>
+	| Readonly<{ error: string; need: WidgetNeed }>;
 
 type Opened = Location &
 	Readonly<{
@@ -219,10 +232,10 @@ export class WidgetBoards {
 			);
 		}
 		const widget = parseWidgetFile(id, { ...input, author: await this.#login() }, 'mine');
-		if (widget.source.kind === 'command') {
+		if (widget.source.kind === 'retired') {
 			throw new WidgetError(
 				'bad-widget',
-				'Widgets read MCP servers, not scripts. Give `source.mcp` with the `server`, `tool` and `arguments` of a read-only tool, or `source.github`.',
+				'Widgets read APIs, not scripts or MCP tools. Give `source.http` with the `url` of a request that only reads, or `source.github`.',
 			);
 		}
 		const unknown = unknownChannels(input['refresh'], widget);
@@ -234,6 +247,7 @@ export class WidgetBoards {
 		}
 		await this.#write(() => writeMine(opened.root, widget));
 		const { db } = this.#context;
+		if (widget.source.kind === 'http') allowSource(db, opened.board, widget.source);
 		const placed = listPlacements(db, opened.board);
 		if (!placed.some((placement) => placement.widgetId === id)) {
 			placeWidget(db, opened.board, {
@@ -246,6 +260,27 @@ export class WidgetBoards {
 		this.#replan(saved.board);
 		const reading = await this.#read(saved, this.#widget(saved, id));
 		return { widget: this.#widget(saved, id), reading };
+	}
+
+	async allowKeys(
+		workstreamId: string,
+		widgetId: string,
+		values: Readonly<Record<string, string>>,
+	): Promise<WidgetReading> {
+		const opened = await this.#open(workstreamId);
+		const widget = this.#widget(opened, widgetId);
+		const { source } = widget;
+		const names = source.kind === 'http' ? widgetKeyNames(source.headers) : [];
+		if (source.kind !== 'http' || names.length === 0) {
+			throw new WidgetError('bad-widget', `\`${widgetId}\` sends no keys.`);
+		}
+		const unasked = Object.keys(values).find((name) => !names.includes(name));
+		if (unasked !== undefined) {
+			throw new WidgetError('invalid-argument', `\`${widgetId}\` does not send ${unasked}.`);
+		}
+		if (Object.keys(values).length > 0) this.#deps.secrets.save(opened.repository, values);
+		allowSource(this.#context.db, opened.board, source);
+		return this.#read(opened, widget);
 	}
 
 	dispose(): void {
@@ -308,7 +343,7 @@ export class WidgetBoards {
 		);
 		if (missing.size === 0) return false;
 		const files = await readWidgetFiles(checkout, 'mine', () => undefined);
-		const found = files.filter(({ id }) => missing.has(id));
+		const found = files.filter(({ id, source }) => missing.has(id) && source.kind !== 'retired');
 		for (const widget of found) await this.#write(() => writeMine(root, widget));
 		return found.length > 0;
 	}
@@ -439,19 +474,44 @@ export class WidgetBoards {
 
 	async #fetch(opened: Opened, widget: WidgetDefinition): Promise<void> {
 		const { db } = this.#context;
-		const { gh, runner, environment, mcp } = this.#deps;
-		const outcome = await readWidgetSource(widget.source, opened.checkout, {
-			gh,
-			runner,
-			environment,
-			mcp,
-		});
+		const keys = this.#keys(opened, widget.source);
+		if ('need' in keys) {
+			recordFailedRead(db, opened.board, widget.id, widget.fingerprint, keys);
+			return;
+		}
+		const outcome = await readWidgetSource(widget.source, opened.checkout, this.#deps, keys.values);
 		if ('data' in outcome) {
 			recordRead(db, opened.board, widget.id, widget.fingerprint, outcome.data);
 			return;
 		}
-		if (widget.source.kind === 'command') forgetReading(db, opened.board, widget.id);
-		recordFailedRead(db, opened.board, widget.id, widget.fingerprint, outcome);
+		if (widget.source.kind === 'retired') forgetReading(db, opened.board, widget.id);
+		recordFailedRead(db, opened.board, widget.id, widget.fingerprint, { ...outcome, need: null });
+	}
+
+	#keys(opened: Opened, source: WidgetSource): Keys {
+		if (source.kind !== 'http') return { values: {} };
+		const names = widgetKeyNames(source.headers);
+		if (names.length === 0) return { values: {} };
+		const saved = this.#deps.secrets.valuesReaching(opened.repository);
+		const allowed = allowedKeys(this.#context.db, opened.board, new URL(source.url).origin);
+		const missing = names.filter((name) => !Object.hasOwn(saved, name));
+		const blocked = names.filter((name) => !allowed.has(name));
+		const site = widgetSite(source.url);
+		if (missing.length > 0) {
+			const it = missing.length === 1 ? 'it' : 'them';
+			return {
+				need: { missing },
+				error: `Needs ${listed(missing)}. Malini sends ${it} only to ${site}.`,
+			};
+		}
+		if (blocked.length > 0) {
+			const [is, it] = blocked.length === 1 ? ['is', 'it'] : ['are', 'them'];
+			return {
+				need: { missing },
+				error: `${listed(blocked)} ${is} saved. Allow Malini to send ${it} to ${site}.`,
+			};
+		}
+		return { values: Object.fromEntries(names.map((name) => [name, saved[name] ?? ''])) };
 	}
 
 	#emitReading(board: string, widget: WidgetDefinition): WidgetReading {
@@ -486,7 +546,7 @@ export class WidgetBoards {
 			const fresh =
 				Number.isNaN(attempted) ||
 				(moved && widget.origin === 'shared') ||
-				widget.source.kind === 'command';
+				widget.source.kind === 'retired';
 			const due = fresh ? 0 : Math.max(0, attempted + every - Date.now());
 			this.#every(watch, opened, widget, due);
 			for (const channel of widget.refresh.on) {
@@ -495,8 +555,7 @@ export class WidgetBoards {
 					this.#context.events.subscribe(channel, () => this.#soon(watch, opened, widget)),
 				);
 			}
-			if (widget.source.kind === 'mcp')
-				this.#onServerBack(watch, opened, widget, widget.source.server);
+			if (widget.source.kind === 'http') this.#onKeysChanged(watch, opened, widget, widget.source);
 		}
 		const check = setInterval(
 			() => void this.#checkShared(watch, opened).catch(() => undefined),
@@ -527,15 +586,17 @@ export class WidgetBoards {
 		watch.timers.push(first);
 	}
 
-	#onServerBack(watch: Watch, opened: Opened, widget: WidgetDefinition, server: string): void {
-		const back = (servers: readonly McpServerReport[]): void => {
-			if (this.#reading(opened.board, widget).need === null) return;
-			if (!servers.some(({ name, status }) => name === server && status === 'connected')) return;
-			this.#soon(watch, opened, widget);
+	#onKeysChanged(watch: Watch, opened: Opened, widget: WidgetDefinition, source: HttpSource): void {
+		const names = widgetKeyNames(source.headers);
+		if (names.length === 0) return;
+		const changed = (touched: readonly string[]): void => {
+			if (touched.some((name) => names.includes(name))) this.#soon(watch, opened, widget);
 		};
 		watch.unsubscribes.push(
-			this.#context.events.subscribe('chat:mcp-server-changed', (changed) => back([changed])),
-			this.#context.events.subscribe('chat:mcp-servers-listed', ({ servers }) => back(servers)),
+			this.#context.events.subscribe(SECRETS_SAVED_CHANNEL, ({ names: saved }) => {
+				if (this.#reading(opened.board, widget).error !== null) changed(saved);
+			}),
+			this.#context.events.subscribe(SECRETS_DELETED_CHANNEL, ({ name }) => changed([name])),
 		);
 	}
 
@@ -567,6 +628,14 @@ export class WidgetBoards {
 			return null;
 		}
 	}
+}
+
+function allowSource(db: WidgetsContext['db'], board: string, source: HttpSource): void {
+	allowKeys(db, board, new URL(source.url).origin, widgetKeyNames(source.headers));
+}
+
+function listed(names: readonly string[]): string {
+	return new Intl.ListFormat('en-US', { type: 'conjunction' }).format(names);
 }
 
 function firstSpan(widget: WidgetDefinition): WidgetSpan {

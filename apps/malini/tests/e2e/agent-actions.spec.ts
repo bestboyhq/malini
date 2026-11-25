@@ -258,7 +258,14 @@ test('an agent saves a widget with an MCP source without asking, it lands on the
 			'Widget chores',
 		);
 		await openWorkstream(page, workstreamId);
-		const source = { mcp: { server: 'posthog', tool: 'trend', arguments: { days: 7 } } };
+		const source = {
+			http: {
+				url: 'https://us.posthog.com/api/projects/1/query/',
+				method: 'POST',
+				headers: { authorization: 'Bearer ${POSTHOG_KEY}' },
+				body: { query: { kind: 'TrendsQuery' } },
+			},
+		};
 		agentCalls(app, {
 			tool: 'widgets_save',
 			input: {

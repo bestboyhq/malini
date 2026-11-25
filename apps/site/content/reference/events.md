@@ -1797,9 +1797,7 @@ type WidgetData = Readonly<{
 	url: string | null;
 }>;
 
-const WIDGET_NEEDS = ['add', 'sign-in', 'turn-on'] as const;
-
-type WidgetNeed = (typeof WIDGET_NEEDS)[number];
+type WidgetNeed = Readonly<{ missing: readonly string[] }>;
 
 type WidgetReading = Readonly<{
 	board: string;

@@ -511,7 +511,20 @@ describe('malini MCP server', () => {
 				},
 				title: { type: 'string', description: expect.any(String) },
 				scope: { enum: ['shared', 'own'], description: expect.any(String) },
-				source: { anyOf: [{ required: ['mcp'] }, { required: ['github'] }] },
+				source: {
+					anyOf: [
+						{
+							required: ['http'],
+							properties: {
+								http: {
+									required: ['url'],
+									properties: { method: { enum: ['GET', 'POST'] } },
+								},
+							},
+						},
+						{ required: ['github'] },
+					],
+				},
 				refresh: {
 					properties: { every: { type: 'integer', minimum: 15 }, on: { type: 'array' } },
 				},
@@ -587,7 +600,7 @@ describe('malini MCP server', () => {
 		expect(invalid).toMatchObject({ result: { isError: true } });
 	});
 
-	it('sends a widget with an mcp or a github source to malini and refuses a script or a mix', async () => {
+	it('sends a widget with an http or a github source to malini and refuses a script, an mcp tool or a mix', async () => {
 		const { call, platformCalls } = await connect(
 			async () => ({ ok: true }),
 			async () => ({ ok: true, text: '{"widget":{"id":"deploys"}}' }),
@@ -598,26 +611,33 @@ describe('malini MCP server', () => {
 			github: 'repos/{owner}/{repo}/actions/runs?per_page=12',
 			select: '{value: .total_count}',
 		};
-		const mcp = {
-			mcp: {
-				server: 'posthog',
-				tool: 'trend',
-				arguments: { days: 7 },
-				url: 'https://mcp.posthog.com/mcp',
+		const http = {
+			http: {
+				url: 'https://us.posthog.com/api/projects/1234/query/',
+				method: 'POST',
+				headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+				body: { query: { kind: 'HogQLQuery', query: 'select count() from events' } },
+				keyUrl: 'https://us.posthog.com/settings/user-api-keys',
 			},
-			select: '{value: .total}',
+			select: '{value: .results[0][0]}',
 		};
 
 		const saved = await save({ source: github, refresh: { every: 120 } });
-		await save({ id: 'rooms', source: mcp });
+		await save({ id: 'events', source: http });
 		const script = await save({ source: { command: 'node .malini/widgets/rooms.mjs' } });
-		const mixed = await save({ source: { ...github, mcp: mcp.mcp } });
+		const tool = await save({
+			source: { mcp: { server: 'posthog', tool: 'trend', arguments: {} } },
+		});
+		const fileUrl = await save({ source: { http: { url: 'file:///etc/passwd' } } });
+		const mixed = await save({ source: { ...github, http: http.http } });
 		const tooOften = await save({ source: github, refresh: { every: 5 } });
 
 		expect(saved).toMatchObject({
 			result: { content: [{ type: 'text', text: '{"widget":{"id":"deploys"}}' }] },
 		});
 		expect(script).toMatchObject({ result: { isError: true } });
+		expect(tool).toMatchObject({ result: { isError: true } });
+		expect(fileUrl).toMatchObject({ result: { isError: true } });
 		expect(mixed).toMatchObject({ result: { isError: true } });
 		expect(tooOften).toMatchObject({ result: { isError: true } });
 		expect(platformCalls).toEqual([
@@ -627,7 +647,7 @@ describe('malini MCP server', () => {
 			},
 			{
 				tool: 'widgets_save',
-				input: { id: 'rooms', title: 'Deploys', source: mcp },
+				input: { id: 'events', title: 'Deploys', source: http },
 			},
 		]);
 	});

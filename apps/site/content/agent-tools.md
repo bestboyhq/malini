@@ -146,9 +146,11 @@ The agent makes a [widget](/malini/docs/widgets.md) for your board when you ask 
 | -------------- | -------------------------------------------------------------------------------------------------------- |
 | `widgets_save` | Saves a widget in your own widgets, puts it first on your board, two cells by one, and reads it at once. |
 
-- The widget names an `mcp` source, a read-only tool of one of your MCP servers with its `arguments`, or a `github` source, a `gh api` path, each with an optional jq `select`.
-- A tool that can change data is refused, and so is a `command`: widgets run no scripts.
-- The agent calls the tool once itself first, so its `select` fits the answer.
+- The widget names an `http` source, one request to a service's own API, or a `github` source, a `gh api` path, each with an optional jq `select`.
+- A key goes only in a header, as `${NAME}`: the agent asks you for it with `secrets_request` first, and Malini sends it only to the widget's site.
+  The agent asks for a key that can only read, and gives the page where a teammate makes their own.
+- A `command` or an `mcp` source is refused: widgets run no scripts and call no MCP tools.
+- The agent sends the same request once itself first, so its `select` fits the answer.
 - The agent gets back the widget and its first reading.
 - An id the repository already shares from its default branch is refused, since that widget changes through a pull request.
 - The chat shows the widget as a card with the live tile, **On your board** and **Remove**.

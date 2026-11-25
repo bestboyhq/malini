@@ -1,31 +1,33 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type {
-		WidgetData,
-		WidgetDefinition,
-		WidgetNeed,
-		WidgetReading,
-		WidgetRow,
-		WidgetScope,
-		WidgetSize,
-		WidgetSpan,
-		WidgetState,
+	import {
+		widgetSite,
+		type WidgetData,
+		type WidgetDefinition,
+		type WidgetNeed,
+		type WidgetReading,
+		type WidgetRow,
+		type WidgetScope,
+		type WidgetSize,
+		type WidgetSpan,
+		type WidgetState,
 	} from '$contract/widgets';
+	import { SECRET_VALUE_MAX_LENGTH } from '$contract/secrets';
 	import { Button } from '$hyper-ui/components/button';
+	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import { glyphs } from '$hyper-ui/icons/glyphs.generated';
+	import { openKeyPageCommand } from '$lib/widgets/application/commands/open-key-page.command';
 	import { shownSpan, spanLook } from '$lib/widgets/domain/widget-grid';
 	import { rowShare, widgetLayout } from '$lib/widgets/domain/widget-layout';
 	import {
 		WIDGET_STATE_NAMES,
 		deltaOf,
-		needAction,
 		runsLabel,
 		tileName,
 		widgetValue,
 	} from '$lib/widgets/domain/widget-text';
-	import { commandKeyHeld } from '$shared/shell/command-key.svelte';
 	import WidgetChart from './WidgetChart.svelte';
 
 	interface Props {
@@ -39,7 +41,7 @@
 		titleHref?: string | undefined;
 		author?: Snippet | undefined;
 		onopen?: ((url: string) => void) | undefined;
-		onneed?: ((need: WidgetNeed, inNewChat: boolean) => void) | undefined;
+		onkeys?: ((values: Readonly<Record<string, string>>) => Promise<boolean>) | undefined;
 	}
 
 	let {
@@ -53,7 +55,7 @@
 		titleHref,
 		author,
 		onopen,
-		onneed,
+		onkeys,
 	}: Props = $props();
 
 	type Pointer = Readonly<{ x: number; y: number }>;
@@ -95,6 +97,8 @@
 	const HOT_SHARE = 85;
 
 	let pointer = $state<Pointer | null>(null);
+	let keys = $state<Record<string, string>>({});
+	let saving = $state(false);
 
 	const data = $derived(reading?.data ?? sample);
 	const shown = $derived(shownSpan(span, columns));
@@ -144,6 +148,19 @@
 		const names = data?.chart?.series.flatMap((series) => series.label ?? []) ?? [];
 		const kind = data?.chart?.kind === 'bar' ? 'Bar chart' : 'Line chart';
 		return names.length === 0 ? kind : `${kind} of ${names.join(', ')}`;
+	}
+
+	function filled(wanted: WidgetNeed): boolean {
+		return wanted.missing.every((name) => (keys[name] ?? '').trim() !== '');
+	}
+
+	async function submitKeys(event: SubmitEvent, wanted: WidgetNeed): Promise<void> {
+		event.preventDefault();
+		if (!onkeys || saving || !filled(wanted)) return;
+		saving = true;
+		const values = Object.fromEntries(wanted.missing.map((name) => [name, keys[name] ?? '']));
+		if (await onkeys(values)) keys = {};
+		saving = false;
 	}
 
 	function onPointerMove(event: PointerEvent): void {
@@ -359,26 +376,55 @@
 {/snippet}
 
 {#snippet needState(wanted: WidgetNeed)}
-	{@const action = needAction(widget, wanted)}
 	<p class="text-fg-tertiary text-2xs line-clamp-2 leading-4 break-words">{reading?.error}</p>
-	{#if action && onneed}
-		{@const asks = wanted === 'add'}
-		{@const inNewChat = asks && commandKeyHeld()}
-		<span class="pointer-events-auto mt-2 flex" data-widget-chrome>
-			<Tooltip
-				content="Hold ⌘ to add it in a new chat"
-				placement="top"
-				suppressed={!asks || inNewChat}
-			>
+	{#if onkeys && widget.source.kind === 'http'}
+		{@const keyUrl = widget.source.keyUrl}
+		<form
+			class="pointer-events-auto mt-2 flex min-w-0 flex-col gap-1.5"
+			data-widget-chrome
+			onsubmit={(event) => submitKeys(event, wanted)}
+		>
+			{#each wanted.missing as name, index (name)}
+				<span class="flex min-w-0 gap-1.5">
+					<TextInput
+						bind:value={() => keys[name] ?? '', (value) => (keys[name] = String(value))}
+						type="password"
+						size="xs"
+						placeholder={name}
+						ariaLabel={name}
+						autocomplete="off"
+						maxlength={SECRET_VALUE_MAX_LENGTH}
+						disabled={saving}
+						class="min-w-0 flex-1"
+					/>
+					{#if index === wanted.missing.length - 1}
+						<Button
+							type="submit"
+							variant="secondary"
+							size="md"
+							disabled={saving || !filled(wanted)}
+						>
+							Save
+						</Button>
+					{/if}
+				</span>
+			{:else}
+				<span class="flex min-w-0">
+					<Button type="submit" variant="secondary" size="md" disabled={saving} class="min-w-0">
+						<span class="truncate">Allow {widgetSite(widget.source.url)}</span>
+					</Button>
+				</span>
+			{/each}
+			{#if keyUrl && wanted.missing.length > 0 && size !== 'small'}
 				<Button
-					variant="secondary"
-					size="xs"
-					onclick={(event) => onneed?.(wanted, asks && event.metaKey)}
+					bare
+					class="text-fg-tertiary hover:text-fg-default text-2xs flex w-fit items-center gap-1 leading-4"
+					onclick={() => openKeyPageCommand(keyUrl)}
 				>
-					{inNewChat ? `${action} in a new chat` : action}
+					Get a key<Icon name="external-link" size={10} />
 				</Button>
-			</Tooltip>
-		</span>
+			{/if}
+		</form>
 	{/if}
 {/snippet}
 

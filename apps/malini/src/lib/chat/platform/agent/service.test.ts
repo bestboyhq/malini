@@ -1023,22 +1023,23 @@ describe('platform requests from the agent', () => {
 		const widgets: Pick<WidgetsPlatform, 'save'> = {
 			async save(workstreamId, input) {
 				saved.push([workstreamId, input]);
-				const mcp =
-					isRecord(input) && isRecord(input['source']) && isRecord(input['source']['mcp']);
-				const id = mcp ? 'rooms' : 'deploys';
+				const http =
+					isRecord(input) && isRecord(input['source']) && isRecord(input['source']['http']);
+				const id = http ? 'events' : 'deploys';
 				return {
 					widget: {
 						id,
-						title: 'Rooms',
+						title: 'Events',
 						icon: null,
 						scope: 'shared',
-						source: mcp
+						source: http
 							? {
-									kind: 'mcp',
-									server: 'posthog',
-									tool: 'trend',
-									arguments: {},
-									url: null,
+									kind: 'http',
+									url: 'https://us.posthog.com/api/projects/1234/query/',
+									method: 'GET',
+									headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+									body: null,
+									keyUrl: null,
 									select: null,
 								}
 							: { kind: 'github', path: 'repos/{owner}/{repo}/actions/runs', select: null },
@@ -1085,13 +1086,18 @@ describe('platform requests from the agent', () => {
 			const parsed: unknown = JSON.parse(String(result?.['text']));
 			return isRecord(parsed) ? parsed : {};
 		};
-		const rooms = {
-			title: 'Rooms',
-			source: { mcp: { server: 'posthog', tool: 'trend', arguments: {} } },
+		const events = {
+			title: 'Events',
+			source: {
+				http: {
+					url: 'https://us.posthog.com/api/projects/1234/query/',
+					headers: { Authorization: 'Bearer ${POSTHOG_KEY}' },
+				},
+			},
 		};
-		bridge.send(platformRequest('w-1', 'widgets_save', rooms));
-		const mcp = await answer('w-1');
-		bridge.send(platformRequest('w-2', 'widgets_save', rooms));
+		bridge.send(platformRequest('w-1', 'widgets_save', events));
+		const http = await answer('w-1');
+		bridge.send(platformRequest('w-2', 'widgets_save', events));
 		await answer('w-2');
 		bridge.send(
 			platformRequest('w-3', 'widgets_save', {
@@ -1102,9 +1108,9 @@ describe('platform requests from the agent', () => {
 		const github = await answer('w-3');
 
 		expect(saved.map(([workstreamId]) => workstreamId)).toEqual(['ws-1', 'ws-1', 'ws-1']);
-		expect(saved[0]?.[1]).toEqual(rooms);
-		expect(mcp).toEqual({
-			widget: expect.objectContaining({ id: 'rooms', author: 'e2e-user', origin: 'mine' }),
+		expect(saved[0]?.[1]).toEqual(events);
+		expect(http).toEqual({
+			widget: expect.objectContaining({ id: 'events', author: 'e2e-user', origin: 'mine' }),
 			reading: expect.objectContaining({ data: expect.objectContaining({ value: 3 }) }),
 		});
 		expect(github['widget']).toEqual(expect.objectContaining({ id: 'deploys' }));

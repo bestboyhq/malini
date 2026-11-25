@@ -32,22 +32,45 @@ export const WIDGET_ROWS_MAX = 50;
 
 export const WIDGET_HISTORY_MAX = 30;
 
+export const WIDGET_METHODS = ['GET', 'POST'] as const;
+
+export type WidgetMethod = (typeof WIDGET_METHODS)[number];
+
 export type WidgetSource =
 	| Readonly<{ kind: 'github'; path: string; select: string | null }>
 	| Readonly<{
-			kind: 'mcp';
-			server: string;
-			tool: string;
-			arguments: Readonly<Record<string, unknown>>;
+			kind: 'http';
+			url: string;
+			method: WidgetMethod;
+			headers: Readonly<Record<string, string>>;
+			body: Readonly<Record<string, unknown>> | null;
+			keyUrl: string | null;
 			select: string | null;
-			url: string | null;
 	  }>
-	| Readonly<{ kind: 'command'; run: string }>
+	| Readonly<{ kind: 'retired'; line: string }>
 	| Readonly<{ kind: 'plan' }>;
 
-export const WIDGET_NEEDS = ['add', 'sign-in', 'turn-on'] as const;
+export type WidgetNeed = Readonly<{ missing: readonly string[] }>;
 
-export type WidgetNeed = (typeof WIDGET_NEEDS)[number];
+const KEY_PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/gu;
+
+export function widgetKeyNames(headers: Readonly<Record<string, string>>): string[] {
+	return [
+		...new Set(
+			Object.values(headers).flatMap((value) =>
+				[...value.matchAll(KEY_PLACEHOLDER)].flatMap(([, name]) => name ?? []),
+			),
+		),
+	];
+}
+
+export function fillWidgetKeys(value: string, keys: Readonly<Record<string, string>>): string {
+	return value.replace(KEY_PLACEHOLDER, (placeholder, name: string) => keys[name] ?? placeholder);
+}
+
+export function widgetSite(url: string): string {
+	return URL.parse(url)?.host ?? url;
+}
 
 export type WidgetRefresh = Readonly<{ everySeconds: number; on: readonly string[] }>;
 
@@ -147,6 +170,12 @@ export type ResizeWidgetArgs = Readonly<{
 }>;
 
 export type WidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
+
+export type AllowWidgetKeysArgs = Readonly<{
+	workstreamId: string;
+	widgetId: string;
+	values: Readonly<Record<string, string>>;
+}>;
 
 export type ShareWidgetArgs = Readonly<{ workstreamId: string; widgetId: string }>;
 

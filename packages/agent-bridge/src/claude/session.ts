@@ -153,10 +153,6 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 	> & {
 		getContextUsage(opts: { detail: 'summary' }): Promise<ClaudeContextUsage>;
 		mcpAuthenticate?(serverName: string): Promise<unknown>;
-		request?(
-			payload: Readonly<Record<string, unknown>>,
-			options?: { readonly signal?: AbortSignal },
-		): Promise<unknown>;
 	};
 
 interface McpReport {

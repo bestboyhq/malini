@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { isEventChannel } from '$contract/events';
 import {
 	PLAN_WIDGET_ID,
+	WIDGET_METHODS,
 	WIDGET_SCOPES,
 	WIDGETS_FOLDER,
 	type WidgetDefinition,
+	type WidgetMethod,
 	type WidgetOrigin,
 	type WidgetRefresh,
 	type WidgetScope,
@@ -46,9 +48,10 @@ const WIDGET_ID_MAX_LENGTH = 64;
 const DERIVED_ID_MAX_LENGTH = 48;
 const TITLE_MAX_LENGTH = 80;
 const SOURCE_MAX_LENGTH = 2_000;
-const MCP_NAME_MAX_LENGTH = 100;
-const MCP_TOOL = /^[A-Za-z0-9_.-]{1,128}$/u;
-const ARGUMENTS_MAX_LENGTH = 16 * 1024;
+const BODY_MAX_LENGTH = 16 * 1024;
+const HEADERS_MAX = 20;
+const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,100}$/u;
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const FILE_MAX_BYTES = 64 * 1024;
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u;
 const LINE_BREAK = /[\n\r\u2028\u2029]/u;
@@ -182,22 +185,31 @@ function widgetFileText(widget: WidgetDefinition): string {
 }
 
 function sourceFile(source: WidgetSource): Readonly<Record<string, unknown>> {
-	const select = 'select' in source && source.select !== null ? { select: source.select } : {};
-	if (source.kind === 'github') return { github: source.path, ...select };
-	if (source.kind === 'command') return { command: source.run };
-	if (source.kind === 'plan') return {};
-	const { server, tool, url } = source;
+	if (source.kind === 'github') return { github: source.path, ...selectFile(source.select) };
+	if (source.kind !== 'http') return {};
+	const { url, method, headers, body, keyUrl } = source;
 	return {
-		mcp: { server, tool, arguments: source.arguments, ...(url === null ? {} : { url }) },
-		...select,
+		http: {
+			url,
+			method,
+			...(Object.keys(headers).length === 0 ? {} : { headers }),
+			...(body === null ? {} : { body }),
+			...(keyUrl === null ? {} : { keyUrl }),
+		},
+		...selectFile(source.select),
 	};
+}
+
+function selectFile(select: string | null): Readonly<Record<string, string>> {
+	return select === null ? {} : { select };
 }
 
 async function readJson(home: string, path: string): Promise<unknown> {
 	const file = join(home, path);
 	if ((await stat(file)).size > FILE_MAX_BYTES) throw bad('the file is larger than 64 KB');
+	const text = await readFile(file, 'utf8');
 	try {
-		const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
+		const parsed: unknown = JSON.parse(text);
 		return parsed;
 	} catch (error) {
 		throw bad(`the file is not JSON: ${describeError(error)}`);
@@ -205,38 +217,89 @@ async function readJson(home: string, path: string): Promise<unknown> {
 }
 
 function widgetSource(value: unknown): WidgetSource {
-	if (!isRecord(value)) throw bad('`source` must be an object with `mcp` or `github`');
-	const { github, mcp, command, select } = value;
-	if ([github, mcp, command].filter((each) => each !== undefined).length > 1) {
-		throw bad('`source` names one of `mcp` or `github`');
+	if (!isRecord(value)) throw bad('`source` must be an object with `http` or `github`');
+	const { github, http, mcp, command, select } = value;
+	if ([github, http, mcp, command].filter((each) => each !== undefined).length > 1) {
+		throw bad('`source` names one of `http` or `github`');
 	}
-	if (mcp !== undefined) return { ...mcpTool(mcp), select: optional(select, jq) };
+	if (http !== undefined) return { ...httpRequest(http), select: optional(select, jq) };
 	if (github !== undefined) {
 		return { kind: 'github', path: githubPath(github), select: optional(select, jq) };
 	}
-	if (typeof command === 'string' && command.trim() !== '') {
-		return { kind: 'command', run: command.trim().slice(0, SOURCE_MAX_LENGTH) };
-	}
-	throw bad('`source` must name an `mcp` tool or a `github` API path');
+	const retired = retiredLine(mcp, command);
+	if (retired !== null) return { kind: 'retired', line: retired };
+	throw bad('`source` must name an `http` request or a `github` API path');
 }
 
-function mcpTool(value: unknown): Omit<Extract<WidgetSource, { kind: 'mcp' }>, 'select'> {
-	if (!isRecord(value)) {
-		throw bad('`source.mcp` must be an object with `server`, `tool` and `arguments`');
+function retiredLine(mcp: unknown, command: unknown): string | null {
+	if (typeof command === 'string' && command.trim() !== '') return oneLine(`Runs ${command}`);
+	if (isRecord(mcp) && typeof mcp['server'] === 'string' && typeof mcp['tool'] === 'string') {
+		return oneLine(`${mcp['server']} · ${mcp['tool']}`);
 	}
-	const server = typeof value['server'] === 'string' ? value['server'].trim() : '';
-	if (server === '' || server.length > MCP_NAME_MAX_LENGTH || LINE_BREAK.test(server)) {
-		throw bad('`source.mcp.server` must be the name of one of your MCP servers');
+	return null;
+}
+
+function oneLine(text: string): string {
+	return text.replace(/\s+/gu, ' ').trim().slice(0, SOURCE_MAX_LENGTH);
+}
+
+function httpRequest(value: unknown): Omit<Extract<WidgetSource, { kind: 'http' }>, 'select'> {
+	if (!isRecord(value)) throw bad('`source.http` must be an object with a `url`');
+	const method = optional(value['method'], httpMethod) ?? 'GET';
+	const body = optional(value['body'], requestBody);
+	if (body !== null && method === 'GET') throw bad('`source.http.body` needs `"method": "POST"`');
+	return {
+		kind: 'http',
+		url: apiUrl(value['url']),
+		method,
+		headers: optional(value['headers'], requestHeaders) ?? {},
+		body,
+		keyUrl: optional(value['keyUrl'], webUrl),
+	};
+}
+
+function apiUrl(value: unknown): string {
+	const url =
+		typeof value === 'string' && value.length <= SOURCE_MAX_LENGTH ? URL.parse(value) : null;
+	const reachable =
+		url?.protocol === 'https:' || (url?.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname));
+	if (url === null || !reachable || url.username !== '' || url.password !== '') {
+		throw bad('`source.http.url` must be an https address, or http on localhost');
 	}
-	const tool = value['tool'];
-	if (typeof tool !== 'string' || !MCP_TOOL.test(tool)) {
-		throw bad("`source.mcp.tool` must be the name of one of that server's tools");
+	return url.href;
+}
+
+function httpMethod(value: unknown): WidgetMethod {
+	const upper = typeof value === 'string' ? value.toUpperCase() : value;
+	const known = WIDGET_METHODS.find((method) => method === upper);
+	if (known === undefined) throw bad('`source.http.method` must be `GET` or `POST`');
+	return known;
+}
+
+function requestHeaders(value: unknown): Readonly<Record<string, string>> {
+	if (!isRecord(value) || Object.keys(value).length > HEADERS_MAX) {
+		throw bad(`\`source.http.headers\` must map up to ${HEADERS_MAX} header names to text`);
 	}
-	const args = value['arguments'] ?? {};
-	if (!isRecord(args) || JSON.stringify(args).length > ARGUMENTS_MAX_LENGTH) {
-		throw bad("`source.mcp.arguments` must be an object of the tool's arguments, under 16 KB");
+	return Object.fromEntries(
+		Object.entries(value).map(([name, text]) => {
+			if (
+				!HEADER_NAME.test(name) ||
+				typeof text !== 'string' ||
+				text.length > SOURCE_MAX_LENGTH ||
+				LINE_BREAK.test(text)
+			) {
+				throw bad('`source.http.headers` must map header names to one line of text each');
+			}
+			return [name, text];
+		}),
+	);
+}
+
+function requestBody(value: unknown): Readonly<Record<string, unknown>> {
+	if (!isRecord(value) || JSON.stringify(value).length > BODY_MAX_LENGTH) {
+		throw bad('`source.http.body` must be a JSON object under 16 KB');
 	}
-	return { kind: 'mcp', server, tool, arguments: args, url: optional(value['url'], webUrl) };
+	return value;
 }
 
 function githubPath(value: unknown): string {

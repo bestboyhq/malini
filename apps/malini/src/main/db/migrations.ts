@@ -2121,6 +2121,17 @@ ALTER TABLE widget_placements DROP COLUMN approved_fingerprint;
 	`
 ALTER TABLE widget_readings ADD COLUMN need TEXT CHECK (need IN ('add', 'sign-in', 'turn-on'));
 `,
+	`
+ALTER TABLE widget_readings DROP COLUMN need;
+ALTER TABLE widget_readings ADD COLUMN need TEXT;
+CREATE TABLE widget_key_origins (
+  board TEXT NOT NULL COLLATE NOCASE,
+  name TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  allowed_at TEXT NOT NULL,
+  PRIMARY KEY (board, name, origin)
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
