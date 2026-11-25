@@ -34,6 +34,7 @@ export type { CheckoutHealthGuard, CheckoutResolver };
 export type { InstallOutcome, InstallRegistry };
 export type { TeardownGuard } from './platform/teardown.service';
 export {
+	checkoutTrashRoot,
 	deleteWorkstreamSnapshotRefs,
 	restoreStrandedCheckouts,
 } from './platform/teardown.service';
