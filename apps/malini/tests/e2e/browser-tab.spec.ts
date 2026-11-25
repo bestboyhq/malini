@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'no
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { createServer as createViteServer } from 'vite';
 import { worktreePageUrl } from '../../src/contract/browser';
 import {
@@ -227,6 +227,80 @@ test('a new browser tab scrolls the inspector tabs until all of it shows, also o
 		server.close();
 	}
 });
+
+test('a click on the page address selects all of it, and a double-click selects only the word under the mouse', async () => {
+	test.setTimeout(120_000);
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end('<!doctype html><title>Guide</title><h1>Guide</h1>');
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-browser-address-ws', 'Address');
+		await openWorkstream(page, seeded.workstreamId);
+		await showInspector(page);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+		await openTab(page, origin, '/docs/getting-started');
+		await expect(inspector.getByRole('tab', { name: 'Guide', selected: true })).toBeVisible();
+		const address = page.getByRole('textbox', { name: 'Page address' });
+		await expect(address).not.toBeFocused();
+
+		const docs = await pointAtWord(address, 'docs');
+		await page.mouse.dblclick(docs.x, docs.y);
+		await expect.poll(() => selectedText(address)).toBe('docs');
+
+		await address.press('Escape');
+		await expect(address).not.toBeFocused();
+		const host = await pointAtWord(address, 'localhost');
+		await page.mouse.click(host.x, host.y);
+		await expect.poll(() => selectedText(address)).toBe(`${origin}/docs/getting-started`);
+
+		const guide = await pointAtWord(address, 'getting');
+		await page.mouse.dblclick(guide.x, guide.y);
+		await expect.poll(() => selectedText(address)).toBe('getting');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+function selectedText(address: Locator): Promise<string> {
+	return address.evaluate((input) => {
+		const view = input.ownerDocument.defaultView;
+		return view && input instanceof view.HTMLInputElement
+			? input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0)
+			: '';
+	});
+}
+
+function pointAtWord(address: Locator, word: string): Promise<{ x: number; y: number }> {
+	return address.evaluate((input, word) => {
+		const view = input.ownerDocument.defaultView;
+		const context = input.ownerDocument.createElement('canvas').getContext('2d');
+		if (!view || !(input instanceof view.HTMLInputElement) || !context) {
+			throw new Error('no address to measure');
+		}
+		const style = view.getComputedStyle(input);
+		context.font = style.font;
+		const before = context.measureText(input.value.slice(0, input.value.indexOf(word))).width;
+		const box = input.getBoundingClientRect();
+		return {
+			x:
+				box.left +
+				parseFloat(style.paddingLeft) +
+				before +
+				context.measureText(word).width / 2 -
+				input.scrollLeft,
+			y: box.top + box.height / 2,
+		};
+	}, word);
+}
 
 test('a browser tab says why its page did not load, hides the page meanwhile, and shows it once a reload reaches the server', async () => {
 	test.setTimeout(120_000);
