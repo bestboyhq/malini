@@ -92,7 +92,7 @@ Send prompts and commit only in workstreams created inside the sandbox; a flow t
 
 `scripts/malini.mjs` exports `launch(topic, { foreground, executablePath, temp })`.
 It returns the Playwright `page`, the Electron `app`, `errors` (console and page errors), `shot(name)`, and `close()`.
-`shot` waits for transitions to settle, then captures Malini's own window with Electron's `capturePage()` into `.context/<name>.png`.
+`shot` waits for transitions to settle, then captures Malini's own window with Electron's `capturePage()` into `.context/<name>.png`, at 1x so a Retina capture costs a reader a quarter of the tokens.
 It needs no screen recording permission, so it runs inside Malini's sandbox, where `screencapture` cannot.
 
 Write the flow as `$P/flow.mjs`, importing the launcher by its absolute path, and run it with `node`:

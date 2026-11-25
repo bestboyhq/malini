@@ -10,7 +10,7 @@ const BODY_RULES: Record<AgentReport, string> = {
 
 describe('systemPromptAppend', () => {
 	it.each(AGENT_REPORTS)('asks for the %s report body and the turn footer', (report) => {
-		const prompt = systemPromptAppend('/nonexistent/worktree', report);
+		const prompt = systemPromptAppend(report);
 
 		expect(prompt).toContain(`at the ${report} report resolution`);
 		for (const other of AGENT_REPORTS) {
@@ -120,15 +120,14 @@ describe('systemPromptAppend', () => {
 	});
 
 	it('asks for screenshots in the theme the user is in, and names none when Malini sent none', () => {
-		expect(systemPromptAppend('/nonexistent/worktree', 'medium', 'dark')).toContain(
+		expect(systemPromptAppend('medium', 'dark')).toContain(
 			'the user is in dark mode, so capture every screenshot in dark mode',
 		);
-		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('- Theme:');
+		expect(systemPromptAppend('medium')).not.toContain('- Theme:');
 	});
 
 	it('asks for Simplified Technical English in chat replies only while the switch is on, at every length', () => {
-		const ste = (report: AgentReport) =>
-			systemPromptAppend('/nonexistent/worktree', report, 'dark', undefined, true);
+		const ste = (report: AgentReport) => systemPromptAppend(report, 'dark', undefined, true);
 
 		for (const report of ['low', 'medium', 'high'] as const) {
 			expect(ste(report)).toContain('Write every chat reply in ASD-STE100');
@@ -136,28 +135,19 @@ describe('systemPromptAppend', () => {
 			expect(ste(report)).toContain('keep the style their project asks for');
 			expect(ste(report)).not.toContain('135 words');
 		}
-		expect(systemPromptAppend('/nonexistent/worktree', 'medium', 'dark')).not.toContain(
-			'ASD-STE100',
-		);
+		expect(systemPromptAppend('medium', 'dark')).not.toContain('ASD-STE100');
 	});
 
 	it('says command output is shortened, and how to get it whole, only while the switch is on', () => {
 		const prompt = (compactOutput: boolean) =>
-			systemPromptAppend(
-				'/nonexistent/worktree',
-				'medium',
-				undefined,
-				undefined,
-				false,
-				compactOutput,
-			);
+			systemPromptAppend('medium', undefined, undefined, false, compactOutput);
 
 		expect(prompt(true)).toContain('run it as `RTK_DISABLED=1 <command>`');
 		expect(prompt(false)).not.toContain('- Command output:');
 	});
 
 	it('hands a started workstream its starter and siblings', () => {
-		const child = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
+		const child = systemPromptAppend('medium', undefined, {
 			startedBy: { name: 'Unify footers' },
 			siblings: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
 		});
@@ -174,14 +164,14 @@ describe('systemPromptAppend', () => {
 	});
 
 	it('names the starter and no siblings when it started only this workstream', () => {
-		const alone = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
+		const alone = systemPromptAppend('medium', undefined, {
 			startedBy: { name: 'Fix the footer' },
 			siblings: [],
 		});
 		expect(alone).toContain(
 			'The chat “Fix the footer” started this workstream.\n</malini_lineage>',
 		);
-		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('<malini_lineage>');
+		expect(systemPromptAppend('medium')).not.toContain('<malini_lineage>');
 	});
 });
 
