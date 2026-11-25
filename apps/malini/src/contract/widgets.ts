@@ -32,22 +32,31 @@ export const WIDGET_ROWS_MAX = 50;
 
 export const WIDGET_HISTORY_MAX = 30;
 
+export const WIDGET_METHODS = ['GET', 'POST'] as const;
+
+export type WidgetMethod = (typeof WIDGET_METHODS)[number];
+
 export type WidgetSource =
 	| Readonly<{ kind: 'github'; path: string; select: string | null }>
 	| Readonly<{
-			kind: 'mcp';
-			server: string;
-			tool: string;
-			arguments: Readonly<Record<string, unknown>>;
+			kind: 'http';
+			url: string;
+			method: WidgetMethod;
+			headers: Readonly<Record<string, string>>;
+			body: Readonly<Record<string, unknown>> | null;
+			oauth: WidgetOAuth | null;
 			select: string | null;
-			url: string | null;
 	  }>
-	| Readonly<{ kind: 'command'; run: string }>
+	| Readonly<{ kind: 'retired'; line: string }>
 	| Readonly<{ kind: 'plan' }>;
 
-export const WIDGET_NEEDS = ['add', 'sign-in', 'turn-on'] as const;
+export type WidgetOAuth = Readonly<{ scopes: readonly string[] }>;
 
-export type WidgetNeed = (typeof WIDGET_NEEDS)[number];
+export type WidgetNeed = Readonly<{ connect: string }>;
+
+export function widgetSite(url: string): string {
+	return URL.parse(url)?.host ?? url;
+}
 
 export type WidgetRefresh = Readonly<{ everySeconds: number; on: readonly string[] }>;
 

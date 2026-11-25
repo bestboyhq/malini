@@ -86,17 +86,19 @@ A widget is one JSON object, in Malini for your own and in `.malini/widgets/<id>
 	"icon": "trend-up",
 	"scope": "shared",
 	"source": {
-		"mcp": {
-			"server": "logdash",
-			"tool": "trend",
-			"arguments": {
-				"clusterId": "0123456789abcdef01234567",
-				"events": [{ "name": "pageview" }],
-				"days": 14
+		"http": {
+			"url": "https://eu.posthog.com/api/projects/12345/query/",
+			"method": "POST",
+			"body": {
+				"query": {
+					"kind": "TrendsQuery",
+					"series": [{ "kind": "EventsNode", "event": "$pageview" }],
+					"dateRange": { "date_from": "-14d" }
+				}
 			},
-			"url": "https://mcp.logdash.io/mcp"
+			"oauth": { "scopes": ["query:read"] }
 		},
-		"select": "{value: .series[0].total, unit: \"views\", chart: {kind: \"line\", labels: .times, series: [{label: \"Views\", values: .series[0].counts}]}}"
+		"select": "{value: .results[0].count, unit: \"views\", chart: {kind: \"line\", labels: .results[0].labels, series: [{label: \"Views\", values: .results[0].data}]}}"
 	},
 	"refresh": { "every": 600 },
 	"author": "your-login"
@@ -105,14 +107,33 @@ A widget is one JSON object, in Malini for your own and in `.malini/widgets/<id>
 
 The source is one of two kinds:
 
-- `mcp` calls a tool of one of your [MCP servers](/malini/docs/agent-tools.md#mcp-servers) with fixed `arguments`, the way your agent calls it, and `select` shapes its answer with jq.
-  Malini runs only a tool its server marks read-only, so a widget never changes data.
-  `url` is the address of a remote server, so a teammate who lacks it can add it from the tile.
+- `http` sends one request to a service's own API, and `select` shapes the answer with jq.
+  `method` is `GET`, the default, or `POST`, and a `POST` can carry a JSON `body`.
+  The `url` is `https`, or `http` on your own Mac only.
+  Malini follows no redirect, waits 20 seconds and reads 5 MB at most.
 - `github` reads a GitHub API path with `gh api`, under your own sign-in, and `select` shapes the answer with jq.
   `{owner}` and `{repo}` are the repository's.
 
-Widgets run no scripts.
-A widget from an older Malini that runs a command shows **Widgets read MCP servers now, not scripts.** until your agent moves it to a server.
+Widgets run no scripts and call no MCP tools.
+A widget from an older Malini that runs a command or calls an MCP tool shows **Widgets read APIs now, not scripts or MCP tools.** until your agent moves it to an API.
+
+### Sign-in
+
+An `http` source with `oauth` reads the API as you.
+Press **Connect** on the tile, sign in to the service in your browser, and the tile reads.
+Nobody pastes a key, and the widget file holds no secret, so a widget on the default branch is safe to share.
+
+- `oauth.scopes` lists what the widget asks for, such as `query:read`.
+  Ask for read scopes only: the service, not Malini, decides what the sign-in can do.
+- Malini finds the service's sign-in the way MCP clients do, from `/.well-known/oauth-protected-resource` and the sign-in server it names.
+  It registers itself with that server, signs in with PKCE, and gets the answer back on `127.0.0.1`.
+  A service with no such sign-in cannot back a tile, and the agent cannot save one that names it.
+- Malini keeps the sign-in sealed with your Mac's keychain, one per site, for every board.
+  It is never a [secret](/malini/docs/agent-tools.md#secrets), so no agent command sees it.
+- Malini sends the token only to the site of the widget's `url`.
+  It renews the token before it runs out, and once more when the site answers 401.
+- `headers` carry no sign-in: a widget with an `Authorization`, `Proxy-Authorization` or `Cookie` header is refused.
+- Every error from a site shows the token as `[secret]`.
 
 Either way, the source gives one JSON object, and Malini draws what it finds there:
 
@@ -142,22 +163,22 @@ A warning sign in the tile's header says why the read failed.
 The last numbers stay across restarts, so a board opens full.
 
 Adding a widget to your board allows it to read.
-A repository widget reads what the default branch says, through your own servers and your own sign-ins.
-It reaches nothing but the server it names, or GitHub, as you, and it can only read.
+A repository widget reads what the default branch says, with your own sign-ins.
+It reaches nothing but the site it names and that site's sign-in server, or GitHub, as you.
 
 ### When a tile needs you
 
-A widget that reads an MCP server you cannot reach says why, with one button.
+A widget that signs in says which site it reads, as you.
 
-- **Add logdash**: the server is not one of yours.
-  Malini asks the chat you are in to add it with `mcp_servers_add`, at the widget's `url`, and to sign you in.
-  Hold ⌘ and it reads **Add logdash in a new chat**, for a new chat in this workstream.
-- **Sign in to logdash**: the server needs a sign-in.
-  Malini opens its sign-in page, as **Fix MCP servers** does.
-- **Turn on logdash**: you turned the server off.
+- **Reads eu.posthog.com as you.** Press **Connect** and sign in in your browser.
+  The chat's widget card has the same button.
+- **Finish in your browser.** Malini waits 10 minutes for the sign-in, and **Cancel** stops it.
+- **Needs query:read on eu.posthog.com.** The widget asks for more than your sign-in has.
+  **Connect** signs in again for the scopes you have and the ones it asks for.
 
-Once the server connects, the tile reads again by itself.
-A widget that still runs a script shows no numbers, only that widgets read MCP servers now: ask the agent to move it to one.
+One sign-in reads every widget on that site, so the other tiles read at once too.
+A sign-in the service ends, or one you revoke there, shows **Connect** again.
+A widget that still runs a script or calls an MCP tool shows no numbers, only that widgets read APIs now: ask the agent to move it to one.
 `select` needs `jq`, which macOS 15 and later ship.
 
 ## Widgets your agent makes

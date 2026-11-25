@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 62,
+	"protocolVersion": 63,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -26,7 +26,6 @@
 		"watch_mcp_servers",
 		"switch_mcp_server",
 		"cancel_mcp_authorization",
-		"call_mcp_tool",
 		"stop_task",
 		"suggest_title",
 		"choose",
@@ -81,7 +80,6 @@
 		"bridge.mcp_servers",
 		"bridge.mcp_server",
 		"bridge.mcp_switched",
-		"bridge.mcp_tool_result",
 		"bridge.browser_request",
 		"bridge.platform_request",
 		"bridge.history_request"

@@ -15,6 +15,7 @@ const DOWNLOAD_ERROR_VERDICTS = {
 	...SHARED_ERROR_VERDICTS,
 	http: 'bug',
 	stalled: 'bug',
+	'too-large': 'expected',
 } as const satisfies ErrorVerdicts;
 
 type DownloadErrorKind = keyof typeof DOWNLOAD_ERROR_VERDICTS;
@@ -93,4 +94,26 @@ export async function saveDownload(
 function contentLength(response: Response): number | null {
 	const length = Number(response.headers.get('content-length'));
 	return Number.isSafeInteger(length) && length > 0 ? length : null;
+}
+
+export async function readBounded(response: Response, limit: number): Promise<Buffer> {
+	if (!response.body) return Buffer.alloc(0);
+	const chunks: Buffer[] = [];
+	let total = 0;
+	const reader = response.body.getReader();
+	try {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			total += value.byteLength;
+			if (total > limit) {
+				await reader.cancel();
+				throw new DownloadError('too-large', `the body is larger than ${limit} bytes`);
+			}
+			chunks.push(Buffer.from(value));
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	return Buffer.concat(chunks);
 }

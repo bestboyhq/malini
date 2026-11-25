@@ -235,7 +235,7 @@ describe('malini tool approval', () => {
 		expect(
 			maliniToolApproval('mcp__malini__widgets_save', {
 				title: 'Deploys',
-				source: { mcp: { server: 'posthog', tool: 'trend', arguments: {} } },
+				source: { http: { url: 'https://us.posthog.com/api/projects/1234/query/' } },
 			}),
 		).toEqual({ headline: 'Save widget ‘Deploys’', details: [] });
 	});

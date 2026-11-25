@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MainContext } from '$main/context';
-import { MaliniError, type ErrorVerdicts } from '$main/errors';
+import { DownloadError, readBounded } from '$main/fs/download';
 import { WorkstreamError } from './checkout-resolver';
 import { imageMediaType } from './images';
 import type { OwnerAvatar } from '$contract/repositories';
@@ -199,41 +199,13 @@ async function fetchAvatar(fetcher: AvatarFetcher, owner: string): Promise<Fetch
 	try {
 		bytes = await readBounded(response, MAX_AVATAR_BYTES);
 	} catch (error) {
-		return error instanceof TooLargeError ? { kind: 'missing' } : { kind: 'failed' };
+		return error instanceof DownloadError && error.kind === 'too-large'
+			? { kind: 'missing' }
+			: { kind: 'failed' };
 	}
 	const mediaType = imageMediaType(bytes.subarray(0, Math.min(bytes.length, IMAGE_HEADER_BYTES)));
 	if (mediaType === null) return { kind: 'missing' };
 	return { kind: 'image', mediaType, bytes };
-}
-
-const TOO_LARGE_ERROR_VERDICTS: ErrorVerdicts<'too-large'> = { 'too-large': 'expected' };
-
-class TooLargeError extends MaliniError<'too-large'> {
-	constructor(message: string) {
-		super('TooLargeError', TOO_LARGE_ERROR_VERDICTS, 'too-large', message);
-	}
-}
-
-async function readBounded(response: Response, limit: number): Promise<Buffer> {
-	if (!response.body) return Buffer.alloc(0);
-	const chunks: Buffer[] = [];
-	let total = 0;
-	const reader = response.body.getReader();
-	try {
-		for (;;) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			total += value.byteLength;
-			if (total > limit) {
-				await reader.cancel();
-				throw new TooLargeError('avatar body exceeds the size cap');
-			}
-			chunks.push(Buffer.from(value));
-		}
-	} finally {
-		reader.releaseLock();
-	}
-	return Buffer.concat(chunks);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

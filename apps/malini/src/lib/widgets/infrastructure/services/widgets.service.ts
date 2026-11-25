@@ -35,6 +35,14 @@ class WidgetsService {
 		await invoke('widgets.pin-plan', { repositoryFullName });
 	}
 
+	async connect(args: WidgetArgs): Promise<void> {
+		await invoke('widgets.connect', args);
+	}
+
+	async cancelConnect(): Promise<void> {
+		await invoke('widgets.cancel-connect', undefined);
+	}
+
 	async watch(workstreamId: string, watching: boolean): Promise<void> {
 		await invoke('widgets.watch', { workstreamId, watching });
 	}

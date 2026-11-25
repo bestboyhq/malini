@@ -509,45 +509,12 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
-		it('parses call_mcp_tool and rejects a relative folder, a missing name or tool, and arguments that are not an object', () => {
-			expect(
-				parseCommandLine(
-					'{"cmd":"call_mcp_tool","id":"t1","cwd":"/repo","serverName":"logdash","tool":"describe","arguments":{"days":7}}',
-				),
-			).toEqual({
-				ok: true,
-				command: {
-					cmd: 'call_mcp_tool',
-					id: 't1',
-					cwd: '/repo',
-					serverName: 'logdash',
-					tool: 'describe',
-					arguments: { days: 7 },
-				},
-			});
-			for (const payload of [
-				'"cwd":"repo","serverName":"logdash","tool":"describe","arguments":{}',
-				'"cwd":"/repo","serverName":"","tool":"describe","arguments":{}',
-				'"cwd":"/repo","serverName":"logdash","tool":"","arguments":{}',
-				'"cwd":"/repo","serverName":"logdash","tool":"describe"',
-				'"cwd":"/repo","serverName":"logdash","tool":"describe","arguments":[]',
-				'"cwd":"/repo","serverName":"logdash","tool":"describe","arguments":null',
-			]) {
-				expect(parseCommandLine(`{"cmd":"call_mcp_tool","id":"t2",${payload}}`)).toMatchObject({
-					ok: false,
-					code: 'INVALID_PAYLOAD',
-					id: 't2',
-				});
-			}
-		});
-
 		it('parses the plugin folders every MCP probe loads and rejects a list that is not absolute folder paths', () => {
 			for (const command of [
 				'"cmd":"authorize_mcp_server","id":"p1","sessionId":"s1","serverName":"plugin:linear:linear"',
 				'"cmd":"reconnect_mcp_server","id":"p2","cwd":"/repo","serverName":"plugin:linear:linear"',
 				'"cmd":"watch_mcp_servers","id":"p3","cwd":"/repo"',
 				'"cmd":"switch_mcp_server","id":"p4","serverName":"plugin:linear:linear","on":true,"folders":["/repo"]',
-				'"cmd":"call_mcp_tool","id":"p5","cwd":"/repo","serverName":"plugin:linear:linear","tool":"list_issues","arguments":{}',
 			]) {
 				expect(parseCommandLine(`{${command},"plugins":["/extensions/linear"]}`)).toMatchObject({
 					ok: true,
@@ -900,7 +867,6 @@ describe('protocol: parseCommandLine', () => {
 				'watch_mcp_servers',
 				'switch_mcp_server',
 				'cancel_mcp_authorization',
-				'call_mcp_tool',
 				'stop_task',
 				'suggest_title',
 				'choose',
@@ -926,7 +892,6 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.mcp_servers',
 				'bridge.mcp_server',
 				'bridge.mcp_switched',
-				'bridge.mcp_tool_result',
 				'bridge.browser_request',
 				'bridge.platform_request',
 				'bridge.history_request',
