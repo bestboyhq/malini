@@ -144,7 +144,6 @@ function mcpIpc(probes: Partial<McpServerProbes>): {
 			}),
 			probe: async () => null,
 			turnOn: async () => true,
-			callTool: async () => ({ kind: 'missing' }),
 			...probes,
 		},
 	});
@@ -918,50 +917,6 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 				error: 'MCP_SERVERS_FAILED: Claude Code is not installed',
 			}),
 			expect.objectContaining({ type: 'bridge.command_ack', id: 'watch-4', accepted: true }),
-		]);
-	});
-
-	it('answers an MCP tool call with its outcome before the ack, and a failed one when Claude Code is missing', async () => {
-		const calls: unknown[] = [];
-		const { ipc, frames } = mcpIpc({
-			callTool: async (cwd, serverName, tool, args, plugins) => {
-				calls.push({ cwd, serverName, tool, args, plugins });
-				if (serverName === 'gone') throw new Error('Claude Code is not installed');
-				return { kind: 'output', text: '{"visits":3}' };
-			},
-		});
-
-		await ipc.run(
-			'{"cmd":"call_mcp_tool","id":"tool-1","cwd":"/repo","serverName":"logdash","tool":"describe","arguments":{"days":7},"plugins":["/extensions/logdash"]}',
-		);
-		await ipc.run(
-			'{"cmd":"call_mcp_tool","id":"tool-2","cwd":"/repo","serverName":"gone","tool":"describe","arguments":{}}',
-		);
-		await ipc.drain();
-
-		expect(calls).toEqual([
-			{
-				cwd: '/repo',
-				serverName: 'logdash',
-				tool: 'describe',
-				args: { days: 7 },
-				plugins: ['/extensions/logdash'],
-			},
-			{ cwd: '/repo', serverName: 'gone', tool: 'describe', args: {}, plugins: [] },
-		]);
-		expect(frames().filter(({ id }) => id === 'tool-1' || id === 'tool-2')).toEqual([
-			expect.objectContaining({
-				type: 'bridge.mcp_tool_result',
-				id: 'tool-1',
-				outcome: { kind: 'output', text: '{"visits":3}' },
-			}),
-			expect.objectContaining({ type: 'bridge.command_ack', id: 'tool-1', accepted: true }),
-			expect.objectContaining({
-				type: 'bridge.mcp_tool_result',
-				id: 'tool-2',
-				outcome: { kind: 'failed', error: 'Claude Code is not installed' },
-			}),
-			expect.objectContaining({ type: 'bridge.command_ack', id: 'tool-2', accepted: true }),
 		]);
 	});
 

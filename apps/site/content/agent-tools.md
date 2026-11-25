@@ -5,6 +5,8 @@ description: The tools the agent gets in a Malini chat - a browser it shares wit
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
 Malini's tools reach Claude Code through an MCP server named `malini`, so their full names start with `mcp__malini__`.
+Every prompt carries the browser tools a chat uses on most pages.
+The rest, such as `browser_hover` and every tool past the browser, load through Claude Code's tool search the first time the agent reaches for one, so a chat that never needs them never pays for them.
 
 ## Browser
 
@@ -71,6 +73,7 @@ Click the pin for your prompt and the thread's outcome.
 **Open chat** shows the thread in a tab of its own until you switch away, and **Dismiss** removes the pin and stops the thread.
 A page that asks for your microphone or camera asks you first, and Malini remembers your answer until it quits.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
+The agent reads a copy at the page's own size in CSS pixels, at most 1,280 on its long edge, and the file it embeds in the chat keeps every pixel.
 
 ### Screenshots in your theme
 
@@ -146,9 +149,11 @@ The agent makes a [widget](/malini/docs/widgets.md) for your board when you ask 
 | -------------- | -------------------------------------------------------------------------------------------------------- |
 | `widgets_save` | Saves a widget in your own widgets, puts it first on your board, two cells by one, and reads it at once. |
 
-- The widget names an `mcp` source, a read-only tool of one of your MCP servers with its `arguments`, or a `github` source, a `gh api` path, each with an optional jq `select`.
-- A tool that can change data is refused, and so is a `command`: widgets run no scripts.
-- The agent calls the tool once itself first, so its `select` fits the answer.
+- The widget names an `http` source, one request to a service's own API, or a `github` source, a `gh api` path, each with an optional jq `select`.
+- An `http` source that needs a sign-in names `oauth` with read scopes, and you press **Connect** on the tile.
+  The agent never puts a key or a token in a header, and Malini refuses an API with no OAuth sign-in.
+- A `command` or an `mcp` source is refused: widgets run no scripts and call no MCP tools.
+- The agent learns the answer's shape from the API's docs, or from the service's MCP server, so its `select` fits it.
 - The agent gets back the widget and its first reading.
 - An id the repository already shares from its default branch is refused, since that widget changes through a pull request.
 - The chat shows the widget as a card with the live tile, **On your board** and **Remove**.

@@ -2121,6 +2121,15 @@ ALTER TABLE widget_placements DROP COLUMN approved_fingerprint;
 	`
 ALTER TABLE widget_readings ADD COLUMN need TEXT CHECK (need IN ('add', 'sign-in', 'turn-on'));
 `,
+	`
+ALTER TABLE widget_readings DROP COLUMN need;
+ALTER TABLE widget_readings ADD COLUMN need TEXT;
+CREATE TABLE widget_connections (
+  origin TEXT PRIMARY KEY,
+  sealed BLOB NOT NULL,
+  connected_at TEXT NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -34,7 +34,7 @@ export async function readMine(root: string, skip: Skip): Promise<WidgetDefiniti
 			try {
 				return [await readWidgetFile(mineHome(root, id), id, 'mine')];
 			} catch (error) {
-				skip(mineHome(root, id), describeError(error));
+				if (errorCode(error) !== 'ENOENT') skip(mineHome(root, id), describeError(error));
 				return [];
 			}
 		}),

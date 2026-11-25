@@ -155,10 +155,6 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 	> & {
 		getContextUsage(opts: { detail: 'summary' }): Promise<ClaudeContextUsage>;
 		mcpAuthenticate?(serverName: string): Promise<unknown>;
-		request?(
-			payload: Readonly<Record<string, unknown>>,
-			options?: { readonly signal?: AbortSignal },
-		): Promise<unknown>;
 	};
 
 interface McpReport {
@@ -182,6 +178,13 @@ export interface ClaudeSessionOptions {
 	readonly denials?: SandboxDenialSource;
 	readonly checkReply?: ReplyChecker;
 	readonly openUrl?: (url: string) => Promise<void>;
+}
+
+function toldKey(agentId: string | undefined, denial: SandboxDenial): string {
+	return `${agentId ?? ''} ${denial.process} ${denial.operation} ${denial.target}`.replace(
+		/\d+/gu,
+		'#',
+	);
 }
 
 interface Blocked {
@@ -260,6 +263,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #denials: SandboxDenialSource;
 	readonly #tag = `${SANDBOX_TAG_PREFIX}${randomBytes(8).toString('hex')}`;
 	readonly #blocked = new Map<string, Blocked>();
+	readonly #told = new Set<string>();
 	readonly #needs = new Map<string, readonly SandboxGrant[]>();
 	readonly #commands = new Map<string, { started: number; release: () => void }>();
 	#places: SandboxPlaces | null = null;
@@ -901,14 +905,7 @@ export class ClaudeSession implements ProviderHandle {
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(
-					this.#context.cwd,
-					report,
-					theme,
-					lineage,
-					steReplies,
-					compactOutput,
-				),
+				append: systemPromptAppend(report, theme, lineage, steReplies, compactOutput),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },
@@ -953,7 +950,16 @@ export class ClaudeSession implements ProviderHandle {
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
 				SessionStart: [
-					{ matcher: 'compact', hooks: recordHooks(() => this.#context.requestHistory()) },
+					{
+						matcher: 'compact',
+						hooks: [
+							...recordHooks(() => this.#context.requestHistory()),
+							async () => {
+								this.#told.clear();
+								return {};
+							},
+						],
+					},
 				],
 				Stop: [{ hooks: [this.#checkReplyHook(steReplies)] }],
 			},
@@ -1240,7 +1246,13 @@ export class ClaudeSession implements ProviderHandle {
 					blocked.flatMap(({ grant }) => (grant ? [grant] : [])),
 				);
 			}
-			const additionalContext = sandboxBlockedContext(blocked.map(({ denial }) => denial));
+			const reported = blocked.flatMap(({ denial }) => {
+				const key = toldKey(input.agent_id, denial);
+				const told = this.#told.has(key);
+				this.#told.add(key);
+				return told && event === 'PostToolUse' ? [] : [denial];
+			});
+			const additionalContext = sandboxBlockedContext(reported);
 			if (!additionalContext) return {};
 			return {
 				hookSpecificOutput:

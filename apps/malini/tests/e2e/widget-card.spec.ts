@@ -2,6 +2,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import type { WidgetBoard } from '../../src/contract/widgets';
+import { apiRequests, finishSignIn, startFakeApi, type FakeApi } from './fake-api';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 import {
 	captureFlow,
@@ -10,27 +11,19 @@ import {
 	expectCleanConsole,
 	invoke,
 	listSessions,
-	type LaunchedApp,
 	launchMalini,
+	openedUrls,
 	openWorkstream,
 	promptsOf,
+	recordBrowser,
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
 
-const ROOMS = { mcp: { server: 'rooms-db', tool: 'count', arguments: { open: true } } };
+const OPEN_ROOMS = { value: 5, unit: 'rooms', caption: 'open now' };
 
-function mcpEnv(
-	status: 'connected' | 'needs-auth',
-	output: string,
-): Readonly<Record<string, string>> {
-	const server = ROOMS.mcp.server;
-	return {
-		FAKE_BRIDGE_MCP_SERVERS: JSON.stringify([{ name: server, status, source: 'user' }]),
-		FAKE_BRIDGE_MCP_TOOLS: JSON.stringify({
-			[server]: [{ name: ROOMS.mcp.tool, readOnly: true, output }],
-		}),
-	};
+function rooms(api: FakeApi): Readonly<{ http: Readonly<{ url: string }> }> {
+	return { http: { url: `${api.url}/rooms` } };
 }
 
 async function promptInAnotherChat(
@@ -47,26 +40,10 @@ async function promptInAnotherChat(
 	return false;
 }
 
-async function captureOpenedUrls(app: LaunchedApp): Promise<() => Promise<string[]>> {
-	await app.electronApp.evaluate(({ shell }) => {
-		const opened: string[] = [];
-		Reflect.set(globalThis, '__openedUrls', opened);
-		shell.openExternal = async (url) => {
-			opened.push(url);
-		};
-	});
-	return () =>
-		app.electronApp.evaluate(() => {
-			const opened: unknown = Reflect.get(globalThis, '__openedUrls');
-			return Array.isArray(opened) ? opened.map(String) : [];
-		});
-}
-
-test('a widget the agent saves lands first on the board at two by one, where its MCP tool reads, and the chat card removes it', async () => {
+test('a widget the agent saves lands first on the board at two by one, where its API reads, and the chat card removes it', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({
-		env: mcpEnv('connected', '{"value":5,"unit":"rooms","caption":"open now"}'),
-	});
+	const api = await startFakeApi({ '/rooms': OPEN_ROOMS });
+	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const { workstreamId } = await seedWorkstream(
@@ -80,19 +57,20 @@ test('a widget the agent saves lands first on the board at two by one, where its
 			join(app.home, 'malini-tool.json'),
 			JSON.stringify({
 				tool: 'widgets_save',
-				input: { id: 'rooms', title: 'Rooms', icon: 'users', source: ROOMS },
+				input: { id: 'rooms', title: 'Rooms', icon: 'users', source: rooms(api) },
 			}),
 		);
 
 		await sendPrompt(page, 'MALINI_TOOL');
 		const card = page.getByRole('region', { name: 'Rooms widget' });
 		await expect(card.getByText('On your board')).toBeVisible({ timeout: 20_000 });
-		await expect(card.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('5');
-		await expect(card).toContainText('rooms-db · count');
+		await expect(card.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('open now');
+		await expect(card).toContainText(`GET ${api.site}/rooms`);
 		const board = page.getByRole('region', { name: 'Widgets' });
-		await expect(board.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('5', {
+		await expect(board.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('open now', {
 			timeout: 20_000,
 		});
+		expect(api.requests.map(({ method, path }) => `${method} ${path}`)).toContain('GET /rooms');
 		const placements = async () =>
 			(await invoke<WidgetBoard>(page, 'widgets.board', { workstreamId })).placements;
 		expect(await placements()).toEqual([{ widgetId: 'rooms', span: { columns: 2, rows: 1 } }]);
@@ -105,27 +83,34 @@ test('a widget the agent saves lands first on the board at two by one, where its
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		await api.close();
 	}
 });
 
-test('a widget whose MCP server needs a sign-in says so, signs in from its tile, and reads once the server connects', async () => {
+test('a widget that signs in shows Connect on its tile and its chat card, Cancel stops the sign-in, and once the browser finishes it both read with its own token', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ env: mcpEnv('needs-auth', '{"value":8,"caption":"open now"}') });
+	const api = await startFakeApi({ '/rooms': { value: 8, caption: 'open now' } });
+	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const openedUrls = await captureOpenedUrls(app);
 		const { workstreamId } = await seedWorkstream(
 			page,
 			await createSourceRepo(app.root),
-			'e2e-widget-sign-in',
-			'Widget sign-in',
+			'e2e-widget-connect',
+			'Widget connect',
 		);
 		await openWorkstream(page, workstreamId);
+		await recordBrowser(app);
 		writeFileSync(
 			join(app.home, 'malini-tool.json'),
 			JSON.stringify({
 				tool: 'widgets_save',
-				input: { id: 'rooms', title: 'Rooms', icon: 'users', source: ROOMS },
+				input: {
+					id: 'rooms',
+					title: 'Rooms',
+					icon: 'users',
+					source: { http: { url: `${api.url}/rooms`, oauth: { scopes: ['rooms:read'] } } },
+				},
 			}),
 		);
 
@@ -133,85 +118,131 @@ test('a widget whose MCP server needs a sign-in says so, signs in from its tile,
 		const tile = page
 			.getByRole('region', { name: 'Widgets' })
 			.getByRole('article', { name: 'Rooms, 2 by 1' });
-		await expect(tile).toContainText('rooms-db needs you to sign in.', { timeout: 20_000 });
-		await captureFlow(app, 'widget-needs-sign-in');
+		const connect = tile.getByRole('button', { name: `Connect ${api.site}` });
+		await expect(connect).toBeVisible({ timeout: 20_000 });
+		await expect(tile).toContainText(`Reads ${api.site} as you.`);
+		expect(apiRequests(api)).toEqual([]);
+		await captureFlow(app, 'widget-connect');
 
-		await tile.getByRole('button', { name: 'Sign in to rooms-db' }).click();
-		await expect.poll(openedUrls).toEqual(['https://auth.example.test/rooms-db']);
-		await expect(tile).toContainText('8', { timeout: 20_000 });
-		await expect(tile.getByRole('button', { name: 'Sign in to rooms-db' })).toHaveCount(0);
-		const fix = page.getByRole('dialog', { name: 'Fix MCP servers' });
-		await fix.getByRole('button', { name: 'Close' }).last().click();
-		await expect(fix).toBeHidden();
+		await connect.click();
+		await expect(tile).toContainText('Finish in your browser.');
+		await expect.poll(() => openedUrls(app)).toHaveLength(1);
+		await tile.getByRole('button', { name: 'Cancel' }).click();
+		await expect(connect).toBeVisible();
+		await expect(tile).not.toContainText('Finish in your browser.');
+
+		const card = page.getByRole('region', { name: 'Rooms widget' });
+		await card.getByRole('button', { name: `Connect ${api.site}` }).click();
+		await expect(card).toContainText('Finish in your browser.');
+		await expect.poll(() => openedUrls(app)).toHaveLength(2);
+		const [, authorize = ''] = await openedUrls(app);
+		const asked = new URL(authorize);
+		expect(`${asked.origin}${asked.pathname}`).toBe(`${api.url}/authorize`);
+		expect(asked.searchParams.get('scope')).toBe('rooms:read');
+		expect(asked.searchParams.get('code_challenge_method')).toBe('S256');
+		await captureFlow(app, 'widget-connecting');
+		await finishSignIn(authorize);
+
+		await expect(tile).toContainText('open now', { timeout: 20_000 });
+		await expect(card.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('open now');
+		await expect(page.getByRole('button', { name: `Connect ${api.site}` })).toHaveCount(0);
+		expect(
+			apiRequests(api).map(({ path, headers }) => `${path} ${headers.authorization ?? ''}`),
+		).toEqual(['/rooms Bearer token-1']);
+		await captureFlow(app, 'widget-connected');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		await api.close();
 	}
 });
 
-test('a widget whose MCP server is not added says so, Add asks this chat to add it, and ⌘ asks a new chat', async () => {
+async function coverWindow(page: Page, covered: boolean): Promise<void> {
+	await page.locator('body').evaluate((body, hidden) => {
+		const doc = body.ownerDocument;
+		if (hidden) {
+			Object.defineProperty(doc, 'hidden', { configurable: true, get: () => true });
+			Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => 'hidden' });
+		} else {
+			Reflect.deleteProperty(doc, 'hidden');
+			Reflect.deleteProperty(doc, 'visibilityState');
+		}
+		doc.dispatchEvent(new doc.defaultView.Event('visibilitychange'));
+	}, covered);
+}
+
+test('a sign-in the browser finishes while it covers the window reads every tile of that site once the window shows again', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({
-		env: { FAKE_BRIDGE_MCP_SERVERS: '[]', FAKE_BRIDGE_MCP_TOOLS: '{}' },
+	const api = await startFakeApi({
+		'/rooms': { value: 8, caption: 'open now' },
+		'/guests': { value: 21, caption: 'checked in' },
 	});
+	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const { workstreamId } = await seedWorkstream(
 			page,
 			await createSourceRepo(app.root),
-			'e2e-widget-add-server',
-			'Widget add server',
+			'e2e-widget-connect-covered',
+			'Widget connect covered',
 		);
 		await openWorkstream(page, workstreamId);
-		const source = { mcp: { ...ROOMS.mcp, url: 'https://rooms.example.test/mcp' } };
-		writeFileSync(
-			join(app.home, 'malini-tool.json'),
-			JSON.stringify({
-				tool: 'widgets_save',
-				input: { id: 'rooms', title: 'Rooms', icon: 'users', source },
-			}),
-		);
-
-		await sendPrompt(page, 'MALINI_TOOL');
-		const tile = page
-			.getByRole('region', { name: 'Widgets' })
-			.getByRole('article', { name: 'Rooms, 2 by 1' });
-		await expect(tile).toContainText('rooms-db is not one of your MCP servers.', {
+		await recordBrowser(app);
+		for (const [id, title] of [
+			['rooms', 'Rooms'],
+			['guests', 'Guests'],
+		] as const) {
+			writeFileSync(
+				join(app.home, 'malini-tool.json'),
+				JSON.stringify({
+					tool: 'widgets_save',
+					input: {
+						id,
+						title,
+						source: { http: { url: `${api.url}/${id}`, oauth: { scopes: ['rooms:read'] } } },
+					},
+				}),
+			);
+			await sendPrompt(page, 'MALINI_TOOL');
+			await expect(
+				page.getByRole('region', { name: `${title} widget` }).getByText('On your board'),
+			).toBeVisible({ timeout: 20_000 });
+		}
+		const board = page.getByRole('region', { name: 'Widgets' });
+		const rooms = board.getByRole('article', { name: 'Rooms, 2 by 1' });
+		const guests = board.getByRole('article', { name: 'Guests, 2 by 1' });
+		await expect(guests.getByRole('button', { name: `Connect ${api.site}` })).toBeVisible({
 			timeout: 20_000,
 		});
-		await captureFlow(app, 'widget-needs-add');
 
-		const shown = currentSessionId(page);
-		if (shown === null) throw new Error('the chat did not commit a session id');
-		const addPrompt =
-			/Add the rooms-db MCP server at https:\/\/rooms\.example\.test\/mcp with mcp_servers_add, so my Rooms widget can read its/u;
-		await tile.getByRole('button', { name: 'Add rooms-db' }).click();
-		await expect(page.getByText(addPrompt)).toBeVisible({ timeout: 20_000 });
-		expect(page.url()).toContain(workstreamId);
-		expect(currentSessionId(page)).toBe(shown);
+		await rooms.getByRole('button', { name: `Connect ${api.site}` }).click();
+		await expect.poll(() => openedUrls(app)).toHaveLength(1);
+		const [authorize = ''] = await openedUrls(app);
+		await coverWindow(page, true);
+		await finishSignIn(authorize);
+		await expect.poll(() => apiRequests(api).map(({ path }) => path)).toEqual(['/rooms']);
+		await coverWindow(page, false);
 
-		await page.keyboard.down('Meta');
-		const inNewChat = tile.getByRole('button', { name: 'Add rooms-db in a new chat' });
-		await expect(inNewChat).toBeVisible();
-		await captureFlow(app, 'widget-needs-add-command');
-		await inNewChat.click({ modifiers: ['Meta'] });
-		await page.keyboard.up('Meta');
-		await expect(tile.getByRole('button', { name: 'Add rooms-db' })).toBeVisible();
-		await expect
-			.poll(() => promptInAnotherChat(page, workstreamId, shown, addPrompt), { timeout: 30_000 })
-			.toBe(true);
-		expect(currentSessionId(page)).toBe(shown);
+		await expect(guests).toContainText('checked in', { timeout: 20_000 });
+		await expect(rooms).toContainText('open now');
+		await expect(page.getByRole('button', { name: `Connect ${api.site}` })).toHaveCount(0);
+		expect(
+			apiRequests(api)
+				.map(({ path, headers }) => `${path} ${headers.authorization ?? ''}`)
+				.sort(),
+		).toEqual(['/guests Bearer token-1', '/rooms Bearer token-1']);
+		await captureFlow(app, 'widget-connect-covered');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		await api.close();
 	}
 });
 
 test('Make default copies your widget into this workstream and asks this chat, and New widget asks this chat or, with ⌘, a new one', async () => {
 	test.setTimeout(150_000);
-	const app = await launchMalini({
-		env: mcpEnv('connected', '{"value":5,"unit":"rooms","caption":"open now"}'),
-	});
+	const api = await startFakeApi({ '/rooms': OPEN_ROOMS });
+	const app = await launchMalini();
 	try {
 		const workstreamId = 'e2e-widget-default';
 		const { page, worktree } = await seedWorkstreamOnFakeGithub(app, workstreamId, null);
@@ -220,12 +251,12 @@ test('Make default copies your widget into this workstream and asks this chat, a
 			join(app.home, 'malini-tool.json'),
 			JSON.stringify({
 				tool: 'widgets_save',
-				input: { id: 'rooms', title: 'Rooms', icon: 'users', source: ROOMS },
+				input: { id: 'rooms', title: 'Rooms', icon: 'users', source: rooms(api) },
 			}),
 		);
 		await sendPrompt(page, 'MALINI_TOOL');
 		const board = page.getByRole('region', { name: 'Widgets' });
-		await expect(board.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('5', {
+		await expect(board.getByRole('article', { name: 'Rooms, 2 by 1' })).toContainText('open now', {
 			timeout: 20_000,
 		});
 		const shown = currentSessionId(page);
@@ -273,5 +304,6 @@ test('Make default copies your widget into this workstream and asks this chat, a
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		await api.close();
 	}
 });

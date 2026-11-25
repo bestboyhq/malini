@@ -1,4 +1,4 @@
-# 0305 - A launch stops only what its own archived workstreams left running
+# 0307 - A launch stops only what its own archived workstreams left running
 
 Status: accepted
 
