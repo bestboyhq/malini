@@ -46,7 +46,7 @@ import { installCheckpoints } from './checkpoints/commands';
 import { ChatDeliveries } from './deliveries.service';
 import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
-import { defineMcpServerCommands, type CallMcpTool, type McpServerListings } from './mcp-servers';
+import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
 import { installShellRuns } from './shell-runs/commands';
 import { chatName, namerTask } from '../domain/chat-names';
 import { savedSecretsPrompt } from '../domain/saved-secrets';
@@ -85,7 +85,6 @@ export interface ChatPlatform {
 	resume(event: DispatchedEvent): Promise<void>;
 	deliveries(event: DispatchedEvent): Promise<void>;
 	deliver: ChatDeliveries['deliver'];
-	callMcpTool: CallMcpTool;
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -160,7 +159,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 	const stopHandingOutSaved = context.events.subscribe(SECRETS_SAVED_CHANNEL, handOutSecrets);
 	const stopHandingOutDeleted = context.events.subscribe(SECRETS_DELETED_CHANNEL, handOutSecrets);
 
-	const listings = defineMcpServerCommands(context.commands, {
+	mcpServers = defineMcpServerCommands(context.commands, {
 		db: context.db,
 		events: context.events,
 		runtime: agent.runtime,
@@ -169,7 +168,6 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		plugins,
 		log: deps.log ?? (() => undefined),
 	});
-	mcpServers = listings;
 
 	const suggestTitle: SuggestWithAutomation = async (task, automation) => {
 		const environment = await deps.providerEnvironment(automation.provider, automation.model);
@@ -242,7 +240,6 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			}
 		},
 		deliver: (delivery) => deliveries.deliver(delivery),
-		callMcpTool: (cwd, serverName, tool, args) => listings.callTool(cwd, serverName, tool, args),
 	};
 }
 

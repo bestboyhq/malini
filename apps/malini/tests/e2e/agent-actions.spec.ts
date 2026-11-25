@@ -18,6 +18,7 @@ import {
 	type LaunchedApp,
 	openSettingsFromMenu,
 } from './harness';
+import { startFakeApi } from './fake-api';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 
 const OPEN_DRAFT = { tool: 'automations_run', input: { automation: 'Open draft' } };
@@ -246,8 +247,9 @@ test('an agent adds an MCP server once the user always allows it, shows env name
 	}
 });
 
-test('an agent saves a widget with an MCP source without asking, it lands on the board with its author, and Activity names it', async () => {
+test('an agent saves a widget that reads an API without asking, it lands on the board with its author, and Activity names it', async () => {
 	test.setTimeout(120_000);
+	const api = await startFakeApi({});
 	const app = await launchMalini();
 	try {
 		const { page } = app;
@@ -258,7 +260,14 @@ test('an agent saves a widget with an MCP source without asking, it lands on the
 			'Widget chores',
 		);
 		await openWorkstream(page, workstreamId);
-		const source = { mcp: { server: 'posthog', tool: 'trend', arguments: { days: 7 } } };
+		const source = {
+			http: {
+				url: `${api.url}/api/projects/1/query/`,
+				method: 'POST',
+				body: { query: { kind: 'TrendsQuery' } },
+				oauth: { scopes: ['query:read'] },
+			},
+		};
 		agentCalls(app, {
 			tool: 'widgets_save',
 			input: {
@@ -301,6 +310,7 @@ test('an agent saves a widget with an MCP source without asking, it lands on the
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+		await api.close();
 	}
 });
 

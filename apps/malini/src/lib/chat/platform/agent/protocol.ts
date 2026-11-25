@@ -54,7 +54,6 @@ export const BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS = 60_000;
 export const BRIDGE_SWITCH_MCP_SERVER_ACK_TIMEOUT_MS = 120_000;
-export const BRIDGE_CALL_MCP_TOOL_ACK_TIMEOUT_MS = 90_000;
 
 export interface AgentConversationMessage {
 	role: 'user' | 'assistant';
@@ -85,15 +84,6 @@ export interface AgentMcpServerStatus {
 }
 
 export type BridgeMcpServerTarget = { sessionId: string } | { cwd: string };
-
-export type McpToolOutcome =
-	| { readonly kind: 'output'; readonly text: string }
-	| { readonly kind: 'missing' }
-	| { readonly kind: 'needs-auth' }
-	| { readonly kind: 'off' }
-	| { readonly kind: 'no-tool' }
-	| { readonly kind: 'not-read-only' }
-	| { readonly kind: 'failed'; readonly error: string };
 
 export interface AgentMcpServerListing {
 	cwd: string;
@@ -180,15 +170,6 @@ export type BridgeCommand =
 			plugins: readonly string[];
 	  }
 	| { cmd: 'cancel_mcp_authorization'; id: string; serverName: string }
-	| {
-			cmd: 'call_mcp_tool';
-			id: string;
-			cwd: string;
-			serverName: string;
-			tool: string;
-			arguments: Readonly<Record<string, unknown>>;
-			plugins: readonly string[];
-	  }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| {
 			cmd: 'suggest_title';
@@ -285,7 +266,6 @@ export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number 
 		return BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS;
 	}
 	if (command.cmd === 'switch_mcp_server') return BRIDGE_SWITCH_MCP_SERVER_ACK_TIMEOUT_MS;
-	if (command.cmd === 'call_mcp_tool') return BRIDGE_CALL_MCP_TOOL_ACK_TIMEOUT_MS;
 	return BRIDGE_COMMAND_ACK_TIMEOUT_MS;
 }
 
@@ -474,7 +454,6 @@ export type BridgeControlFrame =
 			error?: string;
 	  }
 	| { type: 'bridge.mcp_switched'; protocolVersion: number; id: string; folders: string[] }
-	| { type: 'bridge.mcp_tool_result'; protocolVersion: number; id: string; outcome: McpToolOutcome }
 	| { type: 'bridge.mcp_server'; protocolVersion: number; server: AgentMcpServerStatus }
 	| BridgeBrowserRequest
 	| BridgePlatformRequest
@@ -703,26 +682,6 @@ function decodeMcpServer(value: unknown, where: string): AgentMcpServerStatus {
 		...optional('toolCount', fields.optionalNumber('toolCount')),
 		...optional('browser', fields.optionalBoolean('browser')),
 	};
-}
-
-function decodeMcpToolOutcome(value: unknown, where: string): McpToolOutcome {
-	if (!isRecord(value)) throw new BridgeProtocolError('bad-frame', `${where} is not an object`);
-	const fields = new Fields(value, where);
-	const kind = fields.string('kind');
-	switch (kind) {
-		case 'output':
-			return { kind, text: fields.string('text') };
-		case 'failed':
-			return { kind, error: fields.string('error') };
-		case 'missing':
-		case 'needs-auth':
-		case 'off':
-		case 'no-tool':
-		case 'not-read-only':
-			return { kind };
-		default:
-			throw new BridgeProtocolError('bad-frame', `${where}: unknown kind \`${kind}\``);
-	}
 }
 
 function decodeMcpServers(values: unknown[], where: string): AgentMcpServerStatus[] {
@@ -1195,16 +1154,6 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						protocolVersion: f.number('protocolVersion'),
 						id: f.string('id'),
 						folders: f.stringArray('folders'),
-					},
-				};
-			case 'bridge.mcp_tool_result':
-				return {
-					ok: true,
-					value: {
-						type,
-						protocolVersion: f.number('protocolVersion'),
-						id: f.string('id'),
-						outcome: decodeMcpToolOutcome(value['outcome'], `${type}: outcome`),
 					},
 				};
 			case 'bridge.mcp_server':

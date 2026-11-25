@@ -1,4 +1,4 @@
-import type { WidgetDefinition, WidgetNeed, WidgetSpan, WidgetState } from '$contract/widgets';
+import type { WidgetDefinition, WidgetSpan, WidgetState } from '$contract/widgets';
 import { shownSpan } from './widget-grid';
 
 export const WIDGET_STATE_NAMES: Readonly<Record<WidgetState, string>> = {
@@ -32,23 +32,15 @@ export function sourceLine({ source }: WidgetDefinition): string {
 			return source.select === null
 				? `gh api ${source.path}`
 				: `gh api ${source.path} --jq '${source.select}'`;
-		case 'mcp':
-			return `${source.server} · ${source.tool}`;
-		case 'command':
-			return `Runs ${source.run}`;
+		case 'http': {
+			const url = URL.parse(source.url);
+			return `${source.method} ${url === null ? source.url : `${url.host}${url.pathname}`}`;
+		}
+		case 'retired':
+			return source.line;
 		case 'plan':
 			return 'Your plan';
 	}
-}
-
-const NEED_ACTIONS: Readonly<Record<WidgetNeed, (server: string) => string>> = {
-	add: (server) => `Add ${server}`,
-	'sign-in': (server) => `Sign in to ${server}`,
-	'turn-on': (server) => `Turn on ${server}`,
-};
-
-export function needAction({ source }: WidgetDefinition, need: WidgetNeed): string | null {
-	return source.kind === 'mcp' ? NEED_ACTIONS[need](source.server) : null;
 }
 
 export function tileName(widget: WidgetDefinition, span: WidgetSpan, columns: number): string {

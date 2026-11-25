@@ -17,7 +17,6 @@ import {
 	type BridgeMcpServerTarget,
 	type BridgeControlFrame,
 	type BridgeEvent,
-	type McpToolOutcome,
 	type ProviderCapability,
 } from './protocol';
 import type { OneShotAutomation } from '$lib/automations/automations.platform';
@@ -209,7 +208,6 @@ export class BridgeSupervisor {
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
 	private readonly mcpAuthorizations = new Map<string, string | null>();
 	private readonly mcpSwitches = new Map<string, string[]>();
-	private readonly mcpToolOutcomes = new Map<string, McpToolOutcome>();
 	private readonly mcpServerListeners = new Set<(server: AgentMcpServerStatus) => void>();
 	private readonly mcpListingListeners = new Set<(listing: AgentMcpServerListing) => void>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
@@ -536,16 +534,6 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.mcpSwitches.set(control.id, control.folders);
 				return;
 			}
-			case 'bridge.mcp_tool_result': {
-				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
-					this.recordProtocolError(
-						`PROTOCOL_MISMATCH: mcp tool result v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
-					);
-					return;
-				}
-				if (this.pendingAcks.has(control.id)) this.mcpToolOutcomes.set(control.id, control.outcome);
-				return;
-			}
 			case 'bridge.mcp_server': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
 					this.recordProtocolError(
@@ -852,37 +840,6 @@ export class BridgeSupervisor {
 			return switched;
 		} finally {
 			this.mcpSwitches.delete(id);
-		}
-	}
-
-	async callMcpTool(
-		cwd: string,
-		serverName: string,
-		tool: string,
-		args: Readonly<Record<string, unknown>>,
-		plugins: readonly string[],
-	): Promise<McpToolOutcome> {
-		const id = this.nextCommandId();
-		try {
-			await this.sendCommand({
-				cmd: 'call_mcp_tool',
-				id,
-				cwd,
-				serverName,
-				tool,
-				arguments: args,
-				plugins,
-			});
-			const outcome = this.mcpToolOutcomes.get(id);
-			if (outcome === undefined) {
-				throw new SupervisorError(
-					'protocol',
-					'the tool call was acknowledged without a bridge.mcp_tool_result frame',
-				);
-			}
-			return outcome;
-		} finally {
-			this.mcpToolOutcomes.delete(id);
 		}
 	}
 

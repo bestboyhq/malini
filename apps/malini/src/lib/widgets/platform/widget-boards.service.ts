@@ -1,13 +1,15 @@
 import { isEventChannel } from '$contract/events';
-import type { McpServerReport } from '$contract/mcp-servers';
 import {
 	PLAN_WIDGET_ID,
 	PLAN_WIDGET_SPAN,
 	WIDGET_DEFAULT_SPAN,
+	widgetSite,
 	type WidgetBoard,
 	type WidgetDefinition,
+	type WidgetNeed,
 	type WidgetPlacement,
 	type WidgetReading,
+	type WidgetSource,
 	type WidgetSpan,
 } from '$contract/widgets';
 import type { MainContext } from '$main/context';
@@ -31,7 +33,16 @@ import {
 	readWidgetFiles,
 	widgetPath,
 } from './widget-files';
-import { readWidgetSource, type McpToolCaller, type SourceDeps } from './widget-sources';
+import {
+	covers,
+	findSignIn,
+	isFresh,
+	parseGrant,
+	refreshGrant,
+	signIn,
+	type Grant,
+} from './widget-oauth';
+import { readWidgetSource, type SourceDeps, type SourceOutcome } from './widget-sources';
 import {
 	copyWidgetFile,
 	deleteMine,
@@ -44,7 +55,9 @@ import {
 	type SharedBase,
 } from './widget-store';
 import {
+	deleteConnection,
 	forgetReading,
+	getConnection,
 	getReading,
 	listPlacements,
 	placeWidget,
@@ -52,19 +65,27 @@ import {
 	recordRead,
 	removePlacement,
 	resizePlacement,
+	saveConnection,
 	startBoard,
 } from './widgets.repository';
 
 export const EVENT_DEBOUNCE_MS = 2_000;
 export const SHARED_CHECK_MS = 60_000;
 const LOGIN_FRESH_MS = 10 * 60_000;
+const SIGN_IN_TIMEOUT_MS = 10 * 60_000;
 
 export type WidgetsDeps = Readonly<{
 	checkouts: Pick<RepositoriesPlatform['checkouts'], 'resolveCheckout'>;
 	gh: RepositoriesPlatform['gh'];
 	runner: SourceDeps['runner'];
 	environment: () => Readonly<Record<string, string>>;
-	mcp: McpToolCaller;
+	fetch: SourceDeps['fetch'];
+	openExternal: (url: string) => Promise<void>;
+	sealer: Readonly<{
+		isEncryptionAvailable(): boolean;
+		encryptString(plainText: string): Buffer;
+		decryptString(encrypted: Buffer): string;
+	}>;
 	log: (line: string) => void;
 	eventDebounceMs?: number;
 	sharedCheckMs?: number;
@@ -73,6 +94,14 @@ export type WidgetsDeps = Readonly<{
 export type SavedWidget = Readonly<{ widget: WidgetDefinition; reading: WidgetReading }>;
 
 type Location = Readonly<{ board: string; repository: string | null; github: boolean }>;
+
+type HttpSource = Extract<WidgetSource, { kind: 'http' }>;
+
+type Unread = Readonly<{ error: string; need: WidgetNeed | null }>;
+
+type Token = Readonly<{ token: string | null }> | Unread;
+
+type Connecting = Readonly<{ origin: string; controller: AbortController; done: Promise<void> }>;
 
 type Opened = Location &
 	Readonly<{
@@ -106,6 +135,8 @@ export class WidgetBoards {
 	readonly #shared = new Map<string, Promise<string>>();
 	readonly #watches = new Map<string, Watch>();
 	readonly #skipped = new Set<string>();
+	readonly #renewing = new Map<string, Promise<Grant>>();
+	#connecting: Connecting | null = null;
 	readonly #unsubscribes: Array<() => void>;
 	#writes: Promise<unknown> = Promise.resolve();
 	#me: Readonly<{ login: Promise<string | null>; at: number }> | null = null;
@@ -219,11 +250,19 @@ export class WidgetBoards {
 			);
 		}
 		const widget = parseWidgetFile(id, { ...input, author: await this.#login() }, 'mine');
-		if (widget.source.kind === 'command') {
+		if (widget.source.kind === 'retired') {
 			throw new WidgetError(
 				'bad-widget',
-				'Widgets read MCP servers, not scripts. Give `source.mcp` with the `server`, `tool` and `arguments` of a read-only tool, or `source.github`.',
+				'Widgets read APIs, not scripts or MCP tools. Give `source.http` with the `url` of a request that only reads, or `source.github`.',
 			);
+		}
+		if (widget.source.kind === 'http' && widget.source.oauth !== null) {
+			await findSignIn(widget.source.url, this.#deps.fetch).catch((error: unknown) => {
+				throw new WidgetError(
+					'bad-widget',
+					`${describeError(error)} Drop \`oauth\`, or read an API that signs in with OAuth.`,
+				);
+			});
 		}
 		const unknown = unknownChannels(input['refresh'], widget);
 		if (unknown.length > 0) {
@@ -246,6 +285,74 @@ export class WidgetBoards {
 		this.#replan(saved.board);
 		const reading = await this.#read(saved, this.#widget(saved, id));
 		return { widget: this.#widget(saved, id), reading };
+	}
+
+	async connect(workstreamId: string, widgetId: string): Promise<void> {
+		const opened = await this.#open(workstreamId);
+		const widget = this.#widget(opened, widgetId);
+		const { source } = widget;
+		if (source.kind !== 'http' || source.oauth === null) {
+			throw new WidgetError('bad-widget', `\`${widgetId}\` signs in nowhere.`);
+		}
+		const { origin } = new URL(source.url);
+		if (this.#connecting?.origin === origin) return this.#connecting.done;
+		this.#connecting?.controller.abort();
+		const controller = new AbortController();
+		const connecting: Connecting = {
+			origin,
+			controller,
+			done: this.#signIn(opened, widget, source, controller.signal),
+		};
+		this.#connecting = connecting;
+		try {
+			return await connecting.done;
+		} finally {
+			if (this.#connecting === connecting) this.#connecting = null;
+		}
+	}
+
+	cancelConnect(): void {
+		this.#connecting?.controller.abort();
+	}
+
+	async #signIn(
+		opened: Opened,
+		widget: WidgetDefinition,
+		source: HttpSource,
+		signal: AbortSignal,
+	): Promise<void> {
+		const { origin } = new URL(source.url);
+		const scopes = [...(this.#grant(origin)?.scopes ?? []), ...(source.oauth?.scopes ?? [])];
+		try {
+			const grant = await signIn(
+				source.url,
+				[...new Set(scopes)],
+				this.#deps,
+				AbortSignal.any([signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)]),
+			);
+			this.#saveGrant(origin, grant);
+		} catch (error) {
+			if (error instanceof WidgetError && error.kind === 'sign-in-cancelled') return;
+			const need =
+				error instanceof WidgetError && error.kind === 'no-sign-in'
+					? null
+					: { connect: widgetSite(source.url) };
+			recordFailedRead(this.#context.db, opened.board, widget.id, widget.fingerprint, {
+				error: describeError(error),
+				need,
+			});
+			this.#emitReading(opened.board, widget);
+			return;
+		}
+		const watched = await Promise.all(
+			[...this.#watches.keys()].map((id) => this.#open(id).catch(() => null)),
+		);
+		void this.#read(opened, widget);
+		for (const board of watched) {
+			for (const each of board?.widgets ?? []) {
+				if (board !== null && signsInAt(each.source, origin)) void this.#read(board, each);
+			}
+		}
 	}
 
 	dispose(): void {
@@ -308,7 +415,7 @@ export class WidgetBoards {
 		);
 		if (missing.size === 0) return false;
 		const files = await readWidgetFiles(checkout, 'mine', () => undefined);
-		const found = files.filter(({ id }) => missing.has(id));
+		const found = files.filter(({ id, source }) => missing.has(id) && source.kind !== 'retired');
 		for (const widget of found) await this.#write(() => writeMine(root, widget));
 		return found.length > 0;
 	}
@@ -439,19 +546,85 @@ export class WidgetBoards {
 
 	async #fetch(opened: Opened, widget: WidgetDefinition): Promise<void> {
 		const { db } = this.#context;
-		const { gh, runner, environment, mcp } = this.#deps;
-		const outcome = await readWidgetSource(widget.source, opened.checkout, {
-			gh,
-			runner,
-			environment,
-			mcp,
-		});
+		const { source } = widget;
+		const read = async (token: Token): Promise<SourceOutcome | Unread> =>
+			'need' in token ? token : readWidgetSource(source, opened.checkout, this.#deps, token.token);
+		let token = source.kind === 'http' ? await this.#token(source, null) : { token: null };
+		let outcome = await read(token);
+		if (source.kind === 'http' && 'refused' in outcome && outcome.refused && 'token' in token) {
+			token = await this.#token(source, token.token);
+			outcome = await read(token);
+		}
 		if ('data' in outcome) {
 			recordRead(db, opened.board, widget.id, widget.fingerprint, outcome.data);
 			return;
 		}
-		if (widget.source.kind === 'command') forgetReading(db, opened.board, widget.id);
-		recordFailedRead(db, opened.board, widget.id, widget.fingerprint, outcome);
+		if (source.kind === 'retired') forgetReading(db, opened.board, widget.id);
+		recordFailedRead(db, opened.board, widget.id, widget.fingerprint, {
+			error: outcome.error,
+			need: 'need' in outcome ? outcome.need : null,
+		});
+	}
+
+	async #token(source: HttpSource, refused: string | null): Promise<Token> {
+		if (source.oauth === null) return { token: null };
+		const { origin } = new URL(source.url);
+		const site = widgetSite(source.url);
+		const need = { connect: site };
+		const grant = this.#grant(origin);
+		if (grant === null) return { need, error: `Reads ${site} as you.` };
+		const missing = source.oauth.scopes.filter((scope) => !covers(grant, [scope]));
+		if (missing.length > 0) return { need, error: `Needs ${listed(missing)} on ${site}.` };
+		if (isFresh(grant) && grant.accessToken !== refused) return { token: grant.accessToken };
+		try {
+			return { token: (await this.#renew(origin, site, grant)).accessToken };
+		} catch (error) {
+			if (!(error instanceof WidgetError && error.kind === 'signed-out')) {
+				return { need: null, error: describeError(error) };
+			}
+			if (this.#grant(origin)?.accessToken === grant.accessToken) {
+				deleteConnection(this.#context.db, origin);
+			}
+			return { need, error: error.message };
+		}
+	}
+
+	#renew(origin: string, site: string, grant: Grant): Promise<Grant> {
+		const running = this.#renewing.get(origin);
+		if (running) return running;
+		const renewing = (async () => {
+			try {
+				const renewed = await refreshGrant(grant, site, this.#deps.fetch);
+				this.#saveGrant(origin, renewed);
+				return renewed;
+			} finally {
+				this.#renewing.delete(origin);
+			}
+		})();
+		this.#renewing.set(origin, renewing);
+		return renewing;
+	}
+
+	#grant(origin: string): Grant | null {
+		const { sealer } = this.#deps;
+		const sealed = getConnection(this.#context.db, origin);
+		if (sealed === null || !sealer.isEncryptionAvailable()) return null;
+		try {
+			return parseGrant(JSON.parse(sealer.decryptString(Buffer.from(sealed))));
+		} catch {
+			return null;
+		}
+	}
+
+	#saveGrant(origin: string, grant: Grant): void {
+		const { sealer } = this.#deps;
+		if (!sealer.isEncryptionAvailable()) {
+			throw new WidgetError(
+				'sign-in-failed',
+				'Malini cannot reach the macOS keychain to keep the sign-in. Unlock it, then connect again.',
+			);
+		}
+		saveConnection(this.#context.db, origin, sealer.encryptString(JSON.stringify(grant)));
 	}
 
 	#emitReading(board: string, widget: WidgetDefinition): WidgetReading {
@@ -486,7 +659,7 @@ export class WidgetBoards {
 			const fresh =
 				Number.isNaN(attempted) ||
 				(moved && widget.origin === 'shared') ||
-				widget.source.kind === 'command';
+				widget.source.kind === 'retired';
 			const due = fresh ? 0 : Math.max(0, attempted + every - Date.now());
 			this.#every(watch, opened, widget, due);
 			for (const channel of widget.refresh.on) {
@@ -495,8 +668,6 @@ export class WidgetBoards {
 					this.#context.events.subscribe(channel, () => this.#soon(watch, opened, widget)),
 				);
 			}
-			if (widget.source.kind === 'mcp')
-				this.#onServerBack(watch, opened, widget, widget.source.server);
 		}
 		const check = setInterval(
 			() => void this.#checkShared(watch, opened).catch(() => undefined),
@@ -527,18 +698,6 @@ export class WidgetBoards {
 		watch.timers.push(first);
 	}
 
-	#onServerBack(watch: Watch, opened: Opened, widget: WidgetDefinition, server: string): void {
-		const back = (servers: readonly McpServerReport[]): void => {
-			if (this.#reading(opened.board, widget).need === null) return;
-			if (!servers.some(({ name, status }) => name === server && status === 'connected')) return;
-			this.#soon(watch, opened, widget);
-		};
-		watch.unsubscribes.push(
-			this.#context.events.subscribe('chat:mcp-server-changed', (changed) => back([changed])),
-			this.#context.events.subscribe('chat:mcp-servers-listed', ({ servers }) => back(servers)),
-		);
-	}
-
 	#soon(watch: Watch, opened: Opened, widget: WidgetDefinition): void {
 		clearTimeout(watch.soon.get(widget.id));
 		const timer = setTimeout(() => {
@@ -567,6 +726,14 @@ export class WidgetBoards {
 			return null;
 		}
 	}
+}
+
+function signsInAt(source: WidgetSource, origin: string): boolean {
+	return source.kind === 'http' && source.oauth !== null && new URL(source.url).origin === origin;
+}
+
+function listed(names: readonly string[]): string {
+	return new Intl.ListFormat('en-US', { type: 'conjunction' }).format(names);
 }
 
 function firstSpan(widget: WidgetDefinition): WidgetSpan {

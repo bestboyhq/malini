@@ -1,24 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { WidgetDefinition, WidgetSource } from '$contract/widgets';
-import {
-	deltaOf,
-	needAction,
-	runsLabel,
-	sourceLine,
-	tileName,
-	updatedLabel,
-	widgetValue,
-} from './widget-text';
+import { deltaOf, runsLabel, sourceLine, tileName, updatedLabel, widgetValue } from './widget-text';
 
 const NOW = new Date('2026-11-22T12:00:00Z');
 
-const LOGDASH: WidgetSource = {
-	kind: 'mcp',
-	server: 'logdash',
-	tool: 'trend',
-	arguments: {},
+const POSTHOG: WidgetSource = {
+	kind: 'http',
+	url: 'https://us.posthog.com/api/projects/1/query/?refresh=true',
+	method: 'POST',
+	headers: {},
+	body: { query: { kind: 'HogQLQuery', query: 'select 1' } },
+	oauth: { scopes: ['query:read'] },
 	select: null,
-	url: null,
 };
 
 function widget(source: WidgetSource): WidgetDefinition {
@@ -58,18 +51,9 @@ describe('sourceLine', () => {
 		expect(sourceLine(widget({ kind: 'github', path: 'repos/a/b', select: '.x' }))).toBe(
 			"gh api repos/a/b --jq '.x'",
 		);
-		expect(sourceLine(widget(LOGDASH))).toBe('logdash · trend');
-		expect(sourceLine(widget({ kind: 'command', run: 'pnpm test' }))).toBe('Runs pnpm test');
+		expect(sourceLine(widget(POSTHOG))).toBe('POST us.posthog.com/api/projects/1/query/');
+		expect(sourceLine(widget({ kind: 'retired', line: 'Runs pnpm test' }))).toBe('Runs pnpm test');
 		expect(sourceLine(widget({ kind: 'plan' }))).toBe('Your plan');
-	});
-});
-
-describe('needAction', () => {
-	it('names the button that gets an MCP source its server back', () => {
-		expect(needAction(widget(LOGDASH), 'add')).toBe('Add logdash');
-		expect(needAction(widget(LOGDASH), 'sign-in')).toBe('Sign in to logdash');
-		expect(needAction(widget(LOGDASH), 'turn-on')).toBe('Turn on logdash');
-		expect(needAction(widget({ kind: 'plan' }), 'add')).toBeNull();
 	});
 });
 

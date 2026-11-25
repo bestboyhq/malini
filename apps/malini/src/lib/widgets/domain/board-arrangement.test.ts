@@ -18,7 +18,10 @@ function widget(id: string, origin: WidgetDefinition['origin']): WidgetDefinitio
 		title: id,
 		icon: null,
 		scope: 'shared',
-		source: origin === 'plan' ? { kind: 'plan' } : { kind: 'command', run: 'true' },
+		source:
+			origin === 'plan'
+				? { kind: 'plan' }
+				: { kind: 'github', path: 'repos/{owner}/{repo}', select: null },
 		refresh: { everySeconds: 300, on: [] },
 		url: null,
 		author: null,

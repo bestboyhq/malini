@@ -221,13 +221,6 @@ const handle = (command) => {
       write({ type: 'bridge.answer', protocolVersion: version, id: command.id, answer: JSON.parse(env.FAKE_BRIDGE_ANSWER ?? '{}') });
       return ack(command.id);
     }
-    case 'call_mcp_tool': {
-      if (env.FAKE_BRIDGE_SKIP_MCP_TOOL_FRAME) return ack(command.id);
-      const { cwd, serverName, tool, arguments: args, plugins } = command;
-      write({ type: 'bridge.mcp_tool_result', protocolVersion: version, id: command.id,
-        outcome: { kind: 'output', text: JSON.stringify({ cwd, serverName, tool, args, plugins }) } });
-      return ack(command.id);
-    }
     default:
       return ack(command.id, 'unknown command ' + command.cmd);
   }
