@@ -1,6 +1,6 @@
 # 0301 - Widgets read MCP servers, not scripts
 
-Status: superseded by 0304
+Status: superseded by 0305
 
 ## Context
 

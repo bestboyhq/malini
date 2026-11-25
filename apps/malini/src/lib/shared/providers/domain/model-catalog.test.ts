@@ -208,7 +208,7 @@ describe('model picker rows', () => {
 	});
 });
 
-describe('earlier Claude versions', () => {
+describe('earlier versions', () => {
 	const version = (id: string, label: string, family: string, released: string) => ({
 		...model(id, label, family),
 		released,
@@ -250,6 +250,18 @@ describe('earlier Claude versions', () => {
 		const rows = pickerRows(claude, { provider: 'claude', model: 'claude-opus-4-5' });
 		expect(shape(rows)).toEqual(['Opus 5.5: claude', 'Opus 4.5: claude', 'Haiku 5.5: claude']);
 		expect(earlierVersions(claude, rows, 'opus')).toEqual([]);
+	});
+
+	it('finds an earlier version of any provider, so everything it sells can be picked', () => {
+		const opencode = [
+			group('opencode', true, [
+				version('qwen4-max', 'Qwen4 Max', 'qwen-max', '2026-11-16'),
+				version('qwen3.8-max', 'Qwen3.8 Max', 'qwen-max', '2026-08-03'),
+			]),
+		];
+		const rows = pickerRows(opencode, { provider: 'opencode', model: 'qwen4-max' });
+		expect(shape(rows)).toEqual(['Qwen4 Max: opencode']);
+		expect(ids(earlierVersions(opencode, rows, 'qwen'))).toEqual(['qwen3.8-max']);
 	});
 
 	it('names the month a version came out', () => {

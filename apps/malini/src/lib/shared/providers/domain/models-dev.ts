@@ -1,6 +1,7 @@
 import type { AgentModelInfo } from '$contract/agent';
 import { isValidAgentModel } from './model-id';
 import { isRecord } from './model-preferences';
+import { OPENCODE_GO_PROVIDER_ID } from './provider';
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from './run-profile';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
@@ -19,48 +20,43 @@ interface CatalogModel {
 }
 
 export function modelsDevModels(catalog: unknown, providerId: string): AgentModelInfo[] {
-	return newestFirst(catalog, providerId, ({ info }) => info.family ?? info.id).map(
-		({ info }) => info,
+	return newestFirst(catalog, providerId).map(({ info, released }) =>
+		RELEASE_DATE.test(released) ? { ...info, released } : info,
 	);
 }
 
 export function modelsDevVersions(catalog: unknown, providerId: string): AgentModelInfo[] {
-	return newestFirst(catalog, providerId, ({ info }) => info.label).flatMap(({ info, released }) =>
-		RELEASE_DATE.test(released) ? [{ ...info, released }] : [],
-	);
+	return modelsDevModels(catalog, providerId).filter((model) => model.released !== undefined);
 }
 
-function newestFirst(
-	catalog: unknown,
-	providerId: string,
-	key: (model: CatalogModel) => string,
-): CatalogModel[] {
+function newestFirst(catalog: unknown, providerId: string): CatalogModel[] {
 	const provider = isRecord(catalog) ? catalog[providerId] : undefined;
 	const models = isRecord(provider) ? provider['models'] : undefined;
 	if (!isRecord(models)) return [];
+	const servesFree = providerId === OPENCODE_GO_PROVIDER_ID;
 	const seen = new Set<string>();
 	return Object.values(models)
-		.flatMap((model) => catalogModel(model) ?? [])
+		.flatMap((model) => catalogModel(model, servesFree) ?? [])
 		.sort(
 			(left, right) =>
 				right.released.localeCompare(left.released) ||
 				left.info.label.localeCompare(right.info.label) ||
 				left.info.id.localeCompare(right.info.id),
 		)
-		.filter((model) => {
-			const name = key(model);
-			if (seen.has(name)) return false;
-			seen.add(name);
+		.filter(({ info }) => {
+			if (seen.has(info.label)) return false;
+			seen.add(info.label);
 			return true;
 		})
 		.slice(0, MAX_MODELS);
 }
 
-function catalogModel(model: unknown): CatalogModel | null {
+function catalogModel(model: unknown, servesFree: boolean): CatalogModel | null {
 	if (!isRecord(model)) return null;
 	const { id, name, family, status, tool_call: toolCall } = model;
 	if (!isValidAgentModel(id) || typeof name !== 'string') return null;
-	if (status === 'deprecated' || toolCall !== true || isFree(model['cost'])) return null;
+	if (status === 'deprecated' || toolCall !== true) return null;
+	if (!servesFree && isFree(model['cost'])) return null;
 	const modalities = isRecord(model['modalities']) ? model['modalities'] : {};
 	if (!strings(modalities['output']).includes('text')) return null;
 	const label = shortName(name).slice(0, MAX_LABEL_LENGTH);
