@@ -2,13 +2,12 @@ import {
 	WIDGET_DEFAULT_SPAN,
 	isWidgetSpan,
 	parseWidgetData,
-	WIDGET_NEEDS,
 	type WidgetData,
 	type WidgetNeed,
 	type WidgetSpan,
 } from '$contract/widgets';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
+import { all, get, isRecord, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 
 export type StoredPlacement = Readonly<{ widgetId: string; span: WidgetSpan }>;
 
@@ -141,7 +140,7 @@ export function getReading(
 		data: storedData(row.data),
 		readAt: row.read_at,
 		error: row.error,
-		need: WIDGET_NEEDS.find((need) => need === row.need) ?? null,
+		need: storedNeed(row.need),
 		attemptedAt: row.attempted_at,
 	};
 }
@@ -194,9 +193,44 @@ export function recordFailedRead(
 		widgetId,
 		fingerprint,
 		failure.error,
-		failure.need,
+		failure.need === null ? null : JSON.stringify(failure.need),
 		nowIso8601(),
 	);
+}
+
+export function getConnection(db: MaliniDatabase, origin: string): Uint8Array | null {
+	return (
+		get<{ sealed: Uint8Array }>(
+			db,
+			'SELECT sealed FROM widget_connections WHERE origin = ?',
+			origin,
+		)?.sealed ?? null
+	);
+}
+
+export function saveConnection(db: MaliniDatabase, origin: string, sealed: Uint8Array): void {
+	run(
+		db,
+		`INSERT INTO widget_connections (origin, sealed, connected_at) VALUES (?, ?, ?)
+		 ON CONFLICT(origin) DO UPDATE SET sealed = excluded.sealed`,
+		origin,
+		sealed,
+		nowIso8601(),
+	);
+}
+
+export function deleteConnection(db: MaliniDatabase, origin: string): void {
+	run(db, 'DELETE FROM widget_connections WHERE origin = ?', origin);
+}
+
+function storedNeed(text: string | null): WidgetNeed | null {
+	try {
+		const need = parseJsonColumn(text);
+		const connect = isRecord(need) ? need['connect'] : null;
+		return typeof connect === 'string' ? { connect } : null;
+	} catch {
+		return null;
+	}
 }
 
 function storedData(text: string | null): WidgetData | null {

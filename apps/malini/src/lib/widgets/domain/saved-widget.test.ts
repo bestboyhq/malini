@@ -23,53 +23,71 @@ describe('savedWidget', () => {
 	});
 
 	it('takes the saved widget and its first reading from the result', () => {
+		const source = {
+			kind: 'http',
+			url: 'https://eu.posthog.com/api/projects/1/query/',
+			method: 'POST',
+			headers: { Accept: 'application/json' },
+			body: { query: { kind: 'HogQLQuery', query: 'select 1' } },
+			oauth: { scopes: ['query:read'] },
+			select: '.results',
+		};
 		const output = JSON.stringify({
 			widget: {
 				id: 'open-prs',
 				title: 'Open PRs',
-				source: {
-					kind: 'mcp',
-					server: 'posthog',
-					tool: 'trend',
-					arguments: { days: 7 },
-					select: '.value',
-					url: null,
-				},
+				source,
 				refresh: { everySeconds: 120, on: ['push'] },
 				fingerprint: 'abc',
 				origin: 'mine',
 			},
-			reading: { board: 'b', data: null, error: 'posthog needs you to sign in.', need: 'sign-in' },
+			reading: {
+				board: 'b',
+				data: null,
+				error: 'Reads eu.posthog.com as you.',
+				need: { connect: 'eu.posthog.com' },
+			},
 		});
 		const saved = savedWidget(INPUT, output);
 		expect(saved.widget).toMatchObject({
 			title: 'Open PRs',
-			source: {
-				kind: 'mcp',
-				server: 'posthog',
-				tool: 'trend',
-				arguments: { days: 7 },
-				select: '.value',
-				url: null,
-			},
+			source,
 			refresh: { everySeconds: 120, on: ['push'] },
 			fingerprint: 'abc',
 		});
-		expect(saved.reading).toMatchObject({ widgetId: 'open-prs', need: 'sign-in', reading: false });
+		expect(saved.reading).toMatchObject({
+			widgetId: 'open-prs',
+			need: { connect: 'eu.posthog.com' },
+			reading: false,
+		});
 	});
 
-	it('draws an MCP source from the call input', () => {
+	it('draws an http source from the call input', () => {
 		const input = {
 			title: 'Visitors',
-			source: { mcp: { server: 'logdash', tool: 'trend', arguments: { days: 7 } }, select: '.x' },
+			source: { http: { url: 'https://api.example.com/visits', method: 'post' }, select: '.x' },
 		};
 		expect(savedWidget(input, null).widget?.source).toEqual({
-			kind: 'mcp',
-			server: 'logdash',
-			tool: 'trend',
-			arguments: { days: 7 },
+			kind: 'http',
+			url: 'https://api.example.com/visits',
+			method: 'POST',
+			headers: {},
+			body: null,
+			oauth: null,
 			select: '.x',
-			url: null,
+		});
+	});
+
+	it('names an MCP or script source from an older call as retired', () => {
+		const mcp = { title: 'Visitors', source: { mcp: { server: 'posthog', tool: 'query-trends' } } };
+		expect(savedWidget(mcp, null).widget?.source).toEqual({
+			kind: 'retired',
+			line: 'posthog · query-trends',
+		});
+		const script = { title: 'Tests', source: { command: './count.sh' } };
+		expect(savedWidget(script, null).widget?.source).toEqual({
+			kind: 'retired',
+			line: 'Runs ./count.sh',
 		});
 	});
 

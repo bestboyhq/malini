@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { BrowserWindow } from 'electron';
+import { net, type BrowserWindow } from 'electron';
 import { consolePlatformLog, platformLineSink } from '$main/diagnostics/platform-log';
 import { describeError } from '$main/errors';
 import { buildSpawnEnvironment } from '$main/process/environment';
@@ -142,7 +142,9 @@ export async function registerModules(
 		gh: repositories.gh,
 		runner: processRunner,
 		environment: () => buildSpawnEnvironment(),
-		mcp: (cwd, server, tool, args) => chat.callMcpTool(cwd, server, tool, args),
+		fetch: (url, init) => net.fetch(url, init),
+		openExternal: (url) => shellHost.openExternal(url),
+		sealer: shellHost,
 		log,
 	});
 

@@ -46,6 +46,12 @@ export function registerWidgets(context: MainContext, deps: WidgetsDeps): Widget
 		boards.pinPlan(repository);
 	});
 
+	commands.define('widgets.connect', (args: unknown) =>
+		boards.connect(workstreamId(args), widgetId(args)),
+	);
+
+	commands.define('widgets.cancel-connect', () => boards.cancelConnect());
+
 	commands.define('widgets.watch', (args: unknown) => {
 		const watching = field(args, 'watching');
 		if (typeof watching !== 'boolean') throw invalid('`watching` must be true or false');

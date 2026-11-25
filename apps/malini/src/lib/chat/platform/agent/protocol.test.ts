@@ -359,30 +359,6 @@ describe('MCP server frames', () => {
 		expect(decodeControlFrame(switched)).toEqual({ ok: true, value: switched });
 		expect(decodeControlFrame({ ...switched, folders: [1] })).toMatchObject({ ok: false });
 	});
-
-	it('decodes what an MCP tool call answered and refuses an outcome it does not know', () => {
-		const answered = {
-			type: 'bridge.mcp_tool_result',
-			protocolVersion: BRIDGE_PROTOCOL_VERSION,
-			id: 'tool-1',
-		};
-		for (const outcome of [
-			{ kind: 'output', text: '{"visits":3}' },
-			{ kind: 'failed', error: 'quota exceeded' },
-			{ kind: 'not-read-only' },
-		]) {
-			expect(decodeControlFrame({ ...answered, outcome })).toEqual({
-				ok: true,
-				value: { ...answered, outcome },
-			});
-		}
-		expect(decodeControlFrame({ ...answered, outcome: { kind: 'output' } })).toMatchObject({
-			ok: false,
-		});
-		expect(decodeControlFrame({ ...answered, outcome: { kind: 'ran' } })).toMatchObject({
-			ok: false,
-		});
-	});
 });
 
 describe('browser requests', () => {

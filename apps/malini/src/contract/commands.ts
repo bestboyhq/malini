@@ -720,6 +720,8 @@ export interface ContractCommands {
 	'widgets.share': { args: ShareWidgetArgs; result: void };
 	'widgets.watch': { args: WatchWidgetsArgs; result: void };
 	'widgets.pin-plan': { args: PinPlanWidgetArgs; result: void };
+	'widgets.connect': { args: WidgetArgs; result: void };
+	'widgets.cancel-connect': { args: undefined; result: void };
 	'brain.status': { args: undefined; result: BrainStatus };
 	'brain.set-up': { args: SetUpBrainArgs; result: BrainStatus };
 	'brain.set-sync': { args: SetBrainSyncArgs; result: BrainStatus };
@@ -1073,6 +1075,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'widgets.share',
 	'widgets.watch',
 	'widgets.pin-plan',
+	'widgets.connect',
+	'widgets.cancel-connect',
 	'brain.status',
 	'brain.set-up',
 	'brain.set-sync',

@@ -12,7 +12,6 @@
 	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
 	import { makeWidgetDefaultCommand } from '$lib/app/application/commands/make-widget-default.command';
 	import { startDependencyWorkstreamCommand } from '$lib/app/application/commands/start-dependency-workstream.command';
-	import { fixWidgetSourceCommand } from '$lib/app/application/commands/fix-widget-source.command';
 	import { workstreamStandingQuery } from '$lib/app/application/queries/workstream-standing.query.svelte';
 	import { askAgentToFixCheckoutCommand } from '$lib/chat/application/commands/ask-agent-to-fix-checkout.command';
 	import { shipPromptCommand } from '$lib/chat/application/commands/ship-prompt.command';
@@ -208,8 +207,6 @@
 		onopen={(url) => openBrowserUrlCommand(workstreamId, url)}
 		onnew={(prompt, inNewChat) =>
 			shipPromptCommand({ workstreamId, prompt, subject: 'Widget', inNewChat })}
-		onneed={(widget, need, inNewChat) =>
-			fixWidgetSourceCommand(workstreamId, widget, need, inNewChat)}
 		onshare={remotePullRequestsSupported
 			? (widget, inNewChat) => makeWidgetDefaultCommand(workstreamId, widget, inNewChat)
 			: undefined}
