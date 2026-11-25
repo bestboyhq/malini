@@ -15,7 +15,12 @@ import { listElementThreads, threadWorkstreamId } from '$lib/chat/chat.platform'
 import { getWorkstream, listWorkstreams } from '$shared/repositories/repositories.platform';
 import type { BrowserPlatform } from '../browser.platform';
 import { readBounds, readPick, readRequestId, readTab, readUrl } from './args';
-import { askBeforeMediaAccess, createElectronView, watchRendererReset } from './electron-view';
+import {
+	askBeforeMediaAccess,
+	browseAsChrome,
+	createElectronView,
+	watchRendererReset,
+} from './electron-view';
 import { pageStills } from './page-stills';
 import { movesPin, startElementThread, threadPin } from './threads';
 import { BrowserViews } from './views';
@@ -39,6 +44,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		}
 	}, stills);
 	askBeforeMediaAccess(deps.getMainWindow);
+	browseAsChrome();
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
 		onScreen: (window) => !app.isHidden() && !window.isMinimized(),

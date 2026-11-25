@@ -10,6 +10,7 @@ Malini's tools reach Claude Code through an MCP server named `malini`, so their 
 
 The agent drives the same browser tabs you see in the inspector, and the tabs it opens show up beside yours.
 A tab shows up as soon as the agent starts opening its page, and a page that does not load says why, such as `ERR_CONNECTION_REFUSED` while your dev server starts.
+Pages see a plain Chrome: its user agent names neither Malini nor Electron, so a site that sends desktop apps elsewhere shows its web page.
 
 | Tool                 | What it does                                                                                  |
 | -------------------- | --------------------------------------------------------------------------------------------- |

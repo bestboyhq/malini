@@ -9,6 +9,7 @@ import {
 import { rememberMediaAnswers } from './media-permission';
 import { MALINI_WORLD_ID, type PageEvents, type PageView } from './page';
 import { isAllowedNavigation } from './url';
+import { chromeUserAgent } from './user-agent';
 
 export const BROWSER_PARTITION = 'persist:malini-browser';
 const MAX_FAVICON_BYTES = 64 * 1024;
@@ -157,6 +158,11 @@ async function faviconDataUrl(partition: Session, url: string | undefined): Prom
 	} catch {
 		return null;
 	}
+}
+
+export function browseAsChrome(): void {
+	const partition = session.fromPartition(BROWSER_PARTITION);
+	partition.setUserAgent(chromeUserAgent(partition.getUserAgent()));
 }
 
 export function askBeforeMediaAccess(getWindow: () => BrowserWindow | null): void {

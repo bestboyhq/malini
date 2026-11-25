@@ -18,6 +18,8 @@ vi.mock('electron', () => ({
 			protocol: { handle: vi.fn() },
 			setPermissionRequestHandler: vi.fn(),
 			setPermissionCheckHandler: vi.fn(),
+			getUserAgent: () => '',
+			setUserAgent: vi.fn(),
 		}),
 	},
 	protocol: { handle: vi.fn() },
