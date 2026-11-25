@@ -143,6 +143,17 @@
 		field.select();
 	}
 
+	function onAddressMousedown(event: MouseEvent): void {
+		const field = event.currentTarget;
+		if (event.detail === 2 && field instanceof HTMLInputElement) letDoubleClickPickWord(field);
+	}
+
+	function letDoubleClickPickWord(field: HTMLInputElement): void {
+		const { scrollLeft, selectionStart } = field;
+		field.setSelectionRange(selectionStart, selectionStart);
+		field.scrollLeft = scrollLeft;
+	}
+
 	function onAddressKeydown(event: KeyboardEvent): void {
 		const field = event.currentTarget;
 		if (!(field instanceof HTMLInputElement)) return;
@@ -225,6 +236,7 @@
 			class="mx-1 min-w-0 flex-1"
 			inputClass="text-xs"
 			oninput={onAddressInput}
+			onmousedown={onAddressMousedown}
 			onfocus={onAddressFocus}
 			onkeydown={onAddressKeydown}
 			onblur={() => (draft = null)}
