@@ -1097,29 +1097,10 @@ export async function untilStill(page: Page): Promise<void> {
 	expect(settled, `the transcript held still for ${STILL_FRAMES} frames`).toBe(true);
 }
 
-export async function captureFlow(
-	handle: LaunchedApp,
-	name: string,
-): Promise<{ page: string; native: string | null }> {
+export async function captureFlow(handle: LaunchedApp, name: string): Promise<void> {
 	mkdirSync(CONTEXT_ROOT, { recursive: true });
-	const pagePath = join(CONTEXT_ROOT, `e2e-${name}.png`);
 	await settleAnimations(handle.page);
-	await handle.page.screenshot({ path: pagePath });
-	let nativePath: string | null = null;
-	try {
-		const mediaSourceId = await handle.electronApp.evaluate(({ BrowserWindow }) => {
-			const [first] = BrowserWindow.getAllWindows();
-			return first ? first.getMediaSourceId() : null;
-		});
-		const windowId = mediaSourceId ? /^window:(\d+)/u.exec(mediaSourceId)?.[1] : undefined;
-		if (windowId) {
-			nativePath = join(CONTEXT_ROOT, `e2e-${name}-native.png`);
-			await execFileAsync('screencapture', ['-o', '-x', '-l', windowId, nativePath]);
-		}
-	} catch {
-		nativePath = null;
-	}
-	return { page: pagePath, native: nativePath };
+	await handle.page.screenshot({ path: join(CONTEXT_ROOT, `e2e-${name}.png`) });
 }
 
 export function unexpectedDiagnostics(
