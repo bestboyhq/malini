@@ -617,11 +617,7 @@ test('a Go key lists Go models, runs them on the Go endpoint, and checks again',
 		await expect(panel).toBeHidden();
 
 		await page.getByTestId('chat-composer-model').click();
-		await expect(modelOptions(page, 'opencode')).toHaveText([
-			/^HungerG Free/u,
-			/^Hy4/u,
-			/^GLM-6/u,
-		]);
+		await expect(modelOptions(page, 'opencode')).toHaveText([/^HungerG Free/u, /^Hy4/u, /^GLM-6/u]);
 		const models = page.getByRole('listbox', { name: 'Models' });
 		await page.getByRole('textbox', { name: 'Find models' }).fill('hy');
 		await expect(
