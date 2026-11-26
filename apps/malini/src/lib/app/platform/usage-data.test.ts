@@ -811,6 +811,29 @@ describe('usage days', () => {
 		});
 	});
 
+	it('marks the next day within the hour while Malini stays open past midnight', async () => {
+		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+		try {
+			let clock = new Date(2026, 9, 15, 23, 30);
+			const open = harness(undefined, undefined, { now: () => clock });
+			await settled();
+			expect(open.activity).toEqual(['app_active', 'day']);
+
+			clock = new Date(2026, 9, 16, 0, 30);
+			vi.advanceTimersByTime(60 * 60_000);
+			await settled();
+			expect(open.activity).toEqual(['app_active', 'day', 'day']);
+			expect(open.tags.at(-1)).toEqual({ ...LATER_DAY, week_first: 'no', month_first: 'no' });
+
+			vi.advanceTimersByTime(60 * 60_000);
+			await settled();
+			expect(open.activity).toEqual(['app_active', 'day', 'day']);
+			await open.shutdown();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('starts each week and month on the last day that went, across months and years', async () => {
 		const context = createTestContext('/tmp', { db: openMigratedDatabase(':memory:') });
 		const launch = (
