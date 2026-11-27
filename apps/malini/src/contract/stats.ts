@@ -47,6 +47,20 @@ export type ActivityStats = Readonly<{
 	repositories: readonly RepositoryActivity[];
 }>;
 
+export type TrimmedProgram = Readonly<{
+	program: string;
+	commands: number;
+	inputTokens: number;
+	savedTokens: number;
+}>;
+
+export type TrimmedOutput = Readonly<{
+	commands: number;
+	inputTokens: number;
+	savedTokens: number;
+	programs: readonly TrimmedProgram[];
+}>;
+
 export type RunningItemOrigin = 'agent' | 'docker';
 
 export type RunningItemKind = 'service' | 'task';

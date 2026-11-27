@@ -57,6 +57,7 @@ import { StatsProfile } from './stats-profile';
 import type { WorkstreamFolder } from './running-docker';
 import { WorkstreamRunningMonitor } from './workstream-running';
 import { StatsError } from './stats-error';
+import { readTrimmedOutput } from './trimmed-output';
 
 export interface StatsDeps {
 	readonly runner: ProcessRunner;
@@ -107,6 +108,7 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	commands.define('stats.resources', () => sampler.history());
 	commands.define('stats.resource-breakdown', () => sampler.breakdown());
 	commands.define('stats.activity', () => readActivity(db, new Date()));
+	commands.define('stats.trimmed-output', () => readTrimmedOutput());
 
 	const frames = new FrameJournal({
 		write: journal<FrameJournalEntry>(

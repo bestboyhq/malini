@@ -105,6 +105,7 @@ For one command, the agent gets the full output when it writes `RTK_DISABLED=1` 
 It applies to chats and agent automations, not to the **Run** button or to workstream installs.
 The filters are those of the open-source [RTK](https://github.com/rtk-ai/rtk) (Apache-2.0), built into Malini, so a note in the output can start with `[rtk]`.
 It is on until you turn it off, and the next prompt of every chat follows it.
+The Stats panel's **Kept out of context** card counts what it trimmed in the last 90 days, on your Mac: the tokens your agents did not read, and the commands that saved the most.
 
 ## Plan first
 

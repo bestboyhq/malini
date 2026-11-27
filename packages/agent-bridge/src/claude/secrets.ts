@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import {
 	INSIDE_THE_SANDBOX,
 	OUTSIDE_THE_SANDBOX,
+	RTK_DATA_FOLDER,
 	SANDBOX_ENVIRONMENT,
 	SANDBOX_EXEC,
 	SECRETS_FOLDER_PREFIX,
@@ -29,7 +30,6 @@ const STOP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 const { signals } = osConstants;
 const REWRITE_SECONDS = 2;
 const LEFTOVER_GRACE_TENTHS = 30;
-const COMPACT_OUTPUT_DATA = join(tmpdir(), 'malini-rtk');
 const sandboxEnvironment = Object.entries(SANDBOX_ENVIRONMENT)
 	.map(([name, value]) => `${name}=${value}`)
 	.join(' ');
@@ -234,7 +234,7 @@ function masksOf(values: readonly string[]): string[] {
 }
 
 function compactSettings(rtk: string): string {
-	const data = (name: string) => shellQuoted(join(COMPACT_OUTPUT_DATA, name));
+	const data = (name: string) => shellQuoted(join(RTK_DATA_FOLDER, name));
 	return `rtk=${shellQuoted(rtk)}\nexport RTK_TELEMETRY_DISABLED=1 RTK_DB_PATH=${data('history.db')} RTK_RECALL_DB=${data('recall.db')} RTK_TEE_DIR=${data('tee')}\n`;
 }
 

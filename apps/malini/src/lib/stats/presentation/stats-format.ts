@@ -17,8 +17,14 @@ export function formatAgentTime(seconds: number): string {
 	const minutes = Math.floor(seconds / 60);
 	const hours = Math.floor(minutes / 60);
 	if (hours === 0) return `${minutes}m`;
-	if (hours >= 100) return `${hours}h`;
+	if (hours >= 100) return `${formatCount(hours)}h`;
 	return `${hours}h ${minutes % 60}m`;
+}
+
+export function formatTokens(tokens: number): string {
+	if (tokens >= 999_500) return `${(tokens / 1_000_000).toFixed(1)}M`;
+	if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
+	return formatCount(tokens);
 }
 
 export function formatCount(count: number): string {

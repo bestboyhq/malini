@@ -11,6 +11,7 @@ export const SANDBOX_TAG_PREFIX = 'malini-sandbox-';
 export const SANDBOX_ENVIRONMENT = { ELECTRON_DISABLE_SANDBOX: '1' } as const;
 export const APP_DATA_ROOT = 'MALINI_APP_DATA_ROOT';
 export const RTK_BINARY = 'MALINI_RTK_BINARY';
+export const RTK_DATA_FOLDER = join(homedir(), 'Library', 'Caches', 'malini-rtk');
 
 const CLAUDE_CHAT_RECORDS = [
 	'projects',
