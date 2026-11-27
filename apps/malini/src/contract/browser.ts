@@ -28,6 +28,25 @@ export type BrowserBounds = Readonly<{ x: number; y: number; width: number; heig
 
 export type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
 
+export const DEFAULT_BROWSER_PROFILE = 'default';
+
+const MAX_PROFILE_NAME = 32;
+
+export function browserProfileName(input: string): string | null {
+	const name = input
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.trim()
+		.toLowerCase()
+		.replace(/[\s_]+/gu, '-')
+		.replace(/[^a-z0-9-]/gu, '')
+		.replace(/-{2,}/gu, '-')
+		.replace(/^-|-$/gu, '');
+	return name.length > 0 && name.length <= MAX_PROFILE_NAME ? name : null;
+}
+
+export type BrowserTabOpened = BrowserTabArgs & Readonly<{ profile: string }>;
+
 export type BrowserState = Readonly<{
 	workstreamId: string;
 	tabId: string;
@@ -75,7 +94,7 @@ export type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: st
 
 export type BrowserShowArgs = BrowserTabArgs & Readonly<{ bounds: BrowserBounds }>;
 
-export type BrowserNavigateArgs = BrowserTabArgs & Readonly<{ url: string }>;
+export type BrowserNavigateArgs = BrowserTabArgs & Readonly<{ url: string; profile: string }>;
 
 export type BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;
 

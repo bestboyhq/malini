@@ -8,7 +8,7 @@ export { pictureBrowserPageCommand };
 
 function pictureBrowserPageCommand(tab: BrowserTabArgs): void {
 	const key = browserTabKey(tab);
-	const turn = browserViewStore.shownTurn(key);
+	const turn = browserViewStore.picturedTurn(key);
 	if (turn === null) return;
 	void (async () => {
 		const snapshot = await browserService.snapshot(tab).catch(() => null);

@@ -4,6 +4,7 @@ import type {
 	BrowserResizeRequest,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserTabOpened,
 	BrowserThreadOpened,
 	BrowserThreadStarted,
 } from '$contract/browser';
@@ -26,7 +27,7 @@ class BrowserService {
 		return onPlatformEvent(BROWSER_STATE_CHANGED_CHANNEL, listener);
 	}
 
-	onTabOpened(listener: (tab: BrowserTabArgs) => void): () => void {
+	onTabOpened(listener: (tab: BrowserTabOpened) => void): () => void {
 		return onPlatformEvent(BROWSER_TAB_OPENED_CHANNEL, listener);
 	}
 
@@ -54,16 +55,20 @@ class BrowserService {
 		return invoke('browser.hide', tab);
 	}
 
-	cover(tab: BrowserTabArgs): Promise<string | null> {
-		return decoded(invoke('browser.cover', tab));
+	cover(tab: BrowserTabArgs, bounds: BrowserBounds): Promise<string | null> {
+		return decoded(invoke('browser.cover', { ...tab, bounds }));
 	}
 
 	snapshot(tab: BrowserTabArgs): Promise<string | null> {
 		return decoded(invoke('browser.snapshot', tab));
 	}
 
-	navigate(tab: BrowserTabArgs, url: string): Promise<void> {
-		return invoke('browser.navigate', { ...tab, url });
+	navigate(tab: BrowserTabArgs, url: string, profile: string): Promise<void> {
+		return invoke('browser.navigate', { ...tab, url, profile });
+	}
+
+	profiles(): Promise<readonly string[]> {
+		return invoke('browser.profiles', undefined);
 	}
 
 	goBack(tab: BrowserTabArgs): Promise<void> {

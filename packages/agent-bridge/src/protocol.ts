@@ -240,7 +240,9 @@ export interface TurnedOffSkills {
 	readonly plugins: readonly string[];
 }
 
-export type BrowserRequest =
+export type BrowserRequest = BrowserAction & { readonly profile?: string };
+
+export type BrowserAction =
 	| { readonly action: 'open'; readonly url: string }
 	| { readonly action: 'snapshot' }
 	| {

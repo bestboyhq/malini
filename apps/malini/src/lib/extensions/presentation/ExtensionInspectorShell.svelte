@@ -422,6 +422,8 @@
 	): Promise<void> {
 		if (!panelId) return;
 		await tick();
+		const panelSelector = `[data-inspector-panel-cache][data-panel-id="${CSS.escape(panelId)}"]`;
+		if (document.activeElement?.closest(panelSelector)) return;
 		document
 			.querySelector<HTMLElement>(
 				`[data-testid="${testId}"][data-panel-id="${CSS.escape(panelId)}"]`,

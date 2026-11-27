@@ -307,6 +307,7 @@ const PAGE_PIN = {
 	outcome: null,
 } as const;
 const OTHER_TAB = { workstreamId: 'ws-2', tabId: 'tab-1' } as const;
+const OPENED = { ...TAB, profile: 'default' } as const;
 const VISIBLE = { fullPage: false } as const;
 
 const roots: string[] = [];
@@ -324,6 +325,8 @@ function setup(zoom = 1) {
 	const views: FakeView[] = [];
 	const states: BrowserState[] = [];
 	const opened: unknown[] = [];
+	const profiles: string[] = [];
+	const used = new Set<string>();
 	const closed: unknown[] = [];
 	const resizes: BrowserResizeRequest[] = [];
 	const resets = new Map<FakeWindow, () => void>();
@@ -332,11 +335,13 @@ function setup(zoom = 1) {
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
 		onScreen: (shown) => shown.onScreen,
-		createView: (events) => {
+		createView: (events, profile) => {
 			const view = new FakeView(events);
 			views.push(view);
+			profiles.push(profile);
 			return view;
 		},
+		profileUsed: (profile) => used.add(profile),
 		imageFromPng: (png) =>
 			png.equals(CDP_PNG) ? new FakeImage(2_560, 6_000) : new FakeImage(0, 0),
 		watchRendererReset: (watched, reset) => {
@@ -365,6 +370,8 @@ function setup(zoom = 1) {
 		views,
 		states,
 		opened,
+		profiles,
+		used,
 		closed,
 		resizes,
 		threads,
@@ -564,9 +571,31 @@ describe('BrowserViews', () => {
 			title: 'Title of http://localhost:5173/',
 		});
 		expect(viewAt(0).contents.loads).toEqual(['http://localhost:5173/']);
-		expect(opened).toEqual([TAB]);
+		expect(opened).toEqual([OPENED]);
 		await browser.open(TAB, 'localhost:5173/next');
-		expect(opened).toEqual([TAB]);
+		expect(opened).toEqual([OPENED]);
+	});
+
+	it('opens a tab in the profile it names, keeps it there, and swaps the page when the profile changes', async () => {
+		const { browser, views, viewAt, opened, profiles, used } = setup();
+
+		await browser.open(TAB, 'https://www.reddit.com', 'reddit-cats');
+		browser.navigate(TAB, 'https://www.reddit.com/r/cats');
+		browser.navigate(OTHER_TAB, 'https://www.reddit.com');
+
+		expect(profiles).toEqual(['reddit-cats', 'default']);
+		expect(opened).toEqual([{ ...TAB, profile: 'reddit-cats' }]);
+		expect(viewAt(0).contents.loads).toEqual([
+			'https://www.reddit.com/',
+			'https://www.reddit.com/r/cats',
+		]);
+
+		browser.navigate(TAB, 'https://www.reddit.com', 'reddit-dogs');
+
+		expect(views).toHaveLength(3);
+		expect(viewAt(0).closed).toBe(true);
+		expect(profiles).toEqual(['reddit-cats', 'default', 'reddit-dogs']);
+		expect([...used]).toEqual(['reddit-cats', 'default', 'reddit-dogs']);
 	});
 
 	it('shows the agent its new tab even when the first page fails to load', async () => {
@@ -577,7 +606,7 @@ describe('BrowserViews', () => {
 		await expect(browser.open(TAB, 'https://nowhere.example')).rejects.toThrow(
 			'ERR_NAME_NOT_RESOLVED',
 		);
-		expect(opened).toEqual([TAB]);
+		expect(opened).toEqual([OPENED]);
 	});
 
 	it('closes the agent tab only after the page it is opening, then opens a fresh one', async () => {
@@ -588,7 +617,7 @@ describe('BrowserViews', () => {
 
 		const opening = browser.open(TAB, 'https://example.com');
 		const closing = browser.close(TAB);
-		await expect.poll(() => opened).toEqual([TAB]);
+		await expect.poll(() => opened).toEqual([OPENED]);
 		expect(viewAt(0).closed).toBe(false);
 		expect(closed).toEqual([]);
 
@@ -601,7 +630,7 @@ describe('BrowserViews', () => {
 
 		await browser.open(TAB, 'https://example.com/next');
 		expect(views).toHaveLength(2);
-		expect(opened).toEqual([TAB, TAB]);
+		expect(opened).toEqual([OPENED, OPENED]);
 	});
 
 	it('tells malini a tab closed even when it has no page for it', async () => {
@@ -839,13 +868,24 @@ describe('BrowserViews', () => {
 		await browser.open(TAB, 'https://example.com');
 		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
 
-		const snapshot = browser.cover(TAB);
+		const snapshot = browser.cover(TAB, { x: -60, y: 50, width: 300, height: 200 });
 
+		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 40, y: 50, width: 300, height: 200 });
 		expect(viewAt(0).contents.captured).toEqual(['https://example.com/']);
 		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
 		expect(await snapshot).toMatch(/^data:image\/jpeg;base64,/u);
 		expect(viewAt(0).removedFrom).toEqual([]);
 		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+	});
+
+	it('sizes a page it never showed to the column that covers it before copying its frame', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+
+		const snapshot = browser.cover(TAB, { x: 700, y: 50, width: 360, height: 640 });
+
+		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 700, y: 50, width: 360, height: 640 });
+		expect(await snapshot).toMatch(/^data:image\/jpeg;base64,/u);
 	});
 
 	it('has no snapshot when the compositor fails to copy a frame', async () => {
@@ -1354,7 +1394,7 @@ describe('BrowserViews', () => {
 		const { browser, opened, viewAt } = setup();
 		await browser.open(TAB, 'about:blank');
 		await browser.open(TAB, 'about:blank');
-		expect(opened).toEqual([TAB]);
+		expect(opened).toEqual([OPENED]);
 		await expect(browser.screenshot(TAB, worktree, VISIBLE)).resolves.toMatchObject({
 			url: 'about:blank',
 		});

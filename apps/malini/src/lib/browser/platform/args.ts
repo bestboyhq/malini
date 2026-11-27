@@ -1,4 +1,9 @@
-import type { BrowserBounds, BrowserPickArgs, BrowserTabArgs } from '$contract/browser';
+import {
+	browserProfileName,
+	type BrowserBounds,
+	type BrowserPickArgs,
+	type BrowserTabArgs,
+} from '$contract/browser';
 import {
 	isValidAgentModel,
 	isValidAgentRunProfile,
@@ -103,6 +108,18 @@ export function readPick(args: unknown): BrowserPickArgs {
 		})),
 		profile,
 	};
+}
+
+export function readBrowserProfile(args: unknown): string {
+	const value = field(args, 'profile');
+	const name = typeof value === 'string' ? browserProfileName(value) : null;
+	if (name === null) {
+		throw new BrowserError(
+			'invalid-argument',
+			'invalid args: `profile` must name a browser profile in letters, digits and dashes',
+		);
+	}
+	return name;
 }
 
 export function readUrl(args: unknown): string {

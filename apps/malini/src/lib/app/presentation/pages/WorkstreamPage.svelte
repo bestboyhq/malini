@@ -7,6 +7,7 @@
 	import { loadBrowserTabsCommand } from '$lib/browser/application/commands/load-browser-tabs.command';
 	import { openBrowserTabCommand } from '$lib/browser/application/commands/open-browser-tab.command';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
+	import { browserDeckQuery } from '$lib/browser/application/queries/browser-deck.query.svelte';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { reportCheckoutProblemCommand } from '$lib/app/application/commands/report-checkout-problem.command';
@@ -63,7 +64,10 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
-	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery));
+	const browserDeck = $derived(browserDeckQuery.data);
+	const builtInPanels = $derived(
+		browserTabPanels(workstreamId, browserTabs, offeredVariantsQuery, browserDeck),
+	);
 	let mediaOpen = $state(false);
 	const panelActions = $derived([
 		{

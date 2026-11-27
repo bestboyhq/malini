@@ -19,7 +19,11 @@ import {
 	optimizesContext,
 	writesSte,
 } from '$contract/agent';
-import type { BrowserTabArgs } from '$contract/browser';
+import {
+	browserProfileName,
+	DEFAULT_BROWSER_PROFILE,
+	type BrowserTabArgs,
+} from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { automationBoundaryForSession } from '$lib/automations/automations.platform';
@@ -83,7 +87,7 @@ export interface BrowserConsoleLine {
 }
 
 export interface BrowserAutomation {
-	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo>;
+	open(tab: BrowserTabArgs, url: string, profile: string): Promise<BrowserPageInfo>;
 	readPage(tab: BrowserTabArgs): Promise<string>;
 	screenshot(
 		tab: BrowserTabArgs,
@@ -191,14 +195,22 @@ export async function answerBrowserRequest(
 					'This automation runs with its internet off, so Malini does not open its browser. Ask the user to turn the internet on for this automation on its page in Automations.',
 			};
 		}
+		const profile = browserProfileName(request.profile ?? DEFAULT_BROWSER_PROFILE);
+		if (profile === null) {
+			return {
+				ok: false,
+				error: `\`${request.profile ?? ''}\` is no browser profile name. Name it in letters, digits and dashes, for example reddit-cats.`,
+			};
+		}
 		const { workstreamId } = session;
-		const tab = { workstreamId, tabId: agentBrowserTabId(request.sessionId) };
+		const tab = { workstreamId, tabId: agentBrowserTabId(request.sessionId, profile) };
 		switch (request.action) {
 			case 'open': {
-				const page = await browser.open(tab, request.url);
+				const page = await browser.open(tab, request.url, profile);
+				const where = profile === DEFAULT_BROWSER_PROFILE ? '' : ` in browser profile ${profile}`;
 				return {
 					ok: true,
-					text: `Opened ${describePage(page)}. Call browser_screenshot to see it.`,
+					text: `Opened ${describePage(page)}${where}. Call browser_screenshot to see it.`,
 				};
 			}
 			case 'snapshot':
@@ -321,8 +333,8 @@ function describeDialogAnswer({ dialog, accepted }: BrowserDialogAnswer): string
 	return `Pressed ${accepted ? 'OK' : 'Cancel'} on the confirm dialog.`;
 }
 
-export function agentBrowserTabId(sessionId: string): string {
-	return `chat-${sessionId}`;
+export function agentBrowserTabId(sessionId: string, profile: string): string {
+	return profile === DEFAULT_BROWSER_PROFILE ? `chat-${sessionId}` : `chat-${sessionId}@${profile}`;
 }
 
 function describeSize(

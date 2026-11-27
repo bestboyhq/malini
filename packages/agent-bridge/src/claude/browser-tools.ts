@@ -6,7 +6,7 @@ import {
 	type SdkMcpToolDefinition,
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import type { BrowserRequest } from '../protocol.js';
+import type { BrowserAction, BrowserRequest } from '../protocol.js';
 import type { BrowserRequester } from '../providers/types.js';
 import type { McpServerAdder } from './mcp-servers.js';
 import {
@@ -24,6 +24,13 @@ const MAX_WAIT_SECONDS = 30;
 const MAX_PAGE_SIZE = 3_840;
 const target = z.string().min(1);
 const ALWAYS_LOAD = { alwaysLoad: true };
+const profile = z
+	.string()
+	.min(1)
+	.optional()
+	.describe(
+		'The browser profile to use, for example reddit-cats. Each profile keeps its own cookies and sign-ins in every chat, and each gets its own tab. Leave it out for the default profile.',
+	);
 
 type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 
@@ -32,26 +39,27 @@ export function maliniTools(
 	requestPlatform: PlatformToolRequester,
 	addMcpServer: McpServerAdder,
 ): Required<Pick<Options, 'mcpServers' | 'allowedTools'>> {
-	const run = (request: BrowserRequest): Promise<ToolResult> =>
-		browserToolResult(requestBrowser, request);
+	const run = (request: BrowserAction, profile: string | undefined): Promise<ToolResult> =>
+		browserToolResult(requestBrowser, profile === undefined ? request : { ...request, profile });
 	const browserTools = [
 		tool(
 			'browser_open',
-			"Open a web page or a file from your worktree in Malini's browser, the one the user sees beside the chat, and wait for the page to load. A worktree file needs no server: pass its absolute path, a path starting with ./, or a file:// URL. A localhost URL waits up to 20s for a server that is still starting.",
+			"Open a web page or a file from your worktree in Malini's browser, the one the user sees beside the chat, and wait for the page to load. A worktree file needs no server: pass its absolute path, a path starting with ./, or a file:// URL. A localhost URL waits up to 20s for a server that is still starting. To show several accounts of one site side by side, open the page once per profile.",
 			{
 				url: z
 					.string()
 					.min(1)
 					.describe('The page to open, for example http://localhost:5173 or ./docs/report.html'),
+				profile,
 			},
-			({ url }) => run({ action: 'open', url }),
+			({ url, profile }) => run({ action: 'open', url }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_snapshot',
 			"Read the page open in Malini's browser as text: its headings, text, images and every control you can click or type into, each control with a ref such as @e3 that the other browser tools take as their selector. It reads into iframes too, and a control inside one gets a ref such as @f1e3. It is faster than a screenshot when you need what the page says or which element to act on. Take a new snapshot once the page changes: the refs of an older one stop working.",
-			{},
-			() => run({ action: 'snapshot' }),
+			{ profile },
+			({ profile }) => run({ action: 'snapshot' }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
@@ -63,23 +71,27 @@ export function maliniTools(
 					.boolean()
 					.default(false)
 					.describe('Capture the whole page, not only the part the tab shows'),
+				profile,
 			},
-			({ selector, fullPage }) =>
-				run({ action: 'screenshot', fullPage, ...(selector === undefined ? {} : { selector }) }),
+			({ selector, fullPage, profile }) =>
+				run(
+					{ action: 'screenshot', fullPage, ...(selector === undefined ? {} : { selector }) },
+					profile,
+				),
 			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_click',
 			"Click an element in Malini's browser with the mouse and wait for the page to settle. Malini waits up to 5s for the element to show, scrolls it into view, and refuses when another element covers it, naming that element.",
-			{ selector: target.describe(TARGET) },
-			({ selector }) => run({ action: 'click', selector }),
+			{ selector: target.describe(TARGET), profile },
+			({ selector, profile }) => run({ action: 'click', selector }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_hover',
 			"Move the mouse over an element in Malini's browser, for example to open a menu or check a hover state. Malini scrolls it into view first.",
-			{ selector: target.describe(TARGET) },
-			({ selector }) => run({ action: 'hover', selector }),
+			{ selector: target.describe(TARGET), profile },
+			({ selector, profile }) => run({ action: 'hover', selector }, profile),
 		),
 		tool(
 			'browser_type',
@@ -88,8 +100,10 @@ export function maliniTools(
 				selector: target.describe(TARGET),
 				text: z.string().describe('The text the field holds afterwards'),
 				submit: z.boolean().default(false).describe('Press Enter after typing'),
+				profile,
 			},
-			({ selector, text, submit }) => run({ action: 'type', selector, text, submit }),
+			({ selector, text, submit, profile }) =>
+				run({ action: 'type', selector, text, submit }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
@@ -108,8 +122,9 @@ export function maliniTools(
 					.max(MAX_WAIT_SECONDS)
 					.default(0)
 					.describe('How long to hold the key down before releasing it, for example 2'),
+				profile,
 			},
-			({ key, holdSeconds }) => run({ action: 'press', key, holdSeconds }),
+			({ key, holdSeconds, profile }) => run({ action: 'press', key, holdSeconds }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
@@ -119,9 +134,10 @@ export function maliniTools(
 				y: z.number().int().default(0).describe('Pixels to scroll down; negative scrolls up'),
 				x: z.number().int().default(0).describe('Pixels to scroll right; negative scrolls left'),
 				selector: target.optional().describe(`Scroll over this element. ${TARGET}`),
+				profile,
 			},
-			({ x, y, selector }) =>
-				run({ action: 'scroll', x, y, ...(selector === undefined ? {} : { selector }) }),
+			({ x, y, selector, profile }) =>
+				run({ action: 'scroll', x, y, ...(selector === undefined ? {} : { selector }) }, profile),
 		),
 		tool(
 			'browser_wait',
@@ -136,15 +152,19 @@ export function maliniTools(
 					.max(MAX_WAIT_SECONDS)
 					.default(DEFAULT_WAIT_SECONDS)
 					.describe('How long to wait at most'),
+				profile,
 			},
-			({ text, selector, gone, seconds }) =>
-				run({
-					action: 'wait',
-					seconds,
-					gone,
-					...(text === undefined ? {} : { text }),
-					...(selector === undefined ? {} : { selector }),
-				}),
+			({ text, selector, gone, seconds, profile }) =>
+				run(
+					{
+						action: 'wait',
+						seconds,
+						gone,
+						...(text === undefined ? {} : { text }),
+						...(selector === undefined ? {} : { selector }),
+					},
+					profile,
+				),
 			ALWAYS_LOAD,
 		),
 		tool(
@@ -157,34 +177,35 @@ export function maliniTools(
 					.describe(
 						'Statements or an expression such as document.title, a function such as () => [...document.links].length, or a function body that ends with return. await works anywhere',
 					),
+				profile,
 			},
-			({ script }) => run({ action: 'evaluate', script }),
+			({ script, profile }) => run({ action: 'evaluate', script }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_console',
 			"Read the console messages and uncaught errors of the page open in Malini's browser since it loaded, newest last.",
-			{},
-			() => run({ action: 'console' }),
+			{ profile },
+			({ profile }) => run({ action: 'console' }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
 			'browser_back',
 			"Go back one page in Malini's browser history and wait for the page to load.",
-			{},
-			() => run({ action: 'back' }),
+			{ profile },
+			({ profile }) => run({ action: 'back' }, profile),
 		),
 		tool(
 			'browser_forward',
 			"Go forward one page in Malini's browser history and wait for the page to load.",
-			{},
-			() => run({ action: 'forward' }),
+			{ profile },
+			({ profile }) => run({ action: 'forward' }, profile),
 		),
 		tool(
 			'browser_reload',
 			"Reload the page open in Malini's browser and wait for it to load.",
-			{},
-			() => run({ action: 'reload' }),
+			{ profile },
+			({ profile }) => run({ action: 'reload' }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
@@ -206,9 +227,10 @@ export function maliniTools(
 					.describe(
 						'The height the page should get, in CSS pixels, while the user does not see the tab',
 					),
+				profile,
 			},
-			({ width, height }) =>
-				run({ action: 'resize', width, ...(height === undefined ? {} : { height }) }),
+			({ width, height, profile }) =>
+				run({ action: 'resize', width, ...(height === undefined ? {} : { height }) }, profile),
 			ALWAYS_LOAD,
 		),
 		tool(
@@ -222,8 +244,9 @@ export function maliniTools(
 					.describe(
 						'The files to pick, each a path in your worktree, for example ./fixtures/photo.png. Copy a file from elsewhere into the worktree first, for example under .context/',
 					),
+				profile,
 			},
-			({ selector, paths }) => run({ action: 'upload', selector, paths }),
+			({ selector, paths, profile }) => run({ action: 'upload', selector, paths }, profile),
 		),
 		tool(
 			'browser_dialog',
@@ -234,14 +257,15 @@ export function maliniTools(
 					.describe(
 						'Press OK, or Cancel when false. An alert has only OK, so it closes either way',
 					),
+				profile,
 			},
-			({ accept }) => run({ action: 'dialog', accept }),
+			({ accept, profile }) => run({ action: 'dialog', accept }, profile),
 		),
 		tool(
 			'browser_close',
 			"Close the tab you opened in Malini's browser, its page included, once the user no longer needs to see it. Tabs the user opened stay. browser_open opens a new tab again.",
-			{},
-			() => run({ action: 'close' }),
+			{ profile },
+			({ profile }) => run({ action: 'close' }, profile),
 			ALWAYS_LOAD,
 		),
 	];

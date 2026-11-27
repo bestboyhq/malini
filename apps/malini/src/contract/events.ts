@@ -4,6 +4,7 @@ import type {
 	BrowserResizeRequest,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserTabOpened,
 	BrowserThreadOpened,
 } from './browser';
 import type { BrainChangedEvent } from './brain';
@@ -284,7 +285,7 @@ export interface ContractEvents {
 	'app:update-staged': UpdateStagedPayload;
 	'app:update-status-changed': UpdateStatus;
 	'browser:state-changed': BrowserState;
-	'browser:tab-opened': BrowserTabArgs;
+	'browser:tab-opened': BrowserTabOpened;
 	'browser:tab-closed': BrowserTabArgs;
 	'browser:resize-requested': BrowserResizeRequest;
 	'browser:thread-opened': BrowserThreadOpened;

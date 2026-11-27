@@ -77,6 +77,21 @@ A page can lock your cursor when you click it, as games do, and Escape unlocks i
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 The agent reads a copy at the page's own size in CSS pixels, at most 1,280 on its long edge, and the file it embeds in the chat keeps every pixel.
 
+### Profiles, side by side
+
+Each browser profile keeps its own cookies and sign-ins, so you can be signed in to one site as several accounts at once.
+Every browser tool takes an optional `profile`, such as `reddit-cats`, and a chat gets one tab for each profile it names.
+Without one, a tool uses the `default` profile, which keeps the sign-ins you had before profiles.
+A profile name is letters, digits and dashes, up to 32 characters: Malini lowercases what you type and turns spaces into dashes.
+Profiles belong to Malini, not to one workstream, so a sign-in holds in every chat and stays after Malini restarts.
+Once a second profile exists, a tab shows its profile before the address, and a click there moves the tab to another profile.
+
+Once a workstream's tabs use two profiles, the inspector shows them as columns in one **Browsers** tab.
+Each column has its profile, its page title and its own address bar, and the columns scroll sideways, each as wide as a feed.
+**Add column**, the last tile, opens a new tab in a profile you pick, or in a **New profile…** you name.
+The profile name at the top of a column moves that column to another profile and loads its page there.
+**Side by side** in the browser toolbar turns the columns on and off, and closing **Browsers** closes every tab in it.
+
 ### Screenshots in your theme
 
 Screenshots come out in the theme you see Malini in: **Settings > Appearance > Theme**, or your system's when that is set to System.

@@ -4,6 +4,7 @@ import { aboutWorkstream } from '$shared/errors/toast-subject';
 
 import { browserFailure } from '../../domain/browser-failure';
 import { browserStatesAggregate } from '../../infrastructure/aggregates/browser-states.aggregate.svelte';
+import { browserTabsAggregate } from '../../infrastructure/aggregates/browser-tabs.aggregate.svelte';
 import { browserService } from '../../infrastructure/services/browser.service';
 import { loadBrowserStateCommand } from './load-browser-state.command';
 
@@ -15,7 +16,7 @@ function navigateBrowserCommand(tab: BrowserTabArgs, address: string): void {
 	browserStatesAggregate.expect(tab, url);
 	void (async () => {
 		try {
-			await browserService.navigate(tab, url);
+			await browserService.navigate(tab, url, browserTabsAggregate.profileOf(tab));
 		} catch (error) {
 			loadBrowserStateCommand(tab);
 			toast.error(

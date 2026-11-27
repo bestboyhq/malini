@@ -1390,14 +1390,16 @@ type BrowserState = Readonly<{
 
 ## `browser:tab-opened`
 
-Fires when a new browser tab opens in a workstream, for example when an agent opens a page.
+Fires when a new browser tab opens in a workstream, for example when an agent opens a page, with the browser profile whose cookies and sign-ins it uses.
 
-An automation sees: `workstreamId`, `tabId`
+An automation sees: `workstreamId`, `tabId`, `profile`
 
-Payload: `BrowserTabArgs`
+Payload: `BrowserTabOpened`
 
 ```ts
 type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
+
+type BrowserTabOpened = BrowserTabArgs & Readonly<{ profile: string }>;
 ```
 
 ## `browser:tab-closed`

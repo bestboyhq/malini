@@ -361,6 +361,28 @@ describe('malini MCP server', () => {
 		expect(opened).not.toHaveProperty('result.isError');
 	});
 
+	it('drives the tab of the browser profile a tool names, and the default tab without one', async () => {
+		const { call, requests } = await connect(async () => ({ ok: true }));
+
+		await call('tools/call', {
+			name: 'browser_open',
+			arguments: { url: 'https://www.reddit.com', profile: 'reddit-cats' },
+		});
+		await call('tools/call', { name: 'browser_snapshot', arguments: { profile: 'reddit-cats' } });
+		await call('tools/call', { name: 'browser_snapshot', arguments: {} });
+		const blank = await call('tools/call', {
+			name: 'browser_close',
+			arguments: { profile: '' },
+		});
+
+		expect(requests).toEqual([
+			{ action: 'open', url: 'https://www.reddit.com', profile: 'reddit-cats' },
+			{ action: 'snapshot', profile: 'reddit-cats' },
+			{ action: 'snapshot' },
+		]);
+		expect(blank).toMatchObject({ result: { isError: true } });
+	});
+
 	it('hands the screenshot preview back as an image beside the path to embed', async () => {
 		const dir = mkdtempSync(join(tmpdir(), 'malini-browser-tools-'));
 		scratch.push(dir);
