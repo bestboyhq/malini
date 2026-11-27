@@ -664,7 +664,7 @@ export class WidgetBoards {
 				last.fingerprint === widget.fingerprint ? Date.parse(last.attemptedAt ?? '') : Number.NaN;
 			const fresh =
 				Number.isNaN(attempted) ||
-				(last.need !== null && this.#connected(widget.source)) ||
+				(last.need !== null && !last.reading && this.#connected(widget.source)) ||
 				(moved && widget.origin === 'shared') ||
 				widget.source.kind === 'retired';
 			const due = fresh ? 0 : Math.max(0, attempted + every - Date.now());
