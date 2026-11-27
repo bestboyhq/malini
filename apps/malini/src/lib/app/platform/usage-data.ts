@@ -480,6 +480,7 @@ export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): 
 	};
 	const stopStarted = context.events.subscribe(APP_STARTED_CHANNEL, reportYesterday);
 	const reportTimer = setInterval(() => {
+		sendDay();
 		reportYesterday();
 		reportRepeats();
 	}, REPORT_CHECK_MS);

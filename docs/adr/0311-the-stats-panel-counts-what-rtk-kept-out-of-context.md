@@ -1,4 +1,4 @@
-# 0310 - The Stats panel counts what RTK kept out of context
+# 0311 - The Stats panel counts what RTK kept out of context
 
 Status: accepted
 
