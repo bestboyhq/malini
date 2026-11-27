@@ -5,6 +5,7 @@ import {
 	formatElapsed,
 	formatMemory,
 	formatTimeAgo,
+	formatTokens,
 } from './stats-format';
 
 const MEGABYTE = 1_024 ** 2;
@@ -17,6 +18,14 @@ describe('stats formatting', () => {
 		expect(formatMemory(12_800 * MEGABYTE)).toBe('13 GB');
 	});
 
+	it('rounds tokens to K and M without a four digit K', () => {
+		expect(formatTokens(812)).toBe('812');
+		expect(formatTokens(57_666)).toBe('58K');
+		expect(formatTokens(999_499)).toBe('999K');
+		expect(formatTokens(999_500)).toBe('1.0M');
+		expect(formatTokens(2_002_198)).toBe('2.0M');
+	});
+
 	it('keeps a busy machine readable and a quiet one honest', () => {
 		expect(formatCpu(0)).toBe('0%');
 		expect(formatCpu(0.4)).toBe('<1%');
@@ -24,6 +33,7 @@ describe('stats formatting', () => {
 		expect(formatAgentTime(42 * 60)).toBe('42m');
 		expect(formatAgentTime(54 * 3_600 + 28 * 60 + 59)).toBe('54h 28m');
 		expect(formatAgentTime(123 * 3_600)).toBe('123h');
+		expect(formatAgentTime(1_463 * 3_600)).toBe('1,463h');
 	});
 
 	it('says how long something has run and how long ago a turn ended', () => {

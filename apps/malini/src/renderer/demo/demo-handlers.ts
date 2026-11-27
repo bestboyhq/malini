@@ -435,6 +435,7 @@ const demoHandlersFor = (emit: DemoEmit): DemoHandlers => ({
 	'skills.usage': () => ({ since: null, uses: [], turnedOff: [], plugins: [] }),
 	'stats.workstream-running': () => [],
 	'stats.moments': () => null,
+	'stats.trimmed-output': () => null,
 	'stats.activity': () => ({
 		today: DEMO_DAY,
 		runs: 0,

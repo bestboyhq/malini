@@ -158,6 +158,7 @@ import type {
 	ShareCard,
 	RecentMoments,
 	StopRunningArgs,
+	TrimmedOutput,
 	WorkstreamRunning,
 } from './stats';
 import type {
@@ -894,6 +895,7 @@ export interface ContractCommands {
 	'app.restart-to-update': { args: undefined; result: void };
 	'app.relaunch': { args: undefined; result: void };
 	'stats.activity': { args: undefined; result: ActivityStats };
+	'stats.trimmed-output': { args: undefined; result: TrimmedOutput | null };
 	'stats.resources': { args: undefined; result: ResourceHistory };
 	'stats.resource-breakdown': { args: undefined; result: readonly ResourceKindBreakdown[] };
 	'stats.workstream-running': { args: undefined; result: readonly WorkstreamRunning[] };
@@ -1195,6 +1197,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.restart-to-update',
 	'app.relaunch',
 	'stats.activity',
+	'stats.trimmed-output',
 	'stats.resources',
 	'stats.resource-breakdown',
 	'stats.workstream-running',

@@ -6,6 +6,7 @@
 	import { dayStreak, runsOn } from '$lib/stats/domain/activity';
 	import { publishedProfileUrl } from '$lib/stats/domain/published-profile';
 	import { loadProfileCommand } from '$lib/stats/application/commands/load-profile.command';
+	import { loadTrimmedOutputCommand } from '$lib/stats/application/commands/load-trimmed-output.command';
 	import { watchProfileHook } from '$lib/stats/application/hooks/watch-profile.hook';
 	import { watchResourceBreakdownHook } from '$lib/stats/application/hooks/watch-resource-breakdown.hook';
 	import { activityStatsQuery } from '$lib/stats/application/queries/activity-stats.query.svelte';
@@ -14,11 +15,13 @@
 	import { profileStateQuery } from '$lib/stats/application/queries/profile-state.query.svelte';
 	import { resourceBreakdownQuery } from '$lib/stats/application/queries/resource-breakdown.query.svelte';
 	import { resourceHistoryQuery } from '$lib/stats/application/queries/resource-history.query.svelte';
+	import { trimmedOutputQuery } from '$lib/stats/application/queries/trimmed-output.query.svelte';
 	import ActivityHeatmap from './ActivityHeatmap.svelte';
 	import MemoryChart from './MemoryChart.svelte';
 	import PublishNudge from './PublishNudge.svelte';
 	import ShareCards from './ShareCards.svelte';
 	import StatsBar from './StatsBar.svelte';
+	import TrimmedOutputCard from './TrimmedOutputCard.svelte';
 	import { resourceKindDisplay } from './resource-kinds';
 	import { formatAgentTime, formatCount, formatCpu, formatMemory, plural } from './stats-format';
 
@@ -36,6 +39,7 @@
 	const machineMemory = $derived(machineMemoryQuery.data);
 	const breakdown = $derived(resourceBreakdownQuery.data);
 	const profileState = $derived(profileStateQuery.data);
+	const trimmed = $derived(trimmedOutputQuery.data);
 	const published = $derived(publishedProfileUrl(profileState) !== null);
 
 	const usage = $derived(
@@ -56,6 +60,7 @@
 
 	onMount(() => {
 		loadProfileCommand();
+		loadTrimmedOutputCommand();
 		const stopProfile = watchProfileHook();
 		const stopBreakdown = watchResourceBreakdownHook();
 		return () => {
@@ -207,6 +212,10 @@
 			<div class="border-surface-elevated-border rounded-xl border-[0.5px] p-3">
 				<ActivityHeatmap days={activity.days} today={activity.today} />
 			</div>
+
+			{#if trimmed}
+				<TrimmedOutputCard {trimmed} />
+			{/if}
 
 			{#if repositories.length > 0}
 				<div class="border-surface-elevated-border rounded-xl border-[0.5px] p-3">

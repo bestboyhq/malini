@@ -6,6 +6,7 @@ import type {
 	ResourceSample,
 	ShareCard,
 	StopRunningArgs,
+	TrimmedOutput,
 	WorkstreamRunning,
 } from '$contract/stats';
 import {
@@ -19,6 +20,10 @@ import { invoke } from '$shared/port/invoke';
 class StatsService {
 	activity(): Promise<ActivityStats> {
 		return invoke('stats.activity', undefined);
+	}
+
+	trimmedOutput(): Promise<TrimmedOutput | null> {
+		return invoke('stats.trimmed-output', undefined);
 	}
 
 	shareCard(): Promise<ShareCard> {
