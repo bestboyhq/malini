@@ -115,7 +115,7 @@ export interface BrowserTabProcess {
 }
 
 export interface BrowserPlatform {
-	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo>;
+	open(tab: BrowserTabArgs, url: string, profile: string): Promise<BrowserPageInfo>;
 	readPage(tab: BrowserTabArgs): Promise<string>;
 	screenshot(
 		tab: BrowserTabArgs,

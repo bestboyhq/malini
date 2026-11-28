@@ -9,7 +9,8 @@ export { loadBrowserStateCommand };
 function loadBrowserStateCommand(tab: BrowserTabArgs): void {
 	void (async () => {
 		const state = await currentState(tab);
-		if (!browserTabsAggregate.tabsOf(tab.workstreamId).includes(tab.tabId)) return;
+		const tabs = browserTabsAggregate.tabsOf(tab.workstreamId);
+		if (!tabs.some(({ tabId }) => tabId === tab.tabId)) return;
 		const remembered = state.url ? null : readLastBrowserPage(tab);
 		if (!remembered) {
 			browserStatesAggregate.accept(state);
@@ -17,7 +18,7 @@ function loadBrowserStateCommand(tab: BrowserTabArgs): void {
 		}
 		browserStatesAggregate.expect(tab, remembered);
 		try {
-			await browserService.navigate(tab, remembered);
+			await browserService.navigate(tab, remembered, browserTabsAggregate.profileOf(tab));
 		} catch {
 			browserStatesAggregate.accept(state);
 		}

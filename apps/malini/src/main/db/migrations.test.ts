@@ -45,6 +45,7 @@ const ALL_TABLES = [
 	'automation_setups',
 	'automation_suggestions',
 	'brain_captures',
+	'browser_profiles',
 	'chatgpt_account',
 	'claude_plan_usage',
 	'connected_repositories',

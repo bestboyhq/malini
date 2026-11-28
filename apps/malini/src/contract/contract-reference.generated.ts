@@ -642,10 +642,11 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'browser:tab-opened',
 			description:
-				'Fires when a new browser tab opens in a workstream, for example when an agent opens a page.',
-			facts: ['workstreamId', 'tabId'],
-			payloadType: 'BrowserTabArgs',
-			payload: 'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;',
+				'Fires when a new browser tab opens in a workstream, for example when an agent opens a page, with the browser profile whose cookies and sign-ins it uses.',
+			facts: ['workstreamId', 'tabId', 'profile'],
+			payloadType: 'BrowserTabOpened',
+			payload:
+				'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;\n\ntype BrowserTabOpened = BrowserTabArgs & Readonly<{ profile: string }>;',
 		},
 		{
 			channel: 'browser:tab-closed',

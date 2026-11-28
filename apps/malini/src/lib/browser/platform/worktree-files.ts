@@ -1,11 +1,10 @@
 import { realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { net, protocol, session, type CustomScheme } from 'electron';
+import { net, protocol, type CustomScheme, type Session } from 'electron';
 import { BROWSER_WORKTREE_SCHEME, stillPageUrl } from '$contract/browser';
 import { isInsideDirectory } from '$main/fs/paths';
 import { AGENT_ATTACHMENTS_PATH } from '$main/git/paths';
-import { BROWSER_PARTITION } from './electron-view';
 import type { PageStills } from './page-stills';
 
 const APP_MANAGED_DIR = dirname(AGENT_ATTACHMENTS_PATH);
@@ -34,7 +33,7 @@ export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []
 export function serveWorktreeFiles(
 	worktreeOf: (host: string) => string | null,
 	stills: Pick<PageStills, 'still'>,
-): void {
+): (partition: Session) => void {
 	const serve =
 		(framedInMalini: boolean) =>
 		async (request: Request): Promise<Response> => {
@@ -52,8 +51,8 @@ export function serveWorktreeFiles(
 				framedInMalini && PAGE.test(file) ? await keepInFrame(response) : response,
 			);
 		};
-	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve(false));
 	protocol.handle(BROWSER_WORKTREE_SCHEME, serve(true));
+	return (partition) => partition.protocol.handle(BROWSER_WORKTREE_SCHEME, serve(false));
 }
 
 async function keepInFrame(response: Response): Promise<Response> {

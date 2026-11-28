@@ -14,7 +14,10 @@ describe('placing the native browser view', () => {
 
 	it('tells an overlay over part of the page from one over the whole window', () => {
 		expect(browserPlacementFor(VIEWPORT, true, 'overlapped')).toEqual({ kind: 'overlapped' });
-		expect(browserPlacementFor(VIEWPORT, true, 'covered')).toEqual({ kind: 'covered' });
+		expect(browserPlacementFor(VIEWPORT, true, 'covered')).toEqual({
+			kind: 'covered',
+			bounds: { x: 10, y: 21, width: 301, height: 399 },
+		});
 	});
 
 	it('hides the view when nothing is open or the viewport has no area', () => {
@@ -31,7 +34,9 @@ describe('placing the native browser view', () => {
 			sameBrowserPlacement(shown, browserPlacementFor({ ...VIEWPORT, left: 12 }, true, 'none')),
 		).toBe(false);
 		expect(sameBrowserPlacement({ kind: 'hidden' }, shown)).toBe(false);
-		expect(sameBrowserPlacement({ kind: 'covered' }, { kind: 'covered' })).toBe(true);
-		expect(sameBrowserPlacement({ kind: 'covered' }, { kind: 'overlapped' })).toBe(false);
+		const covered = browserPlacementFor(VIEWPORT, true, 'covered');
+		const scrolled = browserPlacementFor({ ...VIEWPORT, left: -90, right: 210.5 }, true, 'covered');
+		expect(sameBrowserPlacement(covered, scrolled)).toBe(true);
+		expect(sameBrowserPlacement(covered, { kind: 'overlapped' })).toBe(false);
 	});
 });

@@ -14,14 +14,16 @@ import { resolveWorkstreamCheckoutCanonical } from '$main/git/paths';
 import { listElementThreads, threadWorkstreamId } from '$lib/chat/chat.platform';
 import { getWorkstream, listWorkstreams } from '$shared/repositories/repositories.platform';
 import type { BrowserPlatform } from '../browser.platform';
-import { readBounds, readPick, readRequestId, readTab, readUrl } from './args';
+import { readBounds, readBrowserProfile, readPick, readRequestId, readTab, readUrl } from './args';
 import {
 	answerPermissionRequests,
 	browseAsChrome,
+	browserSessions,
 	createElectronView,
 	watchRendererReset,
 } from './electron-view';
 import { pageStills } from './page-stills';
+import { listBrowserProfiles, rememberBrowserProfile } from './profiles';
 import { movesPin, startElementThread, threadPin } from './threads';
 import { BrowserViews } from './views';
 import { serveWorktreeFiles } from './worktree-files';
@@ -35,7 +37,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	const worktree = (workstreamId: string): string =>
 		resolveWorkstreamCheckoutCanonical(checkoutsRoot, workstreamId);
 	const stills = pageStills(join(appDataRoot, 'page-stills'), deps.getMainWindow);
-	serveWorktreeFiles((host) => {
+	const serveFiles = serveWorktreeFiles((host) => {
 		const workstream = listWorkstreams(db).find(({ id }) => id.toLowerCase() === host);
 		try {
 			return workstream ? worktree(workstream.id) : null;
@@ -43,12 +45,17 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 			return null;
 		}
 	}, stills);
-	answerPermissionRequests(deps.getMainWindow);
-	browseAsChrome();
+	const answerPermissions = answerPermissionRequests(deps.getMainWindow);
+	const sessionFor = browserSessions((partition) => {
+		serveFiles(partition);
+		answerPermissions(partition);
+		browseAsChrome(partition);
+	});
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
 		onScreen: (window) => !app.isHidden() && !window.isMinimized(),
-		createView: createElectronView,
+		createView: (events, profile) => createElectronView(events, sessionFor(profile)),
+		profileUsed: (profile) => rememberBrowserProfile(db, profile),
 		imageFromPng: (png) => nativeImage.createFromBuffer(png),
 		watchRendererReset,
 		workstreamExists: (workstreamId) => getWorkstream(db, workstreamId) !== null,
@@ -75,8 +82,10 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 
 	commands.define('browser.show', (args) => views.show(readTab(args), readBounds(args)));
 	commands.define('browser.hide', (args) => views.hide(readTab(args)));
-	commands.define('browser.cover', (args) => views.cover(readTab(args)));
-	commands.define('browser.navigate', (args) => views.navigate(readTab(args), readUrl(args)));
+	commands.define('browser.cover', (args) => views.cover(readTab(args), readBounds(args)));
+	commands.define('browser.navigate', (args) =>
+		views.navigate(readTab(args), readUrl(args), readBrowserProfile(args)),
+	);
 	commands.define('browser.go-back', async (args) => {
 		await views.goBack(readTab(args));
 	});
@@ -92,6 +101,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	commands.define('browser.cancel-pick', (args) => views.cancelPick(readTab(args)));
 	commands.define('browser.close', (args) => views.destroy(readTab(args)));
 	commands.define('browser.resized', (args) => views.resized(readRequestId(args)));
+	commands.define('browser.profiles', () => listBrowserProfiles(db));
 
 	events.subscribe(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, ({ workstreamId }) => {
 		views.destroyWorkstream(workstreamId);

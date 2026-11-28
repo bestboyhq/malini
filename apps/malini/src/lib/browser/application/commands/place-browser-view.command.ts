@@ -13,7 +13,7 @@ function placeBrowserViewCommand(tab: BrowserTabArgs, placement: BrowserPlacemen
 	const turn = browserViewStore.place(browserTabKey(tab), placement);
 	if (turn === null) return;
 	if (placement.kind === 'shown') void show(tab, placement.bounds);
-	else if (placement.kind === 'covered') void cover(tab, turn);
+	else if (placement.kind === 'covered') void cover(tab, placement.bounds, turn);
 	else if (placement.kind === 'overlapped') void overlap(tab, turn);
 	else void hideView(tab);
 }
@@ -27,8 +27,8 @@ async function show(tab: BrowserTabArgs, bounds: BrowserBounds): Promise<void> {
 	if (browserViewStore.snapshots[browserTabKey(tab)] === undefined) pictureBrowserPageCommand(tab);
 }
 
-async function cover(tab: BrowserTabArgs, turn: number): Promise<void> {
-	const snapshot = await browserService.cover(tab).catch(() => null);
+async function cover(tab: BrowserTabArgs, bounds: BrowserBounds, turn: number): Promise<void> {
+	const snapshot = await browserService.cover(tab, bounds).catch(() => null);
 	if (snapshot === null || !browserViewStore.isLatest(browserTabKey(tab), turn)) return;
 	browserViewStore.setSnapshot(browserTabKey(tab), snapshot);
 }

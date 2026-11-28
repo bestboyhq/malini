@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { DEFAULT_BROWSER_PROFILE } from '$contract/browser';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
@@ -11,19 +12,25 @@
 	import { cancelElementPickCommand } from '../application/commands/cancel-element-pick.command';
 	import { goBackBrowserCommand } from '../application/commands/go-back-browser.command';
 	import { goForwardBrowserCommand } from '../application/commands/go-forward-browser.command';
+	import { loadBrowserProfilesCommand } from '../application/commands/load-browser-profiles.command';
 	import { loadBrowserStateCommand } from '../application/commands/load-browser-state.command';
 	import { navigateBrowserCommand } from '../application/commands/navigate-browser.command';
 	import { openBrowserPageExternallyCommand } from '../application/commands/open-browser-page-externally.command';
 	import { pictureBrowserPageCommand } from '../application/commands/picture-browser-page.command';
 	import { placeBrowserViewCommand } from '../application/commands/place-browser-view.command';
 	import { reloadBrowserCommand } from '../application/commands/reload-browser.command';
+	import { setBrowserDeckCommand } from '../application/commands/set-browser-deck.command';
 	import { settleBrowserAddressFocusCommand } from '../application/commands/settle-browser-address-focus.command';
+	import { switchBrowserProfileCommand } from '../application/commands/switch-browser-profile.command';
 	import { pickElementHook } from '../application/hooks/pick-element.hook';
 	import { watchBrowserResizesHook } from '../application/hooks/watch-browser-resizes.hook';
 	import { browserAddressFocusQuery } from '../application/queries/browser-address-focus.query.svelte';
+	import { browserDeckQuery } from '../application/queries/browser-deck.query.svelte';
 	import { browserPickingQuery } from '../application/queries/browser-picking.query.svelte';
+	import { browserProfilesQuery } from '../application/queries/browser-profiles.query.svelte';
 	import { browserSnapshotQuery } from '../application/queries/browser-snapshot.query.svelte';
 	import { browserStateQuery } from '../application/queries/browser-state.query.svelte';
+	import { browserTabsQuery } from '../application/queries/browser-tabs.query.svelte';
 	import { browserAddressLabel } from '../domain/browser-address';
 	import { browserTabKey } from '../domain/browser-tab';
 	import {
@@ -40,14 +47,17 @@
 		type OfferedVariants,
 		type VariantPage,
 	} from '../domain/variant-pages';
+	import BrowserProfileMenu from './BrowserProfileMenu.svelte';
 
 	interface Props {
 		workstreamId: string;
 		tabId: string;
 		offered: OfferedVariants;
+		inDeck?: boolean;
+		clip?: (() => DOMRect | null) | undefined;
 	}
 
-	let { workstreamId, tabId, offered }: Props = $props();
+	let { workstreamId, tabId, offered, inDeck = false, clip }: Props = $props();
 
 	const NO_VARIANTS: readonly (readonly OfferedVariant[])[] = [];
 
@@ -57,6 +67,14 @@
 	const picking = $derived(browserPickingQuery.data(tabKey));
 	const snapshot = $derived(browserSnapshotQuery.data(tabKey));
 	const wantsAddressFocus = $derived(browserAddressFocusQuery.data(tabKey));
+	const tabs = $derived(browserTabsQuery.data(workstreamId));
+	const profiles = $derived(browserProfilesQuery.data);
+	const deck = $derived(browserDeckQuery.data);
+	const profile = $derived(
+		tabs.find((entry) => entry.tabId === tabId)?.profile ?? DEFAULT_BROWSER_PROFILE,
+	);
+	const ownProfile = $derived(profile !== DEFAULT_BROWSER_PROFILE);
+	const showsProfile = $derived(!inDeck && (ownProfile || profiles.length > 1));
 	const url = $derived(browser?.url ?? '');
 	const shownUrl = $derived(browserAddressLabel(url));
 	const hasPage = $derived(url !== '');
@@ -85,6 +103,7 @@
 
 	onMount(() => {
 		loadBrowserStateCommand(tab);
+		loadBrowserProfilesCommand();
 		return () => {
 			if (picking) cancelElementPickCommand(tab);
 		};
@@ -99,9 +118,15 @@
 	}
 
 	function coverOf(rect: DOMRect): BrowserCover {
-		if (overlaySuppression.blockingDepth > 0) return 'covered';
+		if (overlaySuppression.blockingDepth > 0 || clipped(rect)) return 'covered';
 		const hole = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
 		return overlaySuppression.isSuppressed(hole) ? 'overlapped' : 'none';
+	}
+
+	function clipped(rect: DOMRect): boolean {
+		const bounds = clip?.();
+		if (!bounds) return false;
+		return rect.left < bounds.left - 1 || rect.right > bounds.right + 1;
 	}
 
 	function followViewport(element: HTMLElement): () => void {
@@ -192,7 +217,7 @@
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-col">
-	<div class="flex shrink-0 items-center gap-1 px-4 pt-0.5 pb-2">
+	<div class={['flex shrink-0 items-center gap-1', inDeck ? 'px-0.5 pb-1.5' : 'px-4 pt-0.5 pb-2']}>
 		<Tooltip content="Back" placement="top" class="shrink-0">
 			<IconButton
 				ariaLabel="Back"
@@ -226,6 +251,18 @@
 				<Icon name="refresh" size={14} />
 			</IconButton>
 		</Tooltip>
+		{#if showsProfile}
+			<BrowserProfileMenu
+				heading="Profile"
+				ariaLabel="Profile {profile}"
+				current={profile}
+				triggerClass="bg-chip border-chip-border hover:bg-chip-hover text-fg-secondary ml-1 flex h-6 max-w-32 min-w-0 shrink-0 cursor-pointer items-center gap-1 rounded-md border-[0.5px] px-1.5 text-xs"
+				onpick={(picked) => switchBrowserProfileCommand(tab, picked)}
+			>
+				<Icon name="user" size={12} class="shrink-0" />
+				<span class="truncate">{profile}</span>
+			</BrowserProfileMenu>
+		{/if}
 		<TextInput
 			type="url"
 			size="xs"
@@ -273,18 +310,34 @@
 				<Icon name="external-link" size={14} />
 			</IconButton>
 		</Tooltip>
+		<Tooltip content="Side by side" placement="top" class="shrink-0">
+			<IconButton
+				ariaLabel="Side by side"
+				variant={deck ? 'primary-soft' : 'ghost'}
+				size="md"
+				ariaPressed={deck}
+				onclick={() => setBrowserDeckCommand(workstreamId, !deck, tabId)}
+			>
+				<Icon name="columns" size={14} />
+			</IconButton>
+		</Tooltip>
 	</div>
 
 	<div
 		{@attach followViewport}
-		class="border-surface-100-border bg-surface-100 relative mx-2 mb-2 min-h-0 flex-1 basis-[100vh] overflow-hidden rounded-lg border-[0.5px]"
+		class={[
+			'border-surface-100-border bg-surface-100 relative min-h-0 flex-1 basis-[100vh] overflow-hidden rounded-lg border-[0.5px]',
+			!inDeck && 'mx-2 mb-2',
+		]}
 	>
 		{#if browser && !hasPage}
 			<div class="flex h-full flex-col items-center justify-center gap-3 px-6 py-8 text-center">
 				<Icon name="globe" size={40} class="text-fg-tertiary" />
 				<p class="text-fg-secondary text-sm">Open a page</p>
 				<p class="text-fg-tertiary text-2xs max-w-64">
-					Type a URL above, or ask the agent to open your dev server.
+					{ownProfile
+						? 'Type a URL above. This profile has its own cookies, so sign in once and it stays signed in.'
+						: 'Type a URL above, or ask the agent to open your dev server.'}
 				</p>
 			</div>
 		{:else if failure}
