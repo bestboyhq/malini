@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLButtonAttributes } from 'svelte/elements';
+	import { isEditableTarget } from '../modal/modal-behavior';
 	import { getMenuSurfaceContext, getMenuTreeContext } from './menu-tree.svelte';
 
 	type Variant = 'default' | 'danger';
@@ -53,8 +54,9 @@
 		if (event.defaultPrevented || focusOnHover === false || rest.disabled) return;
 		if (document.activeElement === event.currentTarget) return;
 		if (surface?.isInSafeArea(event.clientX, event.clientY)) return;
-		event.currentTarget.focus({ preventScroll: true });
 		surface?.closeAllChildren();
+		if (isEditableTarget(document.activeElement)) return;
+		event.currentTarget.focus({ preventScroll: true });
 	}
 </script>
 
