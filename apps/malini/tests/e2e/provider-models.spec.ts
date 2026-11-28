@@ -477,11 +477,12 @@ test('typing in the picker finds an earlier Claude version, and a run uses it', 
 		await expect(earlier).toHaveCount(0);
 
 		const filter = page.getByRole('textbox', { name: 'Find models' });
+		await expect(filter).toBeFocused();
 		const box = await firstRow.boundingBox();
 		if (!box) throw new Error('The first model row has no box');
-		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-		await filter.focus();
-		await filter.fill('4.5');
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+		await expect(filter).toBeFocused();
+		await page.keyboard.type('4.5');
 		await expect(models.getByTestId('chat-model-option')).toHaveCount(0);
 		await filter.fill('');
 		await expect.poll(() => firstRow.evaluate((row) => row.matches(':hover'))).toBe(true);
