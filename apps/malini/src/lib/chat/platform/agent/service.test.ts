@@ -534,6 +534,83 @@ describe('browser requests from the agent', () => {
 			error: expect.stringContaining('internet off'),
 		});
 	});
+
+	it('gives a chat one tab per browser profile and refuses a profile it cannot name', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		const calls: string[] = [];
+		const unused = async (): Promise<never> => {
+			throw new Error('The browser must not be used.');
+		};
+		const browser: BrowserAutomation = {
+			open: async ({ tabId }, url, profile) => {
+				calls.push(`open ${tabId} ${url} ${profile}`);
+				return { url, title: 'Reddit' };
+			},
+			readPage: async ({ tabId }) => {
+				calls.push(`snapshot ${tabId}`);
+				return 'Page "Reddit"';
+			},
+			screenshot: unused,
+			click: unused,
+			hover: unused,
+			type: unused,
+			press: unused,
+			scroll: unused,
+			wait: unused,
+			evaluate: unused,
+			consoleLines: unused,
+			goBack: unused,
+			goForward: unused,
+			reload: unused,
+			resize: unused,
+			upload: unused,
+			answerDialog: unused,
+			close: unused,
+		};
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			browser,
+			log: () => {},
+		});
+
+		bridge.send(
+			browserRequest('req-1', {
+				action: 'open',
+				url: 'https://www.reddit.com/',
+				profile: 'Reddit Cats',
+			}),
+		);
+		bridge.send(browserRequest('req-2', { action: 'snapshot', profile: 'reddit-cats' }));
+		bridge.send(browserRequest('req-3', { action: 'open', url: 'https://www.reddit.com/' }));
+		bridge.send(browserRequest('req-4', { action: 'snapshot', profile: '!!!' }));
+
+		const results = (): Array<Record<string, unknown>> =>
+			bridge.received.filter((command) => command['cmd'] === 'browser_result');
+		await waitFor(() => results().length === 4, 5_000, 'four browser results');
+		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
+			results().find((command) => command['requestId'] === requestId);
+
+		expect(calls).toEqual([
+			'open chat-sess-1@reddit-cats https://www.reddit.com/ reddit-cats',
+			'snapshot chat-sess-1@reddit-cats',
+			'open chat-sess-1 https://www.reddit.com/ default',
+		]);
+		expect(answerTo('req-1')).toMatchObject({
+			ok: true,
+			text: 'Opened https://www.reddit.com/ ("Reddit") in browser profile reddit-cats. Call browser_screenshot to see it.',
+		});
+		expect(answerTo('req-4')).toMatchObject({
+			ok: false,
+			error:
+				'`!!!` is no browser profile name. Name it in letters, digits and dashes, for example reddit-cats.',
+		});
+	});
 });
 
 function platformRequest(requestId: string, tool: string, input: Record<string, unknown>) {

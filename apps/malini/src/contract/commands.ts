@@ -503,7 +503,7 @@ export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: str
 export interface ContractCommands {
 	'browser.show': { args: BrowserShowArgs; result: void };
 	'browser.hide': { args: BrowserTabArgs; result: void };
-	'browser.cover': { args: BrowserTabArgs; result: string | null };
+	'browser.cover': { args: BrowserShowArgs; result: string | null };
 	'browser.navigate': { args: BrowserNavigateArgs; result: void };
 	'browser.go-back': { args: BrowserTabArgs; result: void };
 	'browser.go-forward': { args: BrowserTabArgs; result: void };
@@ -514,6 +514,7 @@ export interface ContractCommands {
 	'browser.cancel-pick': { args: BrowserTabArgs; result: void };
 	'browser.close': { args: BrowserTabArgs; result: void };
 	'browser.resized': { args: BrowserResizedArgs; result: void };
+	'browser.profiles': { args: undefined; result: readonly string[] };
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
 	'providers.install-claude-code': { args: undefined; result: void };
@@ -942,6 +943,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.cancel-pick',
 	'browser.close',
 	'browser.resized',
+	'browser.profiles',
 	'app.copy-text',
 	'app.copy-image',
 	'chat.activate-session',

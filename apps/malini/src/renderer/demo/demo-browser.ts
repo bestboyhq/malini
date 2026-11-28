@@ -1,9 +1,10 @@
-import type {
-	BrowserBounds,
-	BrowserPickArgs,
-	BrowserState,
-	BrowserTabArgs,
-	BrowserThreadStarted,
+import {
+	DEFAULT_BROWSER_PROFILE,
+	type BrowserBounds,
+	type BrowserPickArgs,
+	type BrowserState,
+	type BrowserTabArgs,
+	type BrowserThreadStarted,
 } from '$contract/browser';
 import type { DemoEmit, DemoHandlers } from './demo-bridge';
 import { startThread } from './demo-live';
@@ -426,7 +427,7 @@ export function openPage(emit: DemoEmit, workstreamId: string, url: string): voi
 	const tab = { workstreamId, tabId: `tab-${workstreamId}` };
 	const state: BrowserState = { ...blank(tab), url, title: 'Tony' };
 	states.set(keyOf(tab), state);
-	emit('browser:tab-opened', tab);
+	emit('browser:tab-opened', { ...tab, profile: DEFAULT_BROWSER_PROFILE });
 	emit('browser:state-changed', state);
 }
 
@@ -459,7 +460,8 @@ export const browserHandlers = (emit: DemoEmit): DemoHandlers => {
 	};
 	return {
 		'browser.state': (tab) => states.get(keyOf(tab)) ?? blank(tab),
-		'browser.navigate': ({ url, ...tab }) => {
+		'browser.navigate': ({ workstreamId, tabId, url }) => {
+			const tab = { workstreamId, tabId };
 			const state: BrowserState = { ...blank(tab), url, title: 'Tony' };
 			states.set(keyOf(tab), state);
 			emit('browser:state-changed', state);
@@ -476,6 +478,7 @@ export const browserHandlers = (emit: DemoEmit): DemoHandlers => {
 			return null;
 		},
 		'browser.snapshot': () => null,
+		'browser.profiles': () => [],
 		'browser.reload': () => undefined,
 		'browser.go-back': () => undefined,
 		'browser.go-forward': () => undefined,

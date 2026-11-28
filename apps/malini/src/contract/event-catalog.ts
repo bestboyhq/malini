@@ -528,8 +528,8 @@ export const EVENT_CATALOG: { readonly [C in EventChannel]: EventCatalogEntry<C>
 	},
 	'browser:tab-opened': {
 		description:
-			'Fires when a new browser tab opens in a workstream, for example when an agent opens a page.',
-		facts: ['workstreamId', 'tabId'],
+			'Fires when a new browser tab opens in a workstream, for example when an agent opens a page, with the browser profile whose cookies and sign-ins it uses.',
+		facts: ['workstreamId', 'tabId', 'profile'],
 	},
 	'browser:tab-closed': {
 		description:

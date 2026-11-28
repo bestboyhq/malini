@@ -1,12 +1,14 @@
 import type { AgentRunProfile } from '$contract/agent';
-import type {
-	BrowserBounds,
-	BrowserElementPrompt,
-	BrowserPickArgs,
-	BrowserResizeRequest,
-	BrowserState,
-	BrowserTabArgs,
-	BrowserThreadStarted,
+import {
+	DEFAULT_BROWSER_PROFILE,
+	type BrowserBounds,
+	type BrowserElementPrompt,
+	type BrowserPickArgs,
+	type BrowserResizeRequest,
+	type BrowserState,
+	type BrowserTabArgs,
+	type BrowserTabOpened,
+	type BrowserThreadStarted,
 } from '$contract/browser';
 import {
 	BrowserDialogOpen,
@@ -80,13 +82,14 @@ const PICK_WITHOUT_PAGE = 'Open a page before picking an element.';
 export interface BrowserViewsDeps<W extends HostWindow> {
 	getMainWindow(): W | null;
 	onScreen(window: W): boolean;
-	createView(events: PageEvents): PageView<W>;
+	createView(events: PageEvents, profile: string): PageView<W>;
+	profileUsed(profile: string): void;
 	imageFromPng(png: Buffer): PageImage;
 	watchRendererReset(window: W, reset: () => void): void;
 	workstreamExists(workstreamId: string): boolean;
 	worktree(workstreamId: string): string;
 	stateChanged(state: BrowserState): void;
-	tabOpened(tab: BrowserTabArgs): void;
+	tabOpened(tab: BrowserTabOpened): void;
 	tabClosed(tab: BrowserTabArgs): void;
 	resizeRequested(request: BrowserResizeRequest): void;
 	threads(workstreamId: string): readonly ThreadPin[];
@@ -105,6 +108,7 @@ interface OpenPick {
 
 interface Entry<W extends HostWindow> {
 	readonly tab: BrowserTabArgs;
+	readonly profile: string;
 	readonly view: PageView<W>;
 	favicon: string | null;
 	window: W | null;
@@ -157,9 +161,9 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		entry.view.placeIn(entry.window, 'back');
 	}
 
-	navigate(tab: BrowserTabArgs, url: string): void {
+	navigate(tab: BrowserTabArgs, url: string, profile?: string): void {
 		const address = this.address(tab, url);
-		this.load(this.ensure(tab), address);
+		this.load(this.ensure(tab, profile), address);
 	}
 
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
@@ -225,7 +229,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return image && `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
 	}
 
-	cover(tab: BrowserTabArgs): Promise<string | null> {
+	cover(tab: BrowserTabArgs, bounds: BrowserBounds): Promise<string | null> {
+		const entry = this.entries.get(tabKey(tab));
+		if (entry?.window && !entry.window.isDestroyed() && !entry.shown) {
+			entry.bounds = toDip(bounds, entry.window.webContents.getZoomFactor());
+			entry.view.setBounds(entry.bounds);
+		}
 		const snapshot = this.snapshot(tab);
 		this.hide(tab);
 		return snapshot;
@@ -281,14 +290,15 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		}
 	}
 
-	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo> {
+	open(tab: BrowserTabArgs, url: string, profile?: string): Promise<BrowserPageInfo> {
 		return this.agentTurn(tab, async () => {
 			const address = this.address(tab, url);
 			const fresh = this.openContents(tab) === null;
-			const { contents } = this.ensure(tab).view;
+			const entry = this.ensure(tab, profile);
+			const { contents } = entry.view;
 			contents.setBackgroundThrottling(false);
 			const opening = openUrl(contents, address);
-			if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
+			if (fresh) this.deps.tabOpened({ ...entry.tab, profile: entry.profile });
 			await opening;
 			return pageInfo(contents);
 		});
@@ -607,83 +617,90 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return contents.getURL().length > 0 ? contents : null;
 	}
 
-	private ensure(tab: BrowserTabArgs): Entry<W> {
+	private ensure(tab: BrowserTabArgs, profile?: string): Entry<W> {
 		const existing = this.entries.get(tabKey(tab));
+		const wanted = profile ?? existing?.profile ?? DEFAULT_BROWSER_PROFILE;
 		const entry =
-			existing?.alive && !existing.view.contents.isDestroyed()
+			existing?.alive && !existing.view.contents.isDestroyed() && existing.profile === wanted
 				? existing
-				: this.create(tab, existing);
+				: this.create(tab, existing, wanted);
 		this.attach(entry);
 		return entry;
 	}
 
-	private create(tab: BrowserTabArgs, previous: Entry<W> | undefined): Entry<W> {
+	private create(tab: BrowserTabArgs, previous: Entry<W> | undefined, profile: string): Entry<W> {
 		if (!this.deps.workstreamExists(tab.workstreamId)) {
 			throw new WorkstreamError('unknown', `${UNKNOWN_WORKSTREAM}: ${tab.workstreamId}`);
 		}
 		if (previous) this.dispose(previous);
+		this.deps.profileUsed(profile);
+		const keepsPage = previous?.profile === profile;
 		const entry: Entry<W> = {
 			tab: { workstreamId: tab.workstreamId, tabId: tab.tabId },
+			profile,
 			favicon: null,
-			view: this.deps.createView({
-				changed: () => this.changed(entry),
-				favicon: (favicon) => {
-					entry.favicon = favicon;
-					this.changed(entry);
+			view: this.deps.createView(
+				{
+					changed: () => this.changed(entry),
+					favicon: (favicon) => {
+						entry.favicon = favicon;
+						this.changed(entry);
+					},
+					navigating: (url) => {
+						entry.pending = url;
+						entry.pick?.controller.abort();
+						this.stopPins(entry);
+						this.changed(entry);
+					},
+					ready: () => this.showPins(entry),
+					movedInPage: () => this.showPins(entry),
+					committed: () => {
+						entry.failure = null;
+						entry.pending = null;
+						entry.consoleLines = [];
+						entry.consoleDropped = 0;
+					},
+					console: (line) => {
+						const text =
+							line.text.length > MAX_CONSOLE_TEXT
+								? `${line.text.slice(0, MAX_CONSOLE_TEXT)}…`
+								: line.text;
+						entry.consoleLines.push({ ...line, text });
+						if (entry.consoleLines.length <= MAX_CONSOLE_LINES) return;
+						entry.consoleLines.shift();
+						entry.consoleDropped += 1;
+					},
+					failed: (reason) => {
+						entry.failure = reason;
+						entry.pending = null;
+						this.changed(entry);
+					},
+					dialog: (dialog) => {
+						const key = tabKey(entry.tab);
+						if (!this.acting.has(key) && this.userSees(entry)) {
+							dialog.showToUser();
+							return;
+						}
+						entry.dialog = dialog;
+						for (const wake of this.dialogWaiters.get(key) ?? []) wake(plain(dialog));
+					},
+					dialogsClosed: () => {
+						entry.dialog = null;
+					},
+					leaving: () => this.acting.has(tabKey(entry.tab)),
+					gone: () => {
+						entry.alive = false;
+						entry.pick?.controller.abort();
+						this.stopPins(entry);
+					},
 				},
-				navigating: (url) => {
-					entry.pending = url;
-					entry.pick?.controller.abort();
-					this.stopPins(entry);
-					this.changed(entry);
-				},
-				ready: () => this.showPins(entry),
-				movedInPage: () => this.showPins(entry),
-				committed: () => {
-					entry.failure = null;
-					entry.pending = null;
-					entry.consoleLines = [];
-					entry.consoleDropped = 0;
-				},
-				console: (line) => {
-					const text =
-						line.text.length > MAX_CONSOLE_TEXT
-							? `${line.text.slice(0, MAX_CONSOLE_TEXT)}…`
-							: line.text;
-					entry.consoleLines.push({ ...line, text });
-					if (entry.consoleLines.length <= MAX_CONSOLE_LINES) return;
-					entry.consoleLines.shift();
-					entry.consoleDropped += 1;
-				},
-				failed: (reason) => {
-					entry.failure = reason;
-					entry.pending = null;
-					this.changed(entry);
-				},
-				dialog: (dialog) => {
-					const key = tabKey(entry.tab);
-					if (!this.acting.has(key) && this.userSees(entry)) {
-						dialog.showToUser();
-						return;
-					}
-					entry.dialog = dialog;
-					for (const wake of this.dialogWaiters.get(key) ?? []) wake(plain(dialog));
-				},
-				dialogsClosed: () => {
-					entry.dialog = null;
-				},
-				leaving: () => this.acting.has(tabKey(entry.tab)),
-				gone: () => {
-					entry.alive = false;
-					entry.pick?.controller.abort();
-					this.stopPins(entry);
-				},
-			}),
+				profile,
+			),
 			window: null,
 			alive: true,
 			shown: false,
 			bounds: previous?.bounds ?? { x: 0, y: 0, ...DEFAULT_VIEW_SIZE },
-			lastUrl: previous?.lastUrl ?? '',
+			lastUrl: keepsPage ? previous.lastUrl : '',
 			failure: null,
 			pending: null,
 			pick: null,

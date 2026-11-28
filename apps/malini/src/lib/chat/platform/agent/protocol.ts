@@ -508,6 +508,7 @@ export type BridgeBrowserRequest = {
 	protocolVersion: number;
 	requestId: string;
 	sessionId: string;
+	profile?: string;
 } & BrowserRequestAction;
 
 export type Decoded<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -1230,7 +1231,13 @@ function decodeBrowserRequest(
 	if (requestId.length === 0 || sessionId.length === 0) {
 		return { ok: false, error: `${type}: \`requestId\` and \`sessionId\` must not be empty` };
 	}
-	const base = { type, protocolVersion: f.number('protocolVersion'), requestId, sessionId };
+	const base = {
+		type,
+		protocolVersion: f.number('protocolVersion'),
+		requestId,
+		sessionId,
+		...optional('profile', f.optionalString('profile')),
+	};
 	const action = f.string('action');
 	switch (action) {
 		case 'open':

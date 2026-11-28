@@ -17,7 +17,7 @@ function closeBrowserTabCommand(tab: BrowserTabArgs): void {
 	loadBrowserTabsCommand(tab.workstreamId);
 	const remaining = browserTabsAggregate
 		.tabsOf(tab.workstreamId)
-		.filter((tabId) => tabId !== tab.tabId);
+		.filter(({ tabId }) => tabId !== tab.tabId);
 	browserTabsAggregate.set(tab.workstreamId, remaining);
 	saveBrowserTabs(tab.workstreamId, remaining);
 	void (async () => {

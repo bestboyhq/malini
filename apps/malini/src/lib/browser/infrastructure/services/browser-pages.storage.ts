@@ -1,7 +1,14 @@
-import { BROWSER_WORKTREE_SCHEME, type BrowserTabArgs } from '$contract/browser';
+import {
+	BROWSER_WORKTREE_SCHEME,
+	DEFAULT_BROWSER_PROFILE,
+	browserProfileName,
+	type BrowserTabArgs,
+} from '$contract/browser';
+import type { BrowserTab } from '../../domain/browser-tab';
 
 const LAST_PAGE_PREFIX = 'malini.browser.last-page:v2:';
 const TABS_PREFIX = 'malini.browser.tabs:v1:';
+const DECK_KEY = 'malini.browser.deck:v1';
 const WEB_PAGE = new RegExp(`^(?:https?|${BROWSER_WORKTREE_SCHEME}):\\/\\/`, 'u');
 
 type PageStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -41,12 +48,10 @@ export function forgetBrowserPage(
 export function readBrowserTabs(
 	workstreamId: string,
 	storage: PageStorage | null = browserStorage(),
-): readonly string[] {
+): readonly BrowserTab[] {
 	try {
 		const value: unknown = JSON.parse(storage?.getItem(`${TABS_PREFIX}${workstreamId}`) ?? '[]');
-		return Array.isArray(value)
-			? value.filter((tabId): tabId is string => typeof tabId === 'string')
-			: [];
+		return Array.isArray(value) ? value.flatMap(storedTab) : [];
 	} catch {
 		return [];
 	}
@@ -54,13 +59,38 @@ export function readBrowserTabs(
 
 export function saveBrowserTabs(
 	workstreamId: string,
-	tabIds: readonly string[],
+	tabs: readonly BrowserTab[],
 	storage: PageStorage | null = browserStorage(),
 ): void {
 	try {
-		if (tabIds.length === 0) storage?.removeItem(`${TABS_PREFIX}${workstreamId}`);
-		else storage?.setItem(`${TABS_PREFIX}${workstreamId}`, JSON.stringify(tabIds));
+		if (tabs.length === 0) storage?.removeItem(`${TABS_PREFIX}${workstreamId}`);
+		else storage?.setItem(`${TABS_PREFIX}${workstreamId}`, JSON.stringify(tabs));
 	} catch {}
+}
+
+export function readBrowserDeck(storage: PageStorage | null = browserStorage()): boolean {
+	try {
+		return storage?.getItem(DECK_KEY) === 'on';
+	} catch {
+		return false;
+	}
+}
+
+export function saveBrowserDeck(on: boolean, storage: PageStorage | null = browserStorage()): void {
+	try {
+		if (on) storage?.setItem(DECK_KEY, 'on');
+		else storage?.removeItem(DECK_KEY);
+	} catch {}
+}
+
+function storedTab(value: unknown): BrowserTab[] {
+	if (typeof value === 'string') return [{ tabId: value, profile: DEFAULT_BROWSER_PROFILE }];
+	if (typeof value !== 'object' || value === null) return [];
+	if (!('tabId' in value) || !('profile' in value)) return [];
+	const { tabId, profile } = value;
+	if (typeof tabId !== 'string' || typeof profile !== 'string') return [];
+	const name = browserProfileName(profile);
+	return name === null ? [] : [{ tabId, profile: name }];
 }
 
 function pageKey(tab: BrowserTabArgs): string {

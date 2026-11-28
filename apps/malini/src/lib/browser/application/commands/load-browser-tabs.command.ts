@@ -9,9 +9,9 @@ export { loadBrowserTabsCommand };
 
 function loadBrowserTabsCommand(workstreamId: string): void {
 	if (!workstreamId || browserTabsAggregate.has(workstreamId)) return;
-	const tabIds = readBrowserTabs(workstreamId);
-	browserTabsAggregate.set(workstreamId, tabIds);
-	for (const tabId of tabIds) {
+	const tabs = readBrowserTabs(workstreamId);
+	browserTabsAggregate.set(workstreamId, tabs);
+	for (const { tabId } of tabs) {
 		const tab = { workstreamId, tabId };
 		const url = readLastBrowserPage(tab);
 		if (!url) continue;

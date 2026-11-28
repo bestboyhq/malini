@@ -2130,6 +2130,12 @@ CREATE TABLE widget_connections (
   connected_at TEXT NOT NULL
 );
 `,
+	`
+CREATE TABLE browser_profiles (
+  name TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

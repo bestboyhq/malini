@@ -6,22 +6,46 @@ import {
 	type Session,
 	type WebContents,
 } from 'electron';
+import { DEFAULT_BROWSER_PROFILE } from '$contract/browser';
 import { rememberMediaAnswers } from './media-permission';
 import { MALINI_WORLD_ID, type PageEvents, type PageView } from './page';
 import { isAllowedNavigation } from './url';
 import { chromeUserAgent, googleSignInUserAgent } from './user-agent';
 
-export const BROWSER_PARTITION = 'persist:malini-browser';
+const DEFAULT_PARTITION = 'persist:malini-browser';
 const GOOGLE_SIGN_IN_PAGES = 'https://accounts.google.com/*';
 const MAX_FAVICON_BYTES = 64 * 1024;
 const ERR_ABORTED = -3;
 const ERROR_PAGE_FOLLOWS_THEME =
 	"if (location.protocol === 'chrome-error:') document.documentElement.style.colorScheme = 'light dark';";
 
-export function createElectronView(events: PageEvents): PageView<BrowserWindow> {
+export function browserPartition(profile: string): string {
+	return profile === DEFAULT_BROWSER_PROFILE
+		? DEFAULT_PARTITION
+		: `${DEFAULT_PARTITION}-profile-${profile}`;
+}
+
+export function browserSessions(
+	prepare: (partition: Session) => void,
+): (profile: string) => Session {
+	const prepared = new Set<string>();
+	return (profile) => {
+		const name = browserPartition(profile);
+		const partition = session.fromPartition(name);
+		if (prepared.has(name)) return partition;
+		prepared.add(name);
+		prepare(partition);
+		return partition;
+	};
+}
+
+export function createElectronView(
+	events: PageEvents,
+	partition: Session,
+): PageView<BrowserWindow> {
 	const view = new WebContentsView({
 		webPreferences: {
-			partition: BROWSER_PARTITION,
+			session: partition,
 			sandbox: true,
 			contextIsolation: true,
 			nodeIntegration: false,
@@ -161,8 +185,7 @@ async function faviconDataUrl(partition: Session, url: string | undefined): Prom
 	}
 }
 
-export function browseAsChrome(): void {
-	const partition = session.fromPartition(BROWSER_PARTITION);
+export function browseAsChrome(partition: Session): void {
 	const userAgent = chromeUserAgent(partition.getUserAgent());
 	const signInUserAgent = googleSignInUserAgent(userAgent);
 	partition.setUserAgent(userAgent);
@@ -173,7 +196,9 @@ export function browseAsChrome(): void {
 	);
 }
 
-export function answerPermissionRequests(getWindow: () => BrowserWindow | null): void {
+export function answerPermissionRequests(
+	getWindow: () => BrowserWindow | null,
+): (partition: Session) => void {
 	const media = rememberMediaAnswers(async (question) => {
 		const window = getWindow();
 		const { response } = await (window
@@ -181,21 +206,22 @@ export function answerPermissionRequests(getWindow: () => BrowserWindow | null):
 			: dialog.showMessageBox(question));
 		return response !== question.cancelId;
 	});
-	const partition = session.fromPartition(BROWSER_PARTITION);
-	partition.setPermissionRequestHandler(async (_contents, permission, callback, details) => {
-		callback(
-			permission === 'pointerLock' ||
-				(permission === 'media' &&
-					'mediaTypes' in details &&
-					(await media.request(
-						details.securityOrigin ?? details.requestingUrl,
-						details.mediaTypes ?? [],
-					))),
+	return (partition) => {
+		partition.setPermissionRequestHandler(async (_contents, permission, callback, details) => {
+			callback(
+				permission === 'pointerLock' ||
+					(permission === 'media' &&
+						'mediaTypes' in details &&
+						(await media.request(
+							details.securityOrigin ?? details.requestingUrl,
+							details.mediaTypes ?? [],
+						))),
+			);
+		});
+		partition.setPermissionCheckHandler(
+			(_contents, permission, requestingOrigin, details) =>
+				permission === 'media' &&
+				media.allowed(details.securityOrigin ?? requestingOrigin, details.mediaType),
 		);
-	});
-	partition.setPermissionCheckHandler(
-		(_contents, permission, requestingOrigin, details) =>
-			permission === 'media' &&
-			media.allowed(details.securityOrigin ?? requestingOrigin, details.mediaType),
-	);
+	};
 }
